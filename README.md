@@ -34,4 +34,4 @@ market-dashboard/
 - yfinance
 - matplotlib
 
-[![Live Demo](https://market-dashboardgit-p4ehquxxrncud3gzyvhbeq.streamlit.app)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Streamlit-red)](https://market-dashboardgit-p4ehquxxrncud3gzyvhbeq.streamlit.app)
