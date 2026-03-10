@@ -16,27 +16,14 @@ st.markdown("Build and track your stock portfolio in real time.")
 # --- Session State ---
 if "portfolio" not in st.session_state:
     st.session_state.portfolio = {}
-    
-    # --- Export / Import Portfolio ---
-    st.subheader("Save & Restore Portfolio")
-    col_export, col_import = st.columns(2)
 
-    with col_export:
-        portfolio_json = pd.Series(st.session_state.portfolio).to_json()
-        st.download_button(
-            label="Export Portfolio",
-            data=portfolio_json,
-            file_name="portfolio.json",
-            mime="application/json"
-        )
-
-    with col_import:
-        uploaded_file = st.file_uploader("Import Portfolio", type="json")
-        if uploaded_file is not None:
-            imported = pd.read_json(uploaded_file, typ="series").to_dict()
-            st.session_state.portfolio = imported
-            st.success("Portfolio imported successfully.")
-            st.rerun()
+# --- Import Portfolio ---
+uploaded_file = st.file_uploader("Import Portfolio", type="json")
+if uploaded_file is not None:
+    imported = pd.read_json(uploaded_file, typ="series").to_dict()
+    st.session_state.portfolio = imported
+    st.success("Portfolio imported successfully.")
+    st.rerun()
 
 # --- Stock List ---
 stock_options = {
@@ -74,7 +61,8 @@ with col3:
             value=None,
             min_value=pd.Timestamp("1980-01-01").date(),
             max_value=pd.Timestamp.today().date()
-)
+        )
+        buy_price_input = None
 with col4:
     st.markdown("<div style='margin-top: 36px;'>", unsafe_allow_html=True)
     manual_price = st.checkbox("Enter price manually", key="manual_price_toggle")
@@ -177,6 +165,15 @@ if st.session_state.portfolio:
 
     st.dataframe(df.set_index("Ticker"), use_container_width=True)
 
+    # --- Export Portfolio ---
+    portfolio_json = pd.Series(st.session_state.portfolio).to_json()
+    st.download_button(
+        label="Export Portfolio",
+        data=portfolio_json,
+        file_name="portfolio.json",
+        mime="application/json"
+    )
+
     # --- Portfolio Weights Pie Chart ---
     fig = px.pie(df, values="Total Value", names="Ticker", title="Portfolio Allocation")
     fig.update_traces(textposition="inside", textinfo="percent+label")
@@ -211,7 +208,6 @@ if st.session_state.portfolio:
         hist = yf.Ticker(t).history(period="max")
         hist.index = hist.index.tz_localize(None)
 
-        # Use earliest purchase date for default view
         dates = [lot["purchase_date"] for lot in lots if lot["purchase_date"]]
         if dates:
             earliest = min(pd.Timestamp(d) for d in dates)
@@ -226,7 +222,6 @@ if st.session_state.portfolio:
             xaxis_range=[str(default_from.date()), str(date_to)]
         )
 
-        # Add a line per lot
         for i, lot in enumerate(lots):
             fig.add_hline(
                 y=lot["buy_price"],
