@@ -2,7 +2,14 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import plotly.express as px
-from src.stocks import get_sp500_stocks
+from src.stocks import get_sp500_stocks, get_european_stocks, get_etfs
+
+# --- Stock List ---
+stock_options = {
+    **get_sp500_stocks(),
+    **get_european_stocks(),
+    **get_etfs()
+}
 
 # --- Page Config ---
 st.set_page_config(page_title="Market Dashboard", layout="wide")
