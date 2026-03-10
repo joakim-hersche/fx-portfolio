@@ -75,4 +75,13 @@ def get_etfs():
         "S&P 500 ETF (SPY)": "SPY",
         "Nasdaq 100 ETF (QQQ)": "QQQ",
         "Total Market ETF (VTI)": "VTI",
-        "Growth ETF (VUG)": "VUG"
+        "Growth ETF (VUG)": "VUG",
+        "Dividend ETF (VYM)": "VYM",
+        # European ETFs
+        "iShares Core MSCI Europe (IMAE.AS)": "IMAE.AS",
+        "Vanguard FTSE Europe (VGK)": "VGK",
+        "iShares STOXX Europe 600 (EXSA.DE)": "EXSA.DE",
+        # Global ETFs
+        "iShares MSCI World (IWDA.AS)": "IWDA.AS",
+        "Vanguard Total World (VT)": "VT",
+    }
