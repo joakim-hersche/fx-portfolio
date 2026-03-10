@@ -17,13 +17,20 @@ st.markdown("Build and track your stock portfolio in real time.")
 if "portfolio" not in st.session_state:
     st.session_state.portfolio = {}
 
+if "imported" not in st.session_state:
+    st.session_state.imported = False
+
 # --- Import Portfolio ---
 uploaded_file = st.file_uploader("Import Portfolio", type="json")
-if uploaded_file is not None:
+if uploaded_file is not None and not st.session_state.imported:
     imported = pd.read_json(uploaded_file, typ="series").to_dict()
     st.session_state.portfolio = imported
+    st.session_state.imported = True
     st.success("Portfolio imported successfully.")
     st.rerun()
+
+if uploaded_file is None:
+    st.session_state.imported = False
 
 # --- Stock List ---
 stock_options = {
