@@ -6,7 +6,7 @@ import plotly.express as px
 from src.stocks import (
     get_sp500_stocks, get_ftse100_stocks, get_dax_stocks,
     get_cac40_stocks, get_smi_stocks, get_aex_stocks,
-    get_ibex_stocks, get_etfs
+    get_ibex_stocks, get_etfs, TICKER_COLORS
 )
 from src.fx import get_ticker_currency, get_fx_rate, CURRENCY_SYMBOLS
 from src.portfolio import build_portfolio_df, fetch_buy_price
@@ -353,11 +353,16 @@ st.divider()
 
 # --- Portfolio Allocation ---
 st.subheader("Portfolio Allocation")
+unique_tickers = list(dict.fromkeys(df["Ticker"]))
+pie_colors = [
+    TICKER_COLORS.get(t, CHART_COLORS[i % len(CHART_COLORS)])
+    for i, t in enumerate(unique_tickers)
+]
 fig_pie = px.pie(
     df,
     values="Total Value",
     names="Ticker",
-    color_discrete_sequence=CHART_COLORS,
+    color_discrete_sequence=pie_colors,
 )
 fig_pie.update_traces(textposition="inside", textinfo="percent+label")
 fig_pie.update_layout(showlegend=True)
@@ -393,7 +398,7 @@ comparison_df = pd.DataFrame(comparison_data).dropna()
 comparison_df = comparison_df / comparison_df.iloc[0] * 100
 
 color_map = {
-    t: CHART_COLORS[i % len(CHART_COLORS)]
+    t: TICKER_COLORS.get(t, CHART_COLORS[i % len(CHART_COLORS)])
     for i, t in enumerate(comparison_df.columns)
 }
 title_suffix = f"({base_currency}-adjusted)" if fx_adjust_comparison else "(native currencies)"
@@ -455,7 +460,7 @@ for idx, (t, lots) in enumerate(st.session_state.portfolio.items()):
         if dates else pd.Timestamp.today() - pd.DateOffset(months=6)
     )
 
-    line_color = CHART_COLORS[idx % len(CHART_COLORS)]
+    line_color = TICKER_COLORS.get(t, CHART_COLORS[idx % len(CHART_COLORS)])
     title_suffix = f"({base_currency}-adjusted)" if fx_adjust_history else f"({ticker_currency})"
     with st.expander(f"{t} — Price History {title_suffix}", expanded=False):
         fig_hist = px.line(

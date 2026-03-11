@@ -89,3 +89,61 @@ def get_etfs():
         "iShares MSCI World (IWDA.AS)": "IWDA.AS",
         "Vanguard Total World (VT)": "VT",
     }
+
+
+TICKER_COLORS = {
+    # US Tech
+    "AAPL":   "#555555",  # Apple space grey
+    "MSFT":   "#00a4ef",  # Microsoft blue
+    "GOOGL":  "#4285f4",  # Google blue
+    "GOOG":   "#4285f4",
+    "AMZN":   "#ff9900",  # Amazon orange
+    "META":   "#0866ff",  # Meta blue
+    "NVDA":   "#76b900",  # NVIDIA green
+    "TSLA":   "#e31937",  # Tesla red
+    "NFLX":   "#e50914",  # Netflix red
+    "AMD":    "#ed1c24",  # AMD red
+    "INTC":   "#0071c5",  # Intel blue
+    "ORCL":   "#f80000",  # Oracle red
+    "CRM":    "#00a1e0",  # Salesforce blue
+    "ADBE":   "#ff0000",  # Adobe red
+    # US Finance
+    "JPM":    "#005eb8",  # JPMorgan blue
+    "GS":     "#7399c6",  # Goldman blue
+    "BAC":    "#e31837",  # BofA red
+    "V":      "#1a1f71",  # Visa navy
+    "MA":     "#eb001b",  # Mastercard red
+    # US Consumer / Other
+    "WMT":    "#0071ce",  # Walmart blue
+    "KO":     "#f40000",  # Coca-Cola red
+    "PEP":    "#004b93",  # Pepsi blue
+    "MCD":    "#ffbc0d",  # McDonald's yellow
+    "NKE":    "#f85c00",  # Nike orange
+    "DIS":    "#113ccf",  # Disney blue
+    # ETFs
+    "SPY":    "#c0392b",
+    "QQQ":    "#2980b9",
+    "VTI":    "#27ae60",
+    "VUG":    "#16a085",
+    "VYM":    "#8e44ad",
+    "VT":     "#2c3e50",
+    "VGK":    "#2471a3",
+    # UK
+    "HSBA.L": "#db0011",  # HSBC red
+    "BP.L":   "#009900",  # BP green
+    "GSK.L":  "#f36633",  # GSK orange
+    "AZN.L":  "#003865",  # AstraZeneca navy
+    "SHEL.L": "#fbce07",  # Shell yellow
+    "LLOY.L": "#024731",  # Lloyds green
+    "BARC.L": "#00aeef",  # Barclays blue
+    # Switzerland
+    "UBSG.SW":  "#e30613",  # UBS red
+    # Europe
+    "SAP.DE":   "#0faaff",  # SAP blue
+    "VOW3.DE":  "#001e50",  # VW navy
+    "BMW.DE":   "#1c69d3",  # BMW blue
+    "ASML.AS":  "#009ee2",  # ASML blue
+    "NESN.SW":  "#e2001a",  # Nestlé red
+    "NOVN.SW":  "#0460a9",  # Novartis blue
+    "ROG.SW":   "#009fe3",  # Roche blue
+}
