@@ -9,3 +9,6 @@ __pycache__/
 # Data (avoid committing personal financial data)
 data/*.csv
 data/*.xlsx
+
+# macOS
+.DS_Store
