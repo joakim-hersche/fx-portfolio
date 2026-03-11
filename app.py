@@ -334,6 +334,7 @@ styled = (
         "Buy Price":     lambda x: f"{currency_symbol}{x:,.2f}",
         "Current Price": lambda x: f"{currency_symbol}{x:,.2f}",
         "Total Value":   lambda x: f"{currency_symbol}{x:,.2f}",
+        "Dividends":     lambda x: f"{currency_symbol}{x:,.2f}",
         "Daily P&L":     lambda x: f"{currency_symbol}{x:,.2f}",
         "Return":        "{:,.2f}%",
         "Weight":        "{:,.2f}%",
