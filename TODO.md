@@ -4,6 +4,54 @@ A prioritised roadmap of improvements, fixes, and stretch goals. Updated March 2
 
 -----
 
+## P0 — Quick Wins (Do Before Sharing)
+
+> High-visibility polish items a recruiter will notice in the first 30 seconds.
+
+### Embed Screenshot or GIF in README
+
+- **What:** Add an embedded screenshot or animated GIF showing the live dashboard
+- **Why:** Recruiters spend 5–10 seconds on the README before deciding whether to click the live demo — a visual is the highest-ROI change possible
+- **How:** QuickTime screen recording → convert to GIF with ezgif.com → embed with `![Dashboard](screenshots/demo.gif)`
+- **Status:** PDF exists in `screenshots/` but doesn't render inline on GitHub — replace with PNG or GIF
+
+### Dark Mode Charts
+
+- **What:** Apply `template="plotly_dark"` to all Plotly charts
+- **Why:** Charts currently have a light background that clashes visibly with Streamlit's dark theme — noticeable on the live dashboard
+- **How:** Add `.update_layout(template="plotly_dark")` to every `px.line()`, `px.pie()`, and `px.imshow()` call
+- **Files:** `app.py`
+
+### Clean Up requirements.txt
+
+- **What:** Trim requirements.txt to only direct dependencies
+- **Why:** Current file is a full pip freeze (~130 packages) including FastAPI, uvicorn, Jupyter, pytest — none of which are used by this app; a recruiter will wonder why a Streamlit dashboard needs FastAPI
+- **How:** Replace with a minimal list: `streamlit`, `yfinance`, `pandas`, `plotly`, `requests`, `lxml`; keep full freeze as `requirements-lock.txt` if needed
+
+### Remove .DS_Store and Add to .gitignore
+
+- **What:** Delete the committed `.DS_Store` file and prevent future commits
+- **Why:** macOS metadata file has no place in a repo — small thing but engineers notice it
+- **How:** `git rm --cached .DS_Store`, add `.DS_Store` to `.gitignore`
+
+### Add Repo Description and Topics on GitHub
+
+- **What:** Add a one-line description, live app URL, and topic tags to the GitHub repo's About section
+- **Why:** Currently shows "No description, website, or topics provided" — this is the first thing a recruiter sees on the repo page
+- **How:** GitHub repo → About (gear icon) → add description, website URL, and tags: `python`, `streamlit`, `finance`, `portfolio-tracker`, `yfinance`, `plotly`
+
+### Add Total Return KPI Cards
+
+- **What:** Add total portfolio return ($ and %) as additional KPI cards alongside the existing three
+- **Why:** Total Value, Daily P&L, and Positions count is sparse — total return is the most important metric and it's already computed in the DataFrame
+- **How:** Sum `(Total Value - Cost Basis + Dividends)` across all rows; display as two additional KPI cards
+
+### Add Development Notes to README
+
+- **What:** Add a brief section explaining key technical decisions (GBX handling, historical FX dividends, tiered caching, etc.)
+- **Why:** With all 26 commits from a two-day burst, a recruiter may wonder about AI involvement — explaining your decisions demonstrates genuine understanding
+- **How:** 3–5 bullet points under a "Technical notes" section in the README
+
 -----
 
 ## P1 — Investment Analytics
@@ -112,6 +160,43 @@ A prioritised roadmap of improvements, fixes, and stretch goals. Updated March 2
 - **Why:** Standard in financial charting — volume confirms price moves and signals conviction
 - **How:** Use Plotly’s secondary y-axis (`make_subplots`) to add volume bars below the price line
 - **Files:** `app.py` — price history section
+
+### Portfolio Table Summary View
+
+- **What:** Group multiple lots per ticker into a single summary row with total shares, weighted average cost, combined value, and expandable lot detail
+- **Why:** With 11 columns the table already requires horizontal scrolling — adding lots per ticker makes it worse; investors think in positions not lots
+- **How:** Aggregate by ticker in `build_portfolio_df`, show lot detail in an expander or sub-table
+- **Files:** `src/portfolio.py`, `app.py` — portfolio table
+
+### ~~Weight Bar Chart (Replace or Supplement Pie)~~ ✅
+
+- Replaced pie chart with horizontal bar chart sorted by weight %; brand colors preserved
+
+### Manage Positions Compact Layout
+
+- **What:** Group lots by ticker in the Manage Positions section to reduce vertical space
+- **Why:** Eight individual lot rows push all content far down the page — one row per ticker with lot count is sufficient
+- **Files:** `app.py` — manage positions section
+
+### Unit Tests
+
+- **What:** Add `tests/test_portfolio.py` with unit tests for core calculation logic
+- **Why:** `portfolio.py` has non-trivial logic (dividend FX conversion, return %, cost basis) — tests show correctness and engineering discipline
+- **How:** pytest test cases for: dividend calculation, GBX conversion, return formula with dividends, multiple lots, empty portfolio
+- **Files:** `tests/test_portfolio.py` (new)
+
+### Split app.py into Modules
+
+- **What:** Extract form logic, chart rendering, and portfolio display into separate modules or helper functions
+- **Why:** At ~400 lines `app.py` handles page config, CSS, session state, import/export, form, KPI cards, table, three chart sections — a recruiter targeting FinTech roles will notice the monolith
+- **How:** Extend `src/` pattern: `src/charts.py` for Plotly figure builders, `src/ui.py` for KPI cards and styled table
+- **Files:** `app.py`, new `src/` modules
+
+### Remove test.ipynb
+
+- **What:** Delete `notebooks/test.ipynb` from the repo
+- **Why:** Scratch notebook committed by mistake — if meaningful, rename it descriptively; otherwise remove it
+- **Files:** `notebooks/test.ipynb`
 
 ### Mobile Responsiveness
 

@@ -432,20 +432,36 @@ st.divider()
 
 # --- Portfolio Allocation ---
 st.subheader("Portfolio Allocation")
-unique_tickers = list(dict.fromkeys(df["Ticker"]))
-pie_colors = [
-    TICKER_COLORS.get(t, CHART_COLORS[i % len(CHART_COLORS)])
-    for i, t in enumerate(unique_tickers)
-]
-fig_pie = px.pie(
-    df,
-    values="Total Value",
-    names="Ticker",
-    color_discrete_sequence=pie_colors,
+
+alloc_df = (
+    df.groupby("Ticker")["Total Value"]
+    .sum()
+    .reset_index()
+    .assign(**{"Weight (%)": lambda x: (x["Total Value"] / x["Total Value"].sum() * 100).round(2)})
+    .sort_values("Weight (%)", ascending=True)
 )
-fig_pie.update_traces(textposition="inside", textinfo="percent+label")
-fig_pie.update_layout(showlegend=True, template="plotly_dark")
-st.plotly_chart(fig_pie, use_container_width=True)
+bar_colors = [
+    TICKER_COLORS.get(t, CHART_COLORS[i % len(CHART_COLORS)])
+    for i, t in enumerate(alloc_df["Ticker"])
+]
+fig_alloc = px.bar(
+    alloc_df,
+    x="Weight (%)",
+    y="Ticker",
+    orientation="h",
+    color="Ticker",
+    color_discrete_sequence=bar_colors,
+    text=alloc_df["Weight (%)"].map(lambda v: f"{v:.1f}%"),
+)
+fig_alloc.update_traces(textposition="outside")
+fig_alloc.update_layout(
+    xaxis_title="Portfolio Weight (%)",
+    yaxis_title=None,
+    showlegend=False,
+    template="plotly_dark",
+    xaxis=dict(range=[0, alloc_df["Weight (%)"].max() * 1.15]),
+)
+st.plotly_chart(fig_alloc, use_container_width=True)
 
 st.divider()
 
