@@ -6,10 +6,11 @@ A real-time stock portfolio tracker built with Streamlit. Add positions across m
 
 - **Portfolio management** — add and remove positions across multiple lots per ticker
 - **Multi-currency support** — live FX conversion across USD, EUR, GBP, and CHF
-- **Performance metrics** — current value, daily P&L, return %, and portfolio weight per position
+- **Performance metrics** — current value, daily P&L, return %, and portfolio weight per position; colour-coded green/red in the positions table
 - **Interactive charts** — portfolio allocation pie chart, normalised 6-month performance comparison, and individual price history with buy price and purchase date overlays
-- **Global stock coverage** — S&P 500, FTSE 100, DAX, CAC 40, SMI, AEX, IBEX 35, and 10 ETFs
-- **Import / export** — save and load your portfolio as JSON
+- **Global stock coverage** — S&P 500, FTSE 100, DAX, CAC 40, SMI, AEX, IBEX 35, and 10 ETFs; searchable via index-filtered dropdown
+- **Import / export** — save and load your portfolio as JSON, with validated parsing on import
+- **Performance** — all price data and stock lists are cached; price history charts lazy-load on demand
 
 ## Live Demo
 

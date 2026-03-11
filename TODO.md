@@ -17,53 +17,6 @@ A prioritised roadmap of improvements, fixes, and stretch goals. Updated March 2
 
 -----
 
-## P1 — High Priority
-
-> Significantly improves reliability, performance, and user experience.
-
-### Performance: Data Caching
-
-- **What:** Add `@st.cache_data` to all yfinance API calls
-- **Why:** Currently refetches all price data on every single user interaction, causing multi-second lag with 5+ positions
-- **How:** Wrap `yf.Ticker().history()` calls in cached functions with TTL of 15 minutes for current prices, 24 hours for historical data
-- **Files:** `app.py`
-
-### Performance: Lazy Chart Loading
-
-- **What:** Only load price history charts when user expands them
-- **Why:** `period="max"` fetches decades of data for every ticker on every rerun — the single heaviest operation in the app
-- **How:** Wrap each chart in `st.expander(f"{ticker} Price History")` so they only render when opened
-- **Files:** `app.py` — price history section
-
-### Brand Colors
-
-- **What:** Use brand colors for known tickers across all charts, with graceful fallback to Plotly palette
-- **Why:** Visual polish — makes the dashboard feel intentional and professional
-- **How:** Define `TICKER_COLORS` dictionary, apply via `color_discrete_map` in all `px.line()` and `px.pie()` calls
-- **Status:** Color map drafted, needs implementing
-- **Files:** `app.py`
-
-### Rate Limiting Protection
-
-- **What:** Wrap all yfinance calls in try/except with user-friendly error messages
-- **Why:** Yahoo Finance rate limits requests without warning — currently causes unhandled exceptions that crash the app
-- **How:** Catch `Exception` on all `yf.Ticker().history()` calls and display `st.warning()` instead of crashing
-- **Files:** `app.py`
-
-### JSON Import Validation
-
-- **What:** Validate imported JSON structure before applying to session state
-- **Why:** A malformed or incompatible JSON file currently crashes the app silently
-- **How:** Check for expected keys (`shares`, `buy_price`, `purchase_date`) and display a clear error if invalid
-- **Files:** `app.py` — import section
-
-### Stock List Caching
-
-- **What:** Cache the Wikipedia stock list fetches
-- **Why:** Currently fetches from 7 Wikipedia pages on every cold start, adding 3–5 seconds to initial load
-- **How:** Use `@st.cache_data(ttl=86400)` on all `get_*_stocks()` functions in `src/stocks.py`
-- **Files:** `src/stocks.py`
-
 -----
 
 ## P2 — Medium Priority
@@ -217,3 +170,11 @@ A prioritised roadmap of improvements, fixes, and stretch goals. Updated March 2
 - README with live demo badge
 - FX conversion — live rates via yfinance, all positions normalised to a single base currency
 - GBX/GBP handling — `.L` ticker prices divided by 100 to correct pence-to-pounds conversion
+- Data caching — `fetch_price_history_short` (15 min TTL) and `fetch_price_history_long` (24 hr TTL); stock list cached for 24 hours
+- Lazy chart loading — price history charts wrapped in `st.expander`, only render when opened
+- Rate limiting protection — all yfinance calls wrapped in try/except, graceful fallback to `st.warning` instead of crash
+- JSON import validation — structure checked for expected keys before applying to session state; clear error on invalid or unreadable file
+- Chart color differentiation — `px.colors.qualitative.Plotly` applied consistently across pie and line charts
+- Conditional table formatting — Return and Daily P&L columns colour-coded green/red via Pandas Styler
+- Index-filtered stock selector — two-step dropdown (index → stock) replaces flat 500+ item list
+- KPI cards — custom HTML metric cards with green/red border on Daily P&L based on sign
