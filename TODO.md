@@ -4,16 +4,60 @@ A prioritised roadmap of improvements, fixes, and stretch goals. Updated March 2
 
 -----
 
-## P0 — Critical
+-----
 
-> Fixes that affect financial correctness or credibility. A finance recruiter will notice these.
+## P1 — Investment Analytics
 
-### Dividend Adjustment
+> Risk and fundamental metrics that add serious analytical depth.
 
-- **What:** Factor dividends into total return calculation
-- **Why:** Return % currently ignores dividends received, significantly understating returns for dividend-paying stocks over long holding periods
-- **How:** yfinance returns dividend data in `history()` — sum dividends received between purchase date and today and add to P&L
-- **Files:** `app.py` — portfolio display loop
+### Sharpe Ratio
+
+- **What:** Risk-adjusted return for each position and the overall portfolio
+- **Why:** The single most recognised metric for comparing returns on a risk-adjusted basis — any quant or portfolio manager will look for this
+- **How:** Use daily returns history (already fetched) — `(mean_daily_return / std_daily_return) * sqrt(252)` with a risk-free rate assumption (e.g. 4%)
+- **Files:** `src/portfolio.py`, `app.py` — summary metrics section
+
+### Volatility (Annualised)
+
+- **What:** Annualised standard deviation of daily returns per position
+- **Why:** Core risk metric — shows how much a stock swings relative to its return
+- **How:** `daily_returns.std() * sqrt(252)` from price history
+- **Files:** `src/portfolio.py`, `app.py` — positions table or risk panel
+
+### Beta vs S&P 500
+
+- **What:** Sensitivity of each position to S&P 500 moves
+- **Why:** Standard risk measure — beta > 1 means more volatile than the market, < 1 means defensive
+- **How:** Regress stock daily returns against SPY daily returns over the same period; slope = beta
+- **Files:** `src/portfolio.py`, `app.py` — positions table
+
+### Max Drawdown
+
+- **What:** Largest peak-to-trough decline for each position over the holding period
+- **Why:** Key downside risk metric used by fund managers — shows worst-case loss from a peak
+- **How:** `(rolling_max - price) / rolling_max` — take the minimum over the period
+- **Files:** `src/portfolio.py`, `app.py` — risk panel or positions table
+
+### Correlation Matrix
+
+- **What:** Heatmap showing how positions move relative to each other
+- **Why:** Demonstrates diversification quality — low correlation between positions reduces portfolio risk
+- **How:** Compute pairwise correlation of daily returns across all tickers; display as `px.imshow` heatmap
+- **Files:** `app.py` — new analytics section
+
+### Fundamental Snapshot (P/E, Div Yield, 52-week range)
+
+- **What:** Per-stock panel showing P/E ratio, dividend yield, and 52-week high/low with current price position
+- **Why:** Valuation context alongside price performance — rounds out the picture for any fundamental investor
+- **How:** Pull from `ticker.info` — keys: `trailingPE`, `dividendYield`, `fiftyTwoWeekHigh`, `fiftyTwoWeekLow`
+- **Files:** `app.py` — per-stock expander or new fundamentals table
+
+### Monte Carlo Simulation
+
+- **What:** Project portfolio value forward (e.g. 1 year) with confidence intervals using simulated return paths
+- **Why:** Visually compelling and technically impressive — shows probabilistic thinking about portfolio outcomes
+- **How:** Sample from historical daily return distribution (mean + std per ticker), simulate N paths, plot percentile bands
+- **Files:** `app.py` — new simulation section
 
 -----
 
@@ -133,7 +177,7 @@ A prioritised roadmap of improvements, fixes, and stretch goals. Updated March 2
 
 |Limitation                      |Impact                                                           |Fix Priority             |
 |--------------------------------|-----------------------------------------------------------------|-------------------------|
-|Dividends not included in return|Understates returns for income stocks                            |P0                       |
+|Dividends not included in return|Understates returns for income stocks                            |Done ✅                  |
 |No real-time quotes             |Prices reflect last market close, not live intraday              |Low — yfinance limitation|
 |App sleeps after inactivity     |30 second wake-up delay on Streamlit Community Cloud             |Low — platform limitation|
 |~15 position practical limit    |Performance degrades significantly beyond this                   |Low — caching now in place|
@@ -177,3 +221,4 @@ A prioritised roadmap of improvements, fixes, and stretch goals. Updated March 2
 - Index-filtered stock selector — two-step dropdown (index → stock) replaces flat 500+ item list
 - KPI cards — custom HTML metric cards with green/red border on Daily P&L based on sign
 - Brand colors — `TICKER_COLORS` dict in `src/stocks.py` maps known tickers to brand hex; pie and line charts fall back to Plotly qualitative palette for unknown tickers
+- Dividend adjustment — dividends received per lot summed from purchase date via yfinance `history()`, factored into Return (%) and shown as a separate column
