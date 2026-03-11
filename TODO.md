@@ -8,20 +8,6 @@ A prioritised roadmap of improvements, fixes, and stretch goals. Updated March 2
 
 > Fixes that affect financial correctness or credibility. A finance recruiter will notice these.
 
-### Currency Normalisation
-
-- **What:** Convert all positions to a single base currency before calculating total portfolio value and P&L
-- **Why:** Mixing GBP, EUR, CHF, and USD without FX conversion produces a meaningless total value
-- **How:** Use yfinance FX pairs (e.g. `GBPUSD=X`, `EURUSD=X`) to fetch live rates and convert at display time
-- **Files:** `app.py` — portfolio display loop, summary metrics
-
-### GBX vs GBP (UK Stocks)
-
-- **What:** Divide all `.L` ticker prices by 100 before displaying
-- **Why:** London Stock Exchange prices are quoted in pence (GBX), not pounds (GBP). HSBC at “648” means £6.48, not £648 — a 100x error
-- **How:** Add a suffix check: `if ticker.endswith(".L"): price = price / 100`
-- **Files:** `app.py` — portfolio display loop
-
 ### Dividend Adjustment
 
 - **What:** Factor dividends into total return calculation
@@ -196,8 +182,6 @@ A prioritised roadmap of improvements, fixes, and stretch goals. Updated March 2
 
 |Limitation                      |Impact                                                           |Fix Priority             |
 |--------------------------------|-----------------------------------------------------------------|-------------------------|
-|No FX conversion                |Total portfolio value is misleading for mixed-currency portfolios|P0                       |
-|UK prices in pence (GBX)        |100x price error for `.L` tickers                                |P0                       |
 |Dividends not included in return|Understates returns for income stocks                            |P0                       |
 |No real-time quotes             |Prices reflect last market close, not live intraday              |Low — yfinance limitation|
 |App sleeps after inactivity     |30 second wake-up delay on Streamlit Community Cloud             |Low — platform limitation|
@@ -231,3 +215,5 @@ A prioritised roadmap of improvements, fixes, and stretch goals. Updated March 2
 - JSON export and import
 - Deployed to Streamlit Community Cloud
 - README with live demo badge
+- FX conversion — live rates via yfinance, all positions normalised to a single base currency
+- GBX/GBP handling — `.L` ticker prices divided by 100 to correct pence-to-pounds conversion

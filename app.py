@@ -2,29 +2,57 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import plotly.express as px
+
 from src.stocks import (
     get_sp500_stocks, get_ftse100_stocks, get_dax_stocks,
     get_cac40_stocks, get_smi_stocks, get_aex_stocks,
     get_ibex_stocks, get_etfs
 )
+from src.fx import get_ticker_currency, get_fx_rate, CURRENCY_SYMBOLS
+from src.portfolio import build_portfolio_df, fetch_buy_price
 
-# --- Page Config ---
+# ──────────────────────────────────────────────
+# Page Config
+# ──────────────────────────────────────────────
 st.set_page_config(page_title="Market Dashboard", layout="wide")
-st.title("Market Dashboard")
-st.markdown("Build and track your stock portfolio in real time.")
 
-# --- Session State ---
+# ──────────────────────────────────────────────
+# Header
+# ──────────────────────────────────────────────
+col_title, col_currency = st.columns([4, 1])
+
+with col_title:
+    st.title("Market Dashboard")
+    st.markdown("Build and track your stock portfolio in real time.")
+
+with col_currency:
+    st.write(" ")
+    st.write(" ")
+    base_currency = st.selectbox(
+        "Display Currency",
+        options=list(CURRENCY_SYMBOLS.keys()),
+        index=0,
+        label_visibility="collapsed"
+    )
+
+currency_symbol = CURRENCY_SYMBOLS[base_currency]
+
+# ──────────────────────────────────────────────
+# Session State
+# ──────────────────────────────────────────────
 if "portfolio" not in st.session_state:
     st.session_state.portfolio = {}
 
 if "imported" not in st.session_state:
     st.session_state.imported = False
 
-# --- Import Portfolio ---
+# ──────────────────────────────────────────────
+# Import Portfolio
+# ──────────────────────────────────────────────
 uploaded_file = st.file_uploader("Import Portfolio", type="json")
+
 if uploaded_file is not None and not st.session_state.imported:
-    imported = pd.read_json(uploaded_file, typ="series").to_dict()
-    st.session_state.portfolio = imported
+    st.session_state.portfolio = pd.read_json(uploaded_file, typ="series").to_dict()
     st.session_state.imported = True
     st.success("Portfolio imported successfully.")
     st.rerun()
@@ -32,19 +60,28 @@ if uploaded_file is not None and not st.session_state.imported:
 if uploaded_file is None:
     st.session_state.imported = False
 
-# --- Stock List ---
-stock_options = {
-    **get_sp500_stocks(),
-    **get_ftse100_stocks(),
-    **get_dax_stocks(),
-    **get_cac40_stocks(),
-    **get_smi_stocks(),
-    **get_aex_stocks(),
-    **get_ibex_stocks(),
-    **get_etfs()
-}
+# ──────────────────────────────────────────────
+# Stock List
+# ──────────────────────────────────────────────
+@st.cache_data(ttl=86400)
+def load_stock_options() -> dict:
+    return {
+        **get_sp500_stocks(),
+        **get_ftse100_stocks(),
+        **get_dax_stocks(),
+        **get_cac40_stocks(),
+        **get_smi_stocks(),
+        **get_aex_stocks(),
+        **get_ibex_stocks(),
+        **get_etfs()
+    }
 
-# --- Portfolio Input ---
+stock_options = load_stock_options()
+
+# ──────────────────────────────────────────────
+# Portfolio Input
+# ──────────────────────────────────────────────
+st.subheader("Add Position")
 manual_price = st.session_state.get("manual_price_toggle", False)
 
 col1, col2, col3, col4 = st.columns(4)
@@ -57,10 +94,18 @@ with col1:
         placeholder="e.g. Apple Inc. (AAPL)"
     )
 with col2:
-    shares = st.number_input("Number of Shares", min_value=0.0, value=None, step=1.0, placeholder="e.g. 5")
+    shares = st.number_input(
+        "Number of Shares",
+        min_value=0.0, value=None, step=1.0,
+        placeholder="e.g. 5"
+    )
 with col3:
     if manual_price:
-        buy_price_input = st.number_input("Average Buy Price (USD)", min_value=0.0, value=None, step=0.01, placeholder="e.g. 180.00")
+        buy_price_input = st.number_input(
+            f"Average Buy Price ({base_currency})",
+            min_value=0.0, value=None, step=0.01,
+            placeholder="e.g. 180.00"
+        )
         purchase_date = None
     else:
         purchase_date = st.date_input(
@@ -75,9 +120,7 @@ with col4:
     manual_price = st.checkbox("Enter price manually", key="manual_price_toggle")
     st.markdown("</div>", unsafe_allow_html=True)
 
-add = st.button("Add to Portfolio")
-
-if add:
+if st.button("Add to Portfolio"):
     if selected is None or shares is None or shares == 0:
         st.warning("Please fill in all fields.")
     elif not manual_price and purchase_date is None:
@@ -86,19 +129,13 @@ if add:
         st.warning("Please enter a valid buy price.")
     else:
         ticker = stock_options[selected]
-        buy_price = None
 
         if manual_price:
             buy_price = buy_price_input
         else:
-            hist = yf.Ticker(ticker).history(
-                start=str(purchase_date),
-                end=str((pd.Timestamp(str(purchase_date)) + pd.DateOffset(days=7)).date())
-            )
-            if hist.empty:
+            buy_price = fetch_buy_price(ticker, str(purchase_date))
+            if buy_price is None:
                 st.error("No price data found for that date. Try a different date.")
-            else:
-                buy_price = round(hist["Close"].iloc[0], 2)
 
         if buy_price is not None:
             lot = {
@@ -107,141 +144,171 @@ if add:
                 "purchase_date": str(purchase_date) if purchase_date else None,
                 "manual_price": manual_price
             }
-            if ticker not in st.session_state.portfolio:
-                st.session_state.portfolio[ticker] = []
-            st.session_state.portfolio[ticker].append(lot)
-            st.success(f"Added {shares} shares of {ticker} at ${buy_price}")
+            st.session_state.portfolio.setdefault(ticker, []).append(lot)
+            st.success(f"Added {shares} shares of {ticker} at {currency_symbol}{buy_price}")
 
-# --- Display Portfolio ---
-if st.session_state.portfolio:
-    st.subheader("Portfolio Overview")
+# ──────────────────────────────────────────────
+# Portfolio Display
+# ──────────────────────────────────────────────
+if not st.session_state.portfolio:
+    st.stop()
 
-    rows = []
-    for t, lots in st.session_state.portfolio.items():
-        data = yf.Ticker(t).history(period="5d")
+st.subheader("Portfolio Overview")
+df = build_portfolio_df(st.session_state.portfolio, base_currency)
 
-        if len(data) < 2:
-            continue
+if df.empty:
+    st.warning("Could not retrieve price data for any positions.")
+    st.stop()
 
-        current_price = data["Close"].iloc[-1]
-        prev_price = data["Close"].iloc[-2]
+# --- Summary Metrics ---
+col_m1, col_m2, col_m3 = st.columns(3)
+col_m1.metric("Total Portfolio Value", f"{currency_symbol}{df['Total Value'].sum():,.2f}")
+col_m2.metric("Daily P&L", f"{currency_symbol}{df['Daily P&L'].sum():,.2f}")
+col_m3.metric("Number of Positions", len(st.session_state.portfolio))
 
-        for i, lot in enumerate(lots):
-            s = lot["shares"]
-            buy_price = lot["buy_price"]
-            daily_pnl = (current_price - prev_price) * s
-            total_value = current_price * s
-            total_return = ((current_price - buy_price) / buy_price * 100)
+# --- Manage Positions ---
+st.subheader("Manage Positions")
+for t, lots in list(st.session_state.portfolio.items()):
+    for i, lot in enumerate(lots):
+        col_name, col_date, col_btn, col_spacer = st.columns([2, 2, 1, 6])
+        col_name.write(f"{t} (Lot {i + 1})")
+        col_date.write(lot["purchase_date"] or "Manual")
+        if col_btn.button("Remove", key=f"remove_{t}_{i}"):
+            st.session_state.portfolio[t].pop(i)
+            if not st.session_state.portfolio[t]:
+                del st.session_state.portfolio[t]
+            st.rerun()
 
-            rows.append({
-                "Ticker": t,
-                "Lot": i + 1,
-                "Shares": s,
-                "Buy Price": round(buy_price, 2),
-                "Purchase Date": lot["purchase_date"] if lot["purchase_date"] else "Manual",
-                "Current Price": round(current_price, 2),
-                "Total Value": round(total_value, 2),
-                "Daily P&L": round(daily_pnl, 2),
-                "Return (%)": round(total_return, 2)
-            })
+# --- Format columns for display ---
+display_df = df.copy()
+for col in ["Buy Price", "Current Price", "Total Value", "Daily P&L"]:
+    display_df[col] = display_df[col].apply(lambda x: f"{currency_symbol}{x:,.2f}")
+display_df["Return (%)"] = display_df["Return (%)"].apply(lambda x: f"{x:,.2f}%")
+display_df["Weight (%)"] = display_df["Weight (%)"].apply(lambda x: f"{x:,.2f}%")
+display_df = display_df.rename(columns={"Return (%)": "Return", "Weight (%)": "Weight"})
 
-    df = pd.DataFrame(rows)
-    df["Weight (%)"] = (df["Total Value"] / df["Total Value"].sum() * 100).round(2)
+st.dataframe(display_df.set_index("Ticker"), use_container_width=True)
 
-    # --- Summary Metrics ---
-    total_portfolio_value = df["Total Value"].sum()
-    total_daily_pnl = df["Daily P&L"].sum()
+# --- Export Portfolio ---
+st.download_button(
+    label="Export Portfolio",
+    data=pd.Series(st.session_state.portfolio).to_json(),
+    file_name="portfolio.json",
+    mime="application/json"
+)
 
-    metric1, metric2, metric3 = st.columns(3)
-    metric1.metric("Total Portfolio Value", f"${total_portfolio_value:,.2f}")
-    metric2.metric("Daily P&L", f"${total_daily_pnl:,.2f}")
-    metric3.metric("Number of Positions", len(st.session_state.portfolio))
+# ──────────────────────────────────────────────
+# Charts
+# ──────────────────────────────────────────────
 
-    # --- Manage Positions ---
-    st.subheader("Manage Positions")
-    for t, lots in list(st.session_state.portfolio.items()):
-        for i, lot in enumerate(lots):
-            col_name, col_date, col_btn, col_spacer = st.columns([2, 2, 1, 6])
-            col_name.write(f"{t} (Lot {i + 1})")
-            col_date.write(lot["purchase_date"] if lot["purchase_date"] else "Manual")
-            if col_btn.button("Remove", key=f"remove_{t}_{i}"):
-                st.session_state.portfolio[t].pop(i)
-                if not st.session_state.portfolio[t]:
-                    del st.session_state.portfolio[t]
-                st.rerun()
+# --- Portfolio Allocation ---
+fig = px.pie(df, values="Total Value", names="Ticker", title="Portfolio Allocation")
+fig.update_traces(textposition="inside", textinfo="percent+label")
+st.plotly_chart(fig, use_container_width=True)
 
-    st.dataframe(df.set_index("Ticker"), use_container_width=True)
+# --- Normalised Performance Comparison ---
+st.subheader("Normalised Performance Comparison")
+fx_adjust_comparison = st.toggle("Currency-adjusted", key="fx_toggle_comparison")
 
-    # --- Export Portfolio ---
-    portfolio_json = pd.Series(st.session_state.portfolio).to_json()
-    st.download_button(
-        label="Export Portfolio",
-        data=portfolio_json,
-        file_name="portfolio.json",
-        mime="application/json"
-    )
+comparison_data = {}
+for t in st.session_state.portfolio:
+    hist = yf.Ticker(t).history(period="6mo")
+    hist.index = hist.index.tz_localize(None)
 
-    # --- Portfolio Weights Pie Chart ---
-    fig = px.pie(df, values="Total Value", names="Ticker", title="Portfolio Allocation")
-    fig.update_traces(textposition="inside", textinfo="percent+label")
-    st.plotly_chart(fig, use_container_width=True)
+    ticker_currency = get_ticker_currency(t)
 
-    # --- Normalised Comparison Chart ---
-    st.subheader("Normalised Performance Comparison")
-
-    comparison_data = {}
-    for t in st.session_state.portfolio:
-        hist = yf.Ticker(t).history(period="6mo")
-        hist.index = hist.index.tz_localize(None)
+    if fx_adjust_comparison and ticker_currency != base_currency:
+        fx_pair = "GBP" if ticker_currency == "GBX" else ticker_currency
+        fx_hist = yf.Ticker(f"{fx_pair}{base_currency}=X").history(period="6mo")
+        fx_hist.index = fx_hist.index.tz_localize(None)
+        fx_series = fx_hist["Close"].reindex(hist.index, method="ffill")
+        if ticker_currency == "GBX":
+            fx_series = fx_series / 100
+        comparison_data[t] = hist["Close"] * fx_series
+    else:
         comparison_data[t] = hist["Close"]
 
-    comparison_df = pd.DataFrame(comparison_data)
-    comparison_df = comparison_df / comparison_df.iloc[0] * 100
+comparison_df = pd.DataFrame(comparison_data).dropna()
+comparison_df = comparison_df / comparison_df.iloc[0] * 100
 
-    fig = px.line(comparison_df, x=comparison_df.index, y=comparison_df.columns,
-                  title="Normalised Performance over 6 months (Base 100)")
-    fig.update_layout(xaxis_title="Date", yaxis_title="Normalised Price (Base 100)")
-    fig.add_hline(y=100, line_dash="dash", line_color="gray")
-    st.plotly_chart(fig, use_container_width=True)
+title_suffix = f"({base_currency}-adjusted)" if fx_adjust_comparison else "(native currencies)"
+fig = px.line(
+    comparison_df, x=comparison_df.index, y=comparison_df.columns,
+    title=f"Normalised Performance over 6 months — {title_suffix}"
+)
+fig.update_layout(xaxis_title="Date", yaxis_title="Normalised Price (Base 100)")
+fig.add_hline(y=100, line_dash="dash", line_color="gray")
+st.plotly_chart(fig, use_container_width=True)
 
-    # --- Price History Charts ---
-    st.subheader("Price History")
+# --- Price History ---
+st.subheader("Price History")
 
-    col_to, _ = st.columns(2)
-    with col_to:
-        date_to = st.date_input("To", value=pd.Timestamp.today())
+col_to, col_fx, _ = st.columns([2, 2, 7])
+with col_to:
+    date_to = st.date_input("To", value=pd.Timestamp.today())
+with col_fx:
+    st.write(" ")
+    st.write(" ")
+    fx_adjust_history = st.toggle("Currency-adjusted", key="fx_toggle_history")
 
-    for t, lots in st.session_state.portfolio.items():
-        hist = yf.Ticker(t).history(period="max")
-        hist.index = hist.index.tz_localize(None)
+for t, lots in st.session_state.portfolio.items():
+    hist = yf.Ticker(t).history(period="max")
+    hist.index = hist.index.tz_localize(None)
 
-        dates = [lot["purchase_date"] for lot in lots if lot["purchase_date"]]
-        if dates:
-            earliest = min(pd.Timestamp(d) for d in dates)
-            default_from = earliest - pd.DateOffset(months=2)
+    ticker_currency = get_ticker_currency(t)
+
+    if fx_adjust_history and ticker_currency != base_currency:
+        fx_pair = "GBP" if ticker_currency == "GBX" else ticker_currency
+        fx_hist = yf.Ticker(f"{fx_pair}{base_currency}=X").history(period="max")
+        fx_hist.index = fx_hist.index.tz_localize(None)
+        fx_series = fx_hist["Close"].reindex(hist.index, method="ffill")
+        if ticker_currency == "GBX":
+            fx_series = fx_series / 100
+        hist_converted = hist.copy()
+        hist_converted["Close"] = hist["Close"] * fx_series
+        y_label = f"Price ({base_currency})"
+    else:
+        hist_converted = hist.copy()
+        y_label = f"Price ({ticker_currency})"
+
+    dates = [lot["purchase_date"] for lot in lots if lot["purchase_date"]]
+    default_from = (
+        min(pd.Timestamp(d) for d in dates) - pd.DateOffset(months=2)
+        if dates else pd.Timestamp.today() - pd.DateOffset(months=6)
+    )
+
+    title_suffix = f"({base_currency}-adjusted)" if fx_adjust_history else f"({ticker_currency})"
+    fig = px.line(
+        hist_converted, x=hist_converted.index, y="Close",
+        title=f"{t} — Price History {title_suffix}"
+    )
+    fig.update_layout(
+        xaxis_title="Date",
+        yaxis_title=y_label,
+        xaxis_range=[str(default_from.date()), str(date_to)]
+    )
+
+    for i, lot in enumerate(lots):
+        if fx_adjust_history:
+            fx_rate = get_fx_rate(ticker_currency, base_currency)
+            buy_price_display = round(lot["buy_price"] * fx_rate, 2)
+            buy_label = f"Lot {i + 1} Buy {currency_symbol}{buy_price_display}"
         else:
-            default_from = pd.Timestamp.today() - pd.DateOffset(months=6)
+            buy_price_display = lot["buy_price"]
+            buy_label = f"Lot {i + 1} Buy {buy_price_display}"
 
-        fig = px.line(hist, x=hist.index, y="Close", title=f"{t} — Price History")
-        fig.update_layout(
-            xaxis_title="Date",
-            yaxis_title="Price (USD)",
-            xaxis_range=[str(default_from.date()), str(date_to)]
+        fig.add_hline(
+            y=buy_price_display,
+            line_dash="dash",
+            line_color="yellow",
+            annotation_text=buy_label,
+            annotation_position="top left"
         )
-
-        for i, lot in enumerate(lots):
-            fig.add_hline(
-                y=lot["buy_price"],
+        if lot["purchase_date"]:
+            fig.add_vline(
+                x=str(pd.Timestamp(lot["purchase_date"]).date()),
                 line_dash="dash",
-                line_color="yellow",
-                annotation_text=f"Lot {i + 1} Buy ${lot['buy_price']}",
-                annotation_position="top left"
+                line_color="gray"
             )
-            if lot["purchase_date"]:
-                fig.add_vline(
-                    x=str(pd.Timestamp(lot["purchase_date"]).date()),
-                    line_dash="dash",
-                    line_color="gray"
-                )
 
-        st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True)
