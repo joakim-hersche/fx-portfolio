@@ -301,14 +301,20 @@ if df.empty:
     st.stop()
 
 # --- KPI Cards ---
-total_value = df["Total Value"].sum()
-daily_pnl   = df["Daily P&L"].sum()
-n_positions = len(st.session_state.portfolio)
+total_value  = df["Total Value"].sum()
+daily_pnl    = df["Daily P&L"].sum()
+n_positions  = len(st.session_state.portfolio)
+cost_basis   = (df["Buy Price"] * df["Shares"]).sum()
+total_divs   = df["Dividends"].sum()
+total_return = total_value + total_divs - cost_basis
+total_ret_pct = (total_return / cost_basis * 100) if cost_basis else 0.0
 
-pnl_color  = "#00c853" if daily_pnl >= 0 else "#ff5252"
-pnl_border = "#00c853" if daily_pnl >= 0 else "#ff5252"
+pnl_color    = "#00c853" if daily_pnl    >= 0 else "#ff5252"
+pnl_border   = "#00c853" if daily_pnl    >= 0 else "#ff5252"
+ret_color    = "#00c853" if total_return >= 0 else "#ff5252"
+ret_border   = "#00c853" if total_return >= 0 else "#ff5252"
 
-col_m1, col_m2, col_m3 = st.columns(3)
+col_m1, col_m2, col_m3, col_m4, col_m5 = st.columns(5)
 
 with col_m1:
     st.markdown(f"""
@@ -329,6 +335,26 @@ with col_m2:
     """, unsafe_allow_html=True)
 
 with col_m3:
+    st.markdown(f"""
+    <div class="kpi-card" style="border: 1px solid {ret_border};">
+        <div class="kpi-label">Total Return</div>
+        <div class="kpi-value" style="color: {ret_color};">
+            {"+" if total_return >= 0 else ""}{currency_symbol}{total_return:,.2f}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with col_m4:
+    st.markdown(f"""
+    <div class="kpi-card" style="border: 1px solid {ret_border};">
+        <div class="kpi-label">Total Return %</div>
+        <div class="kpi-value" style="color: {ret_color};">
+            {"+" if total_ret_pct >= 0 else ""}{total_ret_pct:,.2f}%
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with col_m5:
     st.markdown(f"""
     <div class="kpi-card" style="border: 1px solid #2d2d2d;">
         <div class="kpi-label">Positions</div>
@@ -366,10 +392,16 @@ def _color_pnl(val):
         return "color: #ff5252; font-weight: 500"
     return "color: white"
 
+def _fmt_shares(x):
+    if x == int(x):
+        return f"{int(x):,}"
+    return f"{x:g}"
+
 styled = (
     styled_df.set_index(["Ticker", "Lot"])
     .style
     .format({
+        "Shares":        _fmt_shares,
         "Buy Price":     lambda x: f"{currency_symbol}{x:,.2f}",
         "Current Price": lambda x: f"{currency_symbol}{x:,.2f}",
         "Total Value":   lambda x: f"{currency_symbol}{x:,.2f}",
@@ -381,7 +413,9 @@ styled = (
     .map(_color_pnl, subset=["Daily P&L", "Return"])
 )
 
-st.dataframe(styled, use_container_width=True)
+st.dataframe(styled, use_container_width=True, column_config={
+    "Shares": st.column_config.TextColumn("Shares", width="small"),
+})
 
 # --- Export Portfolio ---
 st.download_button(
@@ -410,7 +444,7 @@ fig_pie = px.pie(
     color_discrete_sequence=pie_colors,
 )
 fig_pie.update_traces(textposition="inside", textinfo="percent+label")
-fig_pie.update_layout(showlegend=True)
+fig_pie.update_layout(showlegend=True, template="plotly_dark")
 st.plotly_chart(fig_pie, use_container_width=True)
 
 st.divider()
@@ -457,6 +491,7 @@ fig_comp.update_layout(
     xaxis_title="Date",
     yaxis_title=f"Normalised Price (Base 100)  —  6 months  {title_suffix}",
     legend_title="Ticker",
+    template="plotly_dark",
 )
 fig_comp.add_hline(y=100, line_dash="dash", line_color="gray")
 st.plotly_chart(fig_comp, use_container_width=True)
@@ -519,6 +554,7 @@ for idx, (t, lots) in enumerate(st.session_state.portfolio.items()):
             yaxis_title=y_label,
             xaxis_range=[str(default_from.date()), str(date_to)],
             showlegend=False,
+            template="plotly_dark",
         )
 
         for i, lot in enumerate(lots):
