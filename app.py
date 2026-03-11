@@ -300,7 +300,12 @@ with col_m3:
 st.markdown("<div style='margin-bottom: 16px;'></div>", unsafe_allow_html=True)
 
 # --- Manage Positions ---
-st.subheader("Manage Positions")
+col_manage_title, col_clear, col_spacer = st.columns([3, 1, 6], vertical_alignment="bottom")
+col_manage_title.subheader("Manage Positions")
+if col_clear.button("Clear All", key="clear_portfolio"):
+    st.session_state.portfolio = {}
+    st.rerun()
+
 for t, lots in list(st.session_state.portfolio.items()):
     for i, lot in enumerate(lots):
         col_name, col_date, col_btn, col_spacer = st.columns([2, 2, 1, 6])
@@ -323,7 +328,7 @@ def _color_pnl(val):
     return "color: white"
 
 styled = (
-    styled_df.set_index("Ticker")
+    styled_df.set_index(["Ticker", "Lot"])
     .style
     .format({
         "Buy Price":     lambda x: f"{currency_symbol}{x:,.2f}",
