@@ -17,8 +17,6 @@ A prioritised roadmap of improvements, fixes, and stretch goals. Updated March 2
 
 -----
 
------
-
 ## P2 — Medium Priority
 
 > Meaningful improvements to analytical depth and UX.
@@ -138,8 +136,8 @@ A prioritised roadmap of improvements, fixes, and stretch goals. Updated March 2
 |Dividends not included in return|Understates returns for income stocks                            |P0                       |
 |No real-time quotes             |Prices reflect last market close, not live intraday              |Low — yfinance limitation|
 |App sleeps after inactivity     |30 second wake-up delay on Streamlit Community Cloud             |Low — platform limitation|
-|~15 position practical limit    |Performance degrades significantly beyond this                   |P1 (caching)             |
-|yfinance unofficial API         |Yahoo Finance can block requests without warning                 |P1 (error handling)      |
+|~15 position practical limit    |Performance degrades significantly beyond this                   |Low — caching now in place|
+|yfinance unofficial API         |Yahoo Finance can block requests without warning                 |Low — error handling in place|
 
 -----
 
@@ -178,3 +176,4 @@ A prioritised roadmap of improvements, fixes, and stretch goals. Updated March 2
 - Conditional table formatting — Return and Daily P&L columns colour-coded green/red via Pandas Styler
 - Index-filtered stock selector — two-step dropdown (index → stock) replaces flat 500+ item list
 - KPI cards — custom HTML metric cards with green/red border on Daily P&L based on sign
+- Brand colors — `TICKER_COLORS` dict in `src/stocks.py` maps known tickers to brand hex; pie and line charts fall back to Plotly qualitative palette for unknown tickers
