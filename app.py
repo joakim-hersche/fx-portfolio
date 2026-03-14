@@ -9,7 +9,7 @@ from src.stocks import (
     get_ibex_stocks, get_etfs, get_crypto, get_commodities, TICKER_COLORS
 )
 from src.fx import get_ticker_currency, get_fx_rate, CURRENCY_SYMBOLS
-from src.portfolio import build_portfolio_df, fetch_buy_price
+from src.portfolio import build_portfolio_df, fetch_buy_price, compute_analytics
 
 @st.cache_data(ttl=900)   # 15 minutes — current price data
 def fetch_price_history_short(ticker: str) -> pd.DataFrame:
@@ -27,6 +27,16 @@ def fetch_price_history_long(ticker: str) -> pd.DataFrame:
     """Fetch full price history. Cached for 24 hours."""
     try:
         hist = yf.Ticker(ticker).history(period="max")
+        hist.index = hist.index.tz_localize(None)
+        return hist
+    except Exception:
+        return pd.DataFrame()
+
+@st.cache_data(ttl=86400)  # 24 hours — analytics price data
+def fetch_analytics_history(ticker: str) -> pd.DataFrame:
+    """Fetch 1-year price history for analytics. Cached for 24 hours."""
+    try:
+        hist = yf.Ticker(ticker).history(period="1y")
         hist.index = hist.index.tz_localize(None)
         return hist
     except Exception:
@@ -424,6 +434,58 @@ st.download_button(
     file_name="portfolio.json",
     mime="application/json"
 )
+
+# ──────────────────────────────────────────────
+# Risk & Analytics
+# ──────────────────────────────────────────────
+st.divider()
+st.subheader("Risk & Analytics")
+st.caption("Based on 12 months of daily closing prices. Sharpe Ratio assumes a 4% annual risk-free rate.")
+
+_tickers = list(st.session_state.portfolio.keys())
+_price_data_1y = {t: fetch_analytics_history(t) for t in _tickers}
+_spy_data = fetch_analytics_history("SPY")
+
+analytics_df = compute_analytics(st.session_state.portfolio, _price_data_1y, _spy_data)
+
+if not analytics_df.empty:
+    st.dataframe(
+        analytics_df.set_index("Ticker"),
+        use_container_width=True,
+        column_config={
+            "Volatility":   st.column_config.NumberColumn("Volatility",   format="%.1f%%"),
+            "Max Drawdown": st.column_config.NumberColumn("Max Drawdown", format="%.1f%%"),
+            "Sharpe Ratio": st.column_config.NumberColumn("Sharpe Ratio", format="%.2f"),
+            "Beta":         st.column_config.NumberColumn("Beta",         format="%.2f"),
+        },
+    )
+
+    col_leg1, col_leg2 = st.columns(2)
+    with col_leg1:
+        st.caption("📊 **Volatility** — how much the stock price swings in a year. 25% means it typically moves ±25% over 12 months. Higher = more unpredictable.")
+        st.caption("📉 **Max Drawdown** — the biggest drop from a peak over the past year. −35% means the price fell 35% from its highest point before recovering.")
+    with col_leg2:
+        st.caption("⚖️ **Sharpe Ratio** — how much return you earned per unit of risk. Above 1 is good; above 2 is excellent; below 0 means the risk wasn't rewarded.")
+        st.caption("📈 **Beta** — how sensitive the stock is to S&P 500 moves. 1.5 = moves 50% more than the market; 0.5 = half as much; below 0 = tends to move opposite.")
+
+    if len(_tickers) >= 2:
+        with st.expander("Correlation Matrix"):
+            st.caption("How much your positions move together. 1.0 = always move in the same direction; −1.0 = always move opposite; 0 = no relationship. Low correlation between positions helps reduce overall portfolio risk.")
+            _returns = {
+                t: _price_data_1y[t]["Close"].pct_change().dropna()
+                for t in _tickers
+                if not _price_data_1y.get(t, pd.DataFrame()).empty
+            }
+            if len(_returns) >= 2:
+                corr_df = pd.DataFrame(_returns).dropna().corr()
+                fig_corr = px.imshow(
+                    corr_df,
+                    color_continuous_scale="RdBu_r",
+                    zmin=-1, zmax=1,
+                    text_auto=".2f",
+                )
+                fig_corr.update_layout(template="plotly_dark", margin=dict(t=20))
+                st.plotly_chart(fig_corr, use_container_width=True)
 
 # ──────────────────────────────────────────────
 # Charts
