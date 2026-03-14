@@ -262,8 +262,8 @@ with st.expander("➕ Add / Manage Positions", expanded=is_new_user):
             "Stock Market",
             options=list(all_stock_options.keys()),
             index=0,
-            help="Choose which stock market your stock is listed on. US stocks are in S&P 500; UK stocks in FTSE 100; Swiss stocks in SMI, etc."
         )
+        st.caption("US → S&P 500 · UK → FTSE 100 · Switzerland → SMI · Germany → DAX")
         stock_options = all_stock_options[index_choice]
         selected = st.selectbox(
             "Stock",
@@ -515,7 +515,8 @@ with st.expander("📋 Your Positions", expanded=True):
     )
 
     st.dataframe(styled, use_container_width=True, column_config={
-        "Shares": st.column_config.TextColumn("Shares", width="small"),
+        "Shares":    st.column_config.TextColumn("Shares", width="small"),
+        "Dividends": st.column_config.NumberColumn("Dividends", help="Total dividends received since purchase. Already included in Total Return."),
     })
 
     st.download_button(
@@ -572,25 +573,42 @@ with st.expander("📊 Portfolio Allocation", expanded=True):
 st.divider()
 with st.expander("📈 How My Stocks Compare", expanded=True):
     st.markdown(
-        '<p class="section-intro">All your stocks shown on the same scale over the past 6 months. '
+        '<p class="section-intro">All your stocks shown on the same scale. '
         'Every stock starts at 100 on the left so you can fairly compare their growth — '
         'a stock at 120 has grown 20%, a stock at 85 has fallen 15%. '
+        'Click a ticker in the legend to hide or show it. '
         'Enable <b>Currency-adjusted</b> to account for exchange rate changes if you hold stocks in different currencies.</p>',
         unsafe_allow_html=True
     )
 
-    fx_adjust_comparison = st.toggle("Currency-adjusted", key="fx_toggle_comparison")
+    col_range, col_fx_comp = st.columns([3, 2])
+    with col_range:
+        range_options = {"3 months": "3mo", "6 months": "6mo", "1 year": "1y", "All time": "max"}
+        range_label = st.radio("Time range", list(range_options.keys()), index=1, horizontal=True)
+        selected_range = range_options[range_label]
+    with col_fx_comp:
+        st.write("")
+        fx_adjust_comparison = st.toggle("Currency-adjusted", key="fx_toggle_comparison")
+
+    @st.cache_data(ttl=900)
+    def fetch_price_history_range(ticker: str, period: str) -> pd.DataFrame:
+        try:
+            hist = yf.Ticker(ticker).history(period=period)
+            hist.index = hist.index.tz_localize(None)
+            return hist
+        except Exception:
+            return pd.DataFrame()
 
     comparison_data = {}
     for t in st.session_state.portfolio:
-        hist = fetch_price_history_short(t)
+        hist = fetch_price_history_range(t, selected_range)
         if hist.empty:
             st.warning(f"Could not load data for {t} — skipping.")
             continue
         ticker_currency = get_ticker_currency(t)
         if fx_adjust_comparison and ticker_currency != base_currency:
             fx_pair = "GBP" if ticker_currency == "GBX" else ticker_currency
-            fx_hist = fetch_price_history_short(f"{fx_pair}{base_currency}=X")
+            fx_hist = fetch_price_history_range(f"{fx_pair}{base_currency}=X", selected_range)
             if fx_hist.empty:
                 comparison_data[t] = hist["Close"]
                 continue
@@ -617,7 +635,7 @@ with st.expander("📈 How My Stocks Compare", expanded=True):
     )
     fig_comp.update_layout(
         xaxis_title="Date",
-        yaxis_title=f"Indexed growth (100 = start)  —  {title_suffix}",
+        yaxis_title=f"Indexed growth (100 = start)  —  {range_label}  {title_suffix}",
         legend_title="Ticker",
         template="plotly_dark",
     )
@@ -632,17 +650,27 @@ st.markdown("### 🕐 Price History")
 st.markdown(
     '<p class="section-intro">The full price history for each stock you own. '
     'The yellow dashed line shows what you paid. The grey line marks when you bought it. '
+    'Prices are shown in each stock\'s native trading currency — enable <b>Currency-adjusted</b> to convert to your base currency. '
     'Click any stock below to expand its chart.</p>',
     unsafe_allow_html=True
 )
 
-col_to, col_fx, _ = st.columns([2, 2, 7])
+col_range_hist, col_to, col_fx, _ = st.columns([4, 2, 2, 3])
+with col_range_hist:
+    hist_range_options = ["3 months", "6 months", "1 year", "2 years", "Since purchase", "Custom"]
+    hist_range_label = st.radio("Time range", hist_range_options, index=4, horizontal=True, key="hist_range")
 with col_to:
     date_to = st.date_input("To", value=pd.Timestamp.today())
 with col_fx:
     st.write(" ")
     st.write(" ")
     fx_adjust_history = st.toggle("Currency-adjusted", key="fx_toggle_history")
+
+date_from = None
+if hist_range_label == "Custom":
+    date_from = st.date_input("From date", value=None, min_value=pd.Timestamp("1980-01-01").date(), key="hist_custom_from")
+
+_hist_range_months = {"3 months": 3, "6 months": 6, "1 year": 12, "2 years": 24}
 
 for idx, (t, lots) in enumerate(st.session_state.portfolio.items()):
     hist = fetch_price_history_long(t)
@@ -670,10 +698,16 @@ for idx, (t, lots) in enumerate(st.session_state.portfolio.items()):
         y_label = f"Price ({ticker_currency})"
 
     dates = [lot["purchase_date"] for lot in lots if lot["purchase_date"]]
-    default_from = (
+    auto_from = (
         min(pd.Timestamp(d) for d in dates) - pd.DateOffset(months=2)
         if dates else pd.Timestamp.today() - pd.DateOffset(months=6)
     )
+    if hist_range_label == "Since purchase":
+        effective_from = auto_from
+    elif hist_range_label == "Custom":
+        effective_from = pd.Timestamp(date_from) if date_from else auto_from
+    else:
+        effective_from = pd.Timestamp.today() - pd.DateOffset(months=_hist_range_months[hist_range_label])
 
     line_color = TICKER_COLORS.get(t, CHART_COLORS[idx % len(CHART_COLORS)])
     title_suffix = f"({base_currency}-adjusted)" if fx_adjust_history else f"({ticker_currency})"
@@ -687,7 +721,7 @@ for idx, (t, lots) in enumerate(st.session_state.portfolio.items()):
         fig_hist.update_layout(
             xaxis_title="Date",
             yaxis_title=y_label,
-            xaxis_range=[str(default_from.date()), str(date_to)],
+            xaxis_range=[str(pd.Timestamp(effective_from).date()), str(date_to)],
             showlegend=False,
             template="plotly_dark",
         )
@@ -813,7 +847,11 @@ with st.expander("🔬 Risk & Analytics", expanded=False):
                     zmin=-1, zmax=1,
                     text_auto=".2f",
                 )
-                fig_corr.update_layout(template="plotly_dark", margin=dict(t=20))
+                fig_corr.update_layout(
+                    template="plotly_dark",
+                    margin=dict(t=20),
+                    coloraxis_colorbar=dict(title="Correlation"),
+                )
                 st.plotly_chart(fig_corr, use_container_width=True)
 
         # ── Fundamentals ──

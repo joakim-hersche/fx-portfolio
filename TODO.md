@@ -147,12 +147,9 @@ A prioritised roadmap of improvements, fixes, and stretch goals. Updated March 2
 - **How:** Check current time against NYSE trading hours (09:30–16:00 ET, Mon–Fri) and display a status badge
 - **Files:** `app.py` — header section
 
-### Chart Period Presets
+### ~~Chart Period Presets~~ ✅
 
-- **What:** Add preset buttons (1M, 3M, 6M, 1Y, 3Y, Max) to price history charts
-- **Why:** More intuitive than a date picker — this is the standard UX pattern on Bloomberg, Yahoo Finance, Google Finance
-- **How:** Replace or supplement the date picker with `st.radio` or `st.button` presets that calculate the date range
-- **Files:** `app.py` — price history section
+- Added to both price history (3M / 6M / 1Y / 2Y / Since purchase / Custom) and normalised comparison chart (3M / 6M / 1Y / All time)
 
 ### Volume Chart
 
@@ -192,11 +189,9 @@ A prioritised roadmap of improvements, fixes, and stretch goals. Updated March 2
 - **How:** Extend `src/` pattern: `src/charts.py` for Plotly figure builders, `src/ui.py` for KPI cards and styled table
 - **Files:** `app.py`, new `src/` modules
 
-### Remove test.ipynb
+### ~~Remove scratch notebooks~~ ✅
 
-- **What:** Delete `notebooks/test.ipynb` from the repo
-- **Why:** Scratch notebook committed by mistake — if meaningful, rename it descriptively; otherwise remove it
-- **Files:** `notebooks/test.ipynb`
+- Removed `notebooks/test.ipynb` and `notebooks/01_data_exploration.ipynb` — both were scratch/exploration work with no value in the repo
 
 ### Mobile Responsiveness
 
@@ -305,5 +300,11 @@ A prioritised roadmap of improvements, fixes, and stretch goals. Updated March 2
 - Conditional table formatting — Return and Daily P&L columns colour-coded green/red via Pandas Styler
 - Index-filtered stock selector — two-step dropdown (index → stock) replaces flat 500+ item list
 - KPI cards — custom HTML metric cards with green/red border on Daily P&L based on sign
-- Brand colors — `TICKER_COLORS` dict in `src/stocks.py` maps known tickers to brand hex; pie and line charts fall back to Plotly qualitative palette for unknown tickers
+- Brand colors — `TICKER_COLORS` dict in `src/stocks.py` maps known tickers to brand hex; fallback palette is a neutral set of blues, purples, and teals (no red/green to avoid misleading gain/loss signals)
 - Dividend adjustment — dividends received per lot summed from purchase date via yfinance `history()`, factored into Return (%) and shown as a separate column
+- UX improvements from investor usability review — confirmation dialogs for Clear All and × remove, div yield bug fix (European tickers), combined Total Return KPI card, "last updated" timestamp, "Buy #" column label, "Advanced" removed from Risk section title
+- Chart period presets — 3M / 6M / 1Y / All time on comparison chart; 3M / 6M / 1Y / 2Y / Since purchase / Custom on price history
+- Price history From/To date range — configurable start date per chart
+- Correlation heatmap "Correlation" legend label added
+- Stock Market field — tooltip replaced with always-visible caption
+- Scratch notebooks removed from repo

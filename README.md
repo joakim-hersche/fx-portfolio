@@ -12,7 +12,7 @@ A real-time stock portfolio tracker built with Streamlit. Add positions across m
 - **Multi-currency support** — live FX conversion across USD, EUR, GBP, and CHF
 - **Performance metrics** — current value, daily P&L, return %, and portfolio weight per position; colour-coded green/red in the positions table
 - **Dividend tracking** — dividends fetched from purchase date with historical FX conversion, factored into total return
-- **Interactive charts** — portfolio allocation bar chart, normalised 6-month performance comparison, and individual price history with buy price and purchase date overlays
+- **Interactive charts** — portfolio allocation bar chart, normalised performance comparison with configurable time range (3M / 6M / 1Y / All time), and individual price history with buy price and purchase date overlays; click legend items to show/hide individual lines
 - **Global stock coverage** — S&P 500, FTSE 100, DAX, CAC 40, SMI, AEX, IBEX 35, ETFs, crypto, and commodities; searchable via index-filtered dropdown
 - **Import / export** — save and load your portfolio as JSON, with validated parsing on import
 - **Performance** — all price data and stock lists are cached; price history charts lazy-load on demand
@@ -30,12 +30,12 @@ Horizontal bar chart sorted by weight, with brand colours for known tickers.
 ![Portfolio Allocation](Screenshots/04_portfolio_allocation.png)
 
 ### Normalised Performance
-6-month comparison chart with all positions rebased to 100. Toggle currency-adjusted mode.
+Comparison chart with all positions rebased to 100. Configurable time range (3M / 6M / 1Y / All time). Toggle currency-adjusted mode. Click legend to show/hide individual stocks.
 
 ![Normalised Performance](Screenshots/05_normalised_performance.png)
 
 ### Price History
-Per-ticker price chart with buy price overlays (yellow) and purchase date markers for each lot.
+Per-ticker price chart with buy price overlays (yellow) and purchase date markers for each lot. Configurable date range with presets (3M / 6M / 1Y / 2Y / Since purchase) or custom from/to dates.
 
 ![Price History](Screenshots/06_price_history.png)
 
