@@ -1,28 +1,39 @@
 <!DOCTYPE html>
 <html>
-<head>
-  <script src="https://unpkg.com/streamlit-component-lib@2.0.0/dist/streamlit-component-lib.js"></script>
-</head>
+<head><meta charset="UTF-8"></head>
 <body>
 <script>
-  Streamlit.events.addEventListener(Streamlit.RENDER_EVENT, function (event) {
-    var args = event.detail.args;
-    var key = args.storage_key;
-
-    if (args.operation === "get") {
-      var val = "";
-      try { val = localStorage.getItem(key) || ""; } catch (e) {}
-      Streamlit.setComponentValue(val);
-
-    } else if (args.operation === "set") {
-      try { localStorage.setItem(key, args.value); } catch (e) {}
-      Streamlit.setComponentValue(1);
+  function sendMsg(type, data) {
+    window.parent.postMessage(
+      Object.assign({ isStreamlitMessage: true, type: type }, data),
+      "*"
+    );
+  }
+  function setComponentReady() {
+    sendMsg("streamlit:componentReady", { apiVersion: 1 });
+  }
+  function setComponentValue(value) {
+    sendMsg("streamlit:setComponentValue", { value: value, dataType: "json" });
+  }
+  function setFrameHeight(height) {
+    sendMsg("streamlit:setFrameHeight", { height: height || 0 });
+  }
+  window.addEventListener("message", function(event) {
+    if (event.data.type === "streamlit:render") {
+      var args = event.data.args;
+      var key = args.storage_key;
+      if (args.operation === "get") {
+        var val = "";
+        try { val = localStorage.getItem(key) || ""; } catch(e) {}
+        setComponentValue(val);
+      } else if (args.operation === "set") {
+        try { localStorage.setItem(key, args.value); } catch(e) {}
+        setComponentValue(1);
+      }
+      setFrameHeight(0);
     }
-
-    Streamlit.setFrameHeight(0);
   });
-
-  Streamlit.setComponentReady();
+  setComponentReady();
 </script>
 </body>
 </html>
