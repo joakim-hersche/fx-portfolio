@@ -138,22 +138,6 @@ h3 {
     font-size: 14px;
     margin-bottom: 12px;
 }
-/* Equal-height KPI cards — propagate flex stretch through all of Streamlit's wrapper divs */
-[data-testid="stHorizontalBlock"]:has(.kpi-card) {
-    align-items: stretch;
-}
-[data-testid="stHorizontalBlock"]:has(.kpi-card) > [data-testid="column"],
-[data-testid="stHorizontalBlock"]:has(.kpi-card) > [data-testid="column"] > div,
-[data-testid="stHorizontalBlock"]:has(.kpi-card) > [data-testid="column"] > div > div,
-[data-testid="stHorizontalBlock"]:has(.kpi-card) > [data-testid="column"] > div > div > div,
-[data-testid="stHorizontalBlock"]:has(.kpi-card) > [data-testid="column"] > div > div > div > div {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-}
-.kpi-card {
-    flex: 1;
-}
 </style>
 """, unsafe_allow_html=True)
 
@@ -464,11 +448,16 @@ return_sub = f'<div style="color:#555; font-size:12px; margin-top:4px;">Since {_
 
 col_m1, col_m2, col_m3, col_m4 = st.columns(4)
 
+_spacer_line_md  = '<div style="font-size:14px; margin-top:4px; visibility:hidden;">.</div>'
+_spacer_line_sm  = '<div style="font-size:12px; margin-top:4px; visibility:hidden;">.</div>'
+
 with col_m1:
     st.markdown(f"""
     <div class="kpi-card" style="border: 1px solid #2d2d2d;">
         <div class="kpi-label">Total Portfolio Value</div>
         <div class="kpi-value" style="color: white;">{currency_symbol}{total_value:,.2f}</div>
+        {_spacer_line_md}
+        {_spacer_line_sm}
     </div>
     """, unsafe_allow_html=True)
 
@@ -479,6 +468,8 @@ with col_m2:
         <div class="kpi-value" style="color: {pnl_color};">
             {"+" if daily_pnl >= 0 else ""}{currency_symbol}{daily_pnl:,.2f}
         </div>
+        <div style="color:#555; font-size:14px; margin-top:4px;">Since yesterday's close</div>
+        {_spacer_line_sm}
     </div>
     """, unsafe_allow_html=True)
 
@@ -492,7 +483,7 @@ with col_m3:
         <div style="color: {ret_color}; font-size: 14px; margin-top: 4px;">
             {"+" if total_ret_pct >= 0 else ""}{total_ret_pct:,.2f}%
         </div>
-        {return_sub}
+        {return_sub if return_sub else _spacer_line_sm}
     </div>
     """, unsafe_allow_html=True)
 
@@ -501,7 +492,8 @@ with col_m4:
     <div class="kpi-card" style="border: 1px solid #2d2d2d;">
         <div class="kpi-label">Positions</div>
         <div class="kpi-value" style="color: white;">{n_positions}</div>
-        {positions_sub}
+        {positions_sub if positions_sub else _spacer_line_md}
+        {_spacer_line_sm}
     </div>
     """, unsafe_allow_html=True)
 
