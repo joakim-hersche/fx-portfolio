@@ -4,7 +4,7 @@ A real-time stock portfolio tracker built with Streamlit. Add positions across m
 
 ![Dashboard Overview](Screenshots/01_overview.png)
 
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-Streamlit-red)](https://market-dashboardgit-p4ehquxxrncud3gzyvhbeq.streamlit.app)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Streamlit-red)](https://market-dashboard-open-source-project.streamlit.app)
 
 ## Features
 
