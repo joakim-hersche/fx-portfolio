@@ -128,7 +128,7 @@ def build_portfolio_df(portfolio: dict, base_currency: str) -> pd.DataFrame:
 
             rows.append({
                 "Ticker": ticker,
-                "Lot": i + 1,
+                "Purchase": i + 1,
                 "Shares": shares,
                 "Buy Price": round(buy_price, 2),
                 "Purchase Date": purchase_date or "Manual",
