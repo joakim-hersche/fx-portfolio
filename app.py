@@ -3,7 +3,7 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import plotly.express as px
-from streamlit_javascript import st_javascript
+from src.localstorage_component import ls_get, ls_set
 
 from src.stocks import (
     get_sp500_stocks, get_ftse100_stocks, get_dax_stocks,
@@ -112,20 +112,21 @@ h3 {
     margin-bottom: 0.8rem !important;
 }
 [data-testid="metric-container"] {
-    background-color: #1a1a1a;
-    border: 1px solid #2d2d2d;
+    background-color: var(--secondary-background-color);
+    border: 1px solid rgba(128,128,128,0.3);
     border-radius: 8px;
     padding: 16px 20px;
 }
 .kpi-card {
-    background-color: #1a1a1a;
+    background-color: var(--secondary-background-color);
     border-radius: 8px;
     padding: 18px 24px;
     text-align: center;
 }
 .kpi-label {
     font-size: 13px;
-    color: #888;
+    color: var(--text-color);
+    opacity: 0.6;
     margin-bottom: 6px;
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -136,7 +137,8 @@ h3 {
     line-height: 1.2;
 }
 .section-intro {
-    color: #aaa;
+    color: var(--text-color);
+    opacity: 0.7;
     font-size: 14px;
     margin-bottom: 12px;
 }
@@ -171,20 +173,12 @@ currency_symbol = CURRENCY_SYMBOLS[base_currency]
 # ──────────────────────────────────────────────
 
 # localStorage: restore portfolio and currency from previous session.
-# st_javascript returns None on the first render (JS not yet executed),
-# then the actual value on the second render — so we guard with ls_loaded.
-# We try window.parent.localStorage first (main browser tab) in case the
-# component iframe has isolated storage; fall back to iframe localStorage.
+# ls_get returns None on the first render (component not yet ready),
+# then the stored string on the next render — guard with ls_loaded.
 _LS_KEY = "market_dashboard_portfolio"
-_LS_READ = (
-    f'(function(){{'
-    f'try{{return window.parent.localStorage.getItem("{_LS_KEY}")??"";}}'
-    f'catch(e){{return localStorage.getItem("{_LS_KEY}")??"";}}'
-    f'}})()'
-)
 
 if "ls_loaded" not in st.session_state:
-    _ls_data = st_javascript(_LS_READ)
+    _ls_data = ls_get(_LS_KEY)
     if _ls_data is not None:
         st.session_state.ls_loaded = True
         if _ls_data:
@@ -214,22 +208,11 @@ if "pending_remove" not in st.session_state:
     st.session_state.pending_remove = None
 
 # localStorage: persist portfolio + currency on every render (once initial load is done).
-# Returns 1 (truthy stable value) so the component value stays constant and
-# doesn't trigger further reruns after the first successful save.
 if st.session_state.get("ls_loaded"):
-    _state_json = json.dumps({
+    ls_set(_LS_KEY, json.dumps({
         "portfolio": st.session_state.portfolio,
         "currency": st.session_state.currency,
-    })
-    _ls_save = (
-        f'(function(){{'
-        f'var v={json.dumps(_state_json)};'
-        f'try{{window.parent.localStorage.setItem("{_LS_KEY}",v);}}'
-        f'catch(e){{localStorage.setItem("{_LS_KEY}",v);}}'
-        f'return 1;'
-        f'}})()'
-    )
-    st_javascript(_ls_save)
+    }))
 
 # ──────────────────────────────────────────────
 # Stock List
@@ -488,15 +471,15 @@ total_divs    = df["Dividends"].sum()
 total_return  = total_value + total_divs - cost_basis
 total_ret_pct = (total_return / cost_basis * 100) if cost_basis else 0.0
 
-pnl_color  = "#00c853" if daily_pnl    >= 0 else "#ff5252"
-ret_color  = "#00c853" if total_return >= 0 else "#ff5252"
+pnl_color  = "#2e7d32" if daily_pnl    >= 0 else "#c0392b"
+ret_color  = "#2e7d32" if total_return >= 0 else "#c0392b"
 
 n_purchases = sum(len(lots) for lots in st.session_state.portfolio.values())
-positions_sub = f'<div style="color:#555; font-size:12px; margin-top:4px;">{n_purchases} purchases</div>' if n_purchases != n_positions else ""
+positions_sub = f'<div style="color: var(--text-color); opacity: 0.55; font-size:12px; margin-top:4px;">{n_purchases} purchases</div>' if n_purchases != n_positions else ""
 
 _all_dates = [lot["purchase_date"] for lots in st.session_state.portfolio.values() for lot in lots if lot.get("purchase_date")]
 _first_purchase = min(_all_dates) if _all_dates else None
-return_sub = f'<div style="color:#555; font-size:12px; margin-top:4px;">Since {_first_purchase}</div>' if _first_purchase else ""
+return_sub = f'<div style="color: var(--text-color); opacity: 0.55; font-size:12px; margin-top:4px;">Since {_first_purchase}</div>' if _first_purchase else ""
 
 col_m1, col_m2, col_m3, col_m4 = st.columns(4)
 
@@ -505,9 +488,9 @@ _spacer_line_sm  = '<div style="font-size:12px; margin-top:4px; visibility:hidde
 
 with col_m1:
     st.markdown(f"""
-    <div class="kpi-card" style="border: 1px solid #2d2d2d;">
+    <div class="kpi-card" style="border: 1px solid rgba(128,128,128,0.3);">
         <div class="kpi-label">Total Portfolio Value</div>
-        <div class="kpi-value" style="color: white;">{currency_symbol}{total_value:,.2f}</div>
+        <div class="kpi-value" style="color: var(--text-color);">{currency_symbol}{total_value:,.2f}</div>
         {_spacer_line_md}
         {_spacer_line_sm}
     </div>
@@ -520,7 +503,7 @@ with col_m2:
         <div class="kpi-value" style="color: {pnl_color};">
             {"+" if daily_pnl >= 0 else ""}{currency_symbol}{daily_pnl:,.2f}
         </div>
-        <div style="color:#555; font-size:14px; margin-top:4px;">Since yesterday's close</div>
+        <div style="color: var(--text-color); opacity: 0.55; font-size:14px; margin-top:4px;">Since yesterday's close</div>
         {_spacer_line_sm}
     </div>
     """, unsafe_allow_html=True)
@@ -541,9 +524,9 @@ with col_m3:
 
 with col_m4:
     st.markdown(f"""
-    <div class="kpi-card" style="border: 1px solid #2d2d2d;">
+    <div class="kpi-card" style="border: 1px solid rgba(128,128,128,0.3);">
         <div class="kpi-label">Positions</div>
-        <div class="kpi-value" style="color: white;">{n_positions}</div>
+        <div class="kpi-value" style="color: var(--text-color);">{n_positions}</div>
         {positions_sub if positions_sub else _spacer_line_md}
         {_spacer_line_sm}
     </div>
@@ -552,7 +535,7 @@ with col_m4:
 from datetime import datetime
 _last_updated = datetime.now().strftime("%H:%M")
 st.markdown(
-    f'<p style="text-align:right; color:#555; font-size:12px; margin-top:4px;">Prices last fetched at {_last_updated} (cached up to 15 min)</p>',
+    f'<p style="text-align:right; color: var(--text-color); opacity: 0.55; font-size:12px; margin-top:4px;">Prices last fetched at {_last_updated} (cached up to 15 min)</p>',
     unsafe_allow_html=True
 )
 st.markdown("<div style='margin-bottom: 16px;'></div>", unsafe_allow_html=True)
@@ -578,9 +561,9 @@ with st.expander("📋 Your Positions", expanded=True):
     styled_df.insert(1, "Company", styled_df["Ticker"].map(name_map))
 
     def _color_pnl(val):
-        if val > 0:   return "color: #00c853; font-weight: 500"
-        elif val < 0: return "color: #ff5252; font-weight: 500"
-        return "color: white"
+        if val > 0:   return "color: #2e7d32; font-weight: 500"
+        elif val < 0: return "color: #c0392b; font-weight: 500"
+        return "color: var(--text-color)"
 
     def _fmt_shares(x):
         return f"{int(x):,}" if x == int(x) else f"{x:g}"
@@ -647,7 +630,9 @@ with st.expander("📊 Portfolio Allocation", expanded=True):
         xaxis_title="Portfolio Share (%)",
         yaxis_title=None,
         showlegend=False,
-        template="plotly_dark",
+        template="plotly",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
         xaxis=dict(range=[0, alloc_df["Portfolio Share (%)"].max() * 1.15]),
     )
     st.plotly_chart(fig_alloc, use_container_width=True)
@@ -720,7 +705,9 @@ with st.expander("📈 How My Stocks Compare", expanded=True):
         xaxis_title="Date",
         yaxis_title=f"Indexed growth (100 = start)  —  {range_label}  {title_suffix}",
         legend_title="Stock",
-        template="plotly_dark",
+        template="plotly",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
     )
     fig_comp.add_hline(y=100, line_dash="dash", line_color="gray")
     st.plotly_chart(fig_comp, use_container_width=True)
@@ -809,7 +796,9 @@ for idx, (t, lots) in enumerate(st.session_state.portfolio.items()):
             yaxis_title=y_label,
             xaxis_range=[str(pd.Timestamp(effective_from).date()), str(date_to)],
             showlegend=False,
-            template="plotly_dark",
+            template="plotly",
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
         )
 
         for i, lot in enumerate(lots):
@@ -870,21 +859,21 @@ with st.expander("🔬 Risk & Analytics", expanded=False):
 
         def _color_sharpe(val):
             if not isinstance(val, (int, float)): return ""
-            if val >= 1:   return "color: #00c853"
-            if val >= 0:   return "color: #ffd600"
-            return "color: #ff5252"
+            if val >= 1:   return "color: #2e7d32"
+            if val >= 0:   return "color: #b8860b"
+            return "color: #c0392b"
 
         def _color_volatility(val):
             if not isinstance(val, (int, float)): return ""
-            if val <= 20:  return "color: #00c853"
-            if val <= 35:  return "color: #ffd600"
-            return "color: #ff5252"
+            if val <= 20:  return "color: #2e7d32"
+            if val <= 35:  return "color: #b8860b"
+            return "color: #c0392b"
 
         def _color_drawdown(val):
             if not isinstance(val, (int, float)): return ""
-            if val >= -20: return "color: #00c853"
-            if val >= -40: return "color: #ffd600"
-            return "color: #ff5252"
+            if val >= -20: return "color: #2e7d32"
+            if val >= -40: return "color: #b8860b"
+            return "color: #c0392b"
 
         risk_display = analytics_df.set_index("Ticker").rename(columns={
             "Volatility":   "Volatility (%)",
@@ -935,7 +924,9 @@ with st.expander("🔬 Risk & Analytics", expanded=False):
                     text_auto=".2f",
                 )
                 fig_corr.update_layout(
-                    template="plotly_dark",
+                    template="plotly",
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    plot_bgcolor="rgba(0,0,0,0)",
                     margin=dict(t=20),
                     coloraxis_colorbar=dict(title="Correlation"),
                 )
