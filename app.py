@@ -161,7 +161,7 @@ with col_currency:
     base_currency = st.selectbox(
         "Currency",
         options=list(CURRENCY_SYMBOLS.keys()),
-        index=0,
+        key="currency",
     )
 
 currency_symbol = CURRENCY_SYMBOLS[base_currency]
@@ -170,23 +170,39 @@ currency_symbol = CURRENCY_SYMBOLS[base_currency]
 # Session State
 # ──────────────────────────────────────────────
 
-# localStorage: restore portfolio from previous session.
+# localStorage: restore portfolio and currency from previous session.
 # st_javascript returns None on the first render (JS not yet executed),
 # then the actual value on the second render — so we guard with ls_loaded.
+# We try window.parent.localStorage first (main browser tab) in case the
+# component iframe has isolated storage; fall back to iframe localStorage.
+_LS_KEY = "market_dashboard_portfolio"
+_LS_READ = (
+    f'(function(){{'
+    f'try{{return window.parent.localStorage.getItem("{_LS_KEY}")??"";}}'
+    f'catch(e){{return localStorage.getItem("{_LS_KEY}")??"";}}'
+    f'}})()'
+)
+
 if "ls_loaded" not in st.session_state:
-    _ls_data = st_javascript('localStorage.getItem("market_dashboard_portfolio") ?? ""')
+    _ls_data = st_javascript(_LS_READ)
     if _ls_data is not None:
         st.session_state.ls_loaded = True
         if _ls_data:
             try:
                 _parsed = json.loads(_ls_data)
                 if isinstance(_parsed, dict):
-                    st.session_state.portfolio = _parsed
+                    if "portfolio" in _parsed:
+                        st.session_state.portfolio = _parsed["portfolio"]
+                    if "currency" in _parsed:
+                        st.session_state.currency = _parsed["currency"]
             except Exception:
                 pass
 
 if "portfolio" not in st.session_state:
     st.session_state.portfolio = {}
+
+if "currency" not in st.session_state:
+    st.session_state.currency = list(CURRENCY_SYMBOLS.keys())[0]
 
 if "imported" not in st.session_state:
     st.session_state.imported = False
@@ -197,11 +213,23 @@ if "confirm_clear" not in st.session_state:
 if "pending_remove" not in st.session_state:
     st.session_state.pending_remove = None
 
-# localStorage: persist current portfolio on every render (once initial load is done).
-# Returning null avoids triggering an infinite rerun loop.
+# localStorage: persist portfolio + currency on every render (once initial load is done).
+# Returns 1 (truthy stable value) so the component value stays constant and
+# doesn't trigger further reruns after the first successful save.
 if st.session_state.get("ls_loaded"):
-    _portfolio_json = json.dumps(st.session_state.portfolio)
-    st_javascript(f'localStorage.setItem("market_dashboard_portfolio", {json.dumps(_portfolio_json)}); null')
+    _state_json = json.dumps({
+        "portfolio": st.session_state.portfolio,
+        "currency": st.session_state.currency,
+    })
+    _ls_save = (
+        f'(function(){{'
+        f'var v={json.dumps(_state_json)};'
+        f'try{{window.parent.localStorage.setItem("{_LS_KEY}",v);}}'
+        f'catch(e){{localStorage.setItem("{_LS_KEY}",v);}}'
+        f'return 1;'
+        f'}})()'
+    )
+    st_javascript(_ls_save)
 
 # ──────────────────────────────────────────────
 # Stock List
