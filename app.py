@@ -32,6 +32,32 @@ def fetch_price_history_long(ticker: str) -> pd.DataFrame:
     except Exception:
         return pd.DataFrame()
 
+@st.cache_data(ttl=86400)  # 24 hours — fundamental data
+def fetch_fundamentals(ticker: str) -> dict:
+    """Fetch P/E, dividend yield, and 52-week range. Cached for 24 hours."""
+    try:
+        info = yf.Ticker(ticker).info
+        current  = info.get("currentPrice") or info.get("regularMarketPrice")
+        low_52w  = info.get("fiftyTwoWeekLow")
+        high_52w = info.get("fiftyTwoWeekHigh")
+        pe       = info.get("trailingPE")
+        div      = info.get("dividendYield")
+
+        position = None
+        if current and low_52w and high_52w and high_52w > low_52w:
+            position = round((current - low_52w) / (high_52w - low_52w) * 100, 1)
+
+        return {
+            "P/E Ratio":     round(pe, 1)        if pe       else None,
+            "Div Yield (%)": round(div * 100, 2)  if div      else None,
+            "52W Low":       round(low_52w, 2)    if low_52w  else None,
+            "52W High":      round(high_52w, 2)   if high_52w else None,
+            "52W Position":  position,
+        }
+    except Exception:
+        return {}
+
+
 @st.cache_data(ttl=86400)  # 24 hours — analytics price data
 def fetch_analytics_history(ticker: str) -> pd.DataFrame:
     """Fetch 1-year price history for analytics. Cached for 24 hours."""
@@ -486,6 +512,43 @@ if not analytics_df.empty:
                 )
                 fig_corr.update_layout(template="plotly_dark", margin=dict(t=20))
                 st.plotly_chart(fig_corr, use_container_width=True)
+
+    # --- Fundamentals ---
+    st.markdown("#### Fundamentals")
+    st.caption("Valuation and price range data from the latest available figures.")
+
+    fund_rows = []
+    for t in _tickers:
+        f = fetch_fundamentals(t)
+        if f:
+            fund_rows.append({"Ticker": t, **f})
+
+    if fund_rows:
+        fund_df = pd.DataFrame(fund_rows).set_index("Ticker")
+        st.dataframe(
+            fund_df,
+            use_container_width=True,
+            column_config={
+                "P/E Ratio":     st.column_config.NumberColumn("P/E Ratio",    format="%.1f"),
+                "Div Yield (%)": st.column_config.NumberColumn("Div Yield (%)", format="%.2f"),
+                "52W Low":       st.column_config.NumberColumn("52W Low",      format="%.2f"),
+                "52W High":      st.column_config.NumberColumn("52W High",     format="%.2f"),
+                "52W Position":  st.column_config.ProgressColumn(
+                    "52W Position",
+                    min_value=0,
+                    max_value=100,
+                    format="%.0f%%",
+                ),
+            },
+        )
+
+        col_f1, col_f2 = st.columns(2)
+        with col_f1:
+            st.caption("💰 **P/E Ratio** — how much investors pay relative to earnings. A P/E of 20 means the stock costs 20× what the company earns per share. Lower can mean better value, but varies by sector.")
+            st.caption("💵 **Div Yield** — the annual dividend as a % of the current price. 3% means every $100 invested pays $3/year in dividends.")
+        with col_f2:
+            st.caption("📏 **52W Low / High** — the lowest and highest price the stock reached over the past year.")
+            st.caption("📍 **52W Position** — where the current price sits in the yearly range. 100% = at the yearly high; 0% = at the yearly low.")
 
 # ──────────────────────────────────────────────
 # Charts
