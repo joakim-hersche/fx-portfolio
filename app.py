@@ -138,15 +138,18 @@ h3 {
     font-size: 14px;
     margin-bottom: 12px;
 }
-/* Equal-height KPI cards — stretch all columns to the tallest card */
-[data-testid="stHorizontalBlock"]:has(.kpi-card) > [data-testid="column"] {
-    display: flex;
+/* Equal-height KPI cards — propagate flex stretch through all of Streamlit's wrapper divs */
+[data-testid="stHorizontalBlock"]:has(.kpi-card) {
+    align-items: stretch;
 }
+[data-testid="stHorizontalBlock"]:has(.kpi-card) > [data-testid="column"],
 [data-testid="stHorizontalBlock"]:has(.kpi-card) > [data-testid="column"] > div,
-[data-testid="stHorizontalBlock"]:has(.kpi-card) > [data-testid="column"] > div > div {
-    flex: 1;
+[data-testid="stHorizontalBlock"]:has(.kpi-card) > [data-testid="column"] > div > div,
+[data-testid="stHorizontalBlock"]:has(.kpi-card) > [data-testid="column"] > div > div > div,
+[data-testid="stHorizontalBlock"]:has(.kpi-card) > [data-testid="column"] > div > div > div > div {
     display: flex;
     flex-direction: column;
+    flex: 1;
 }
 .kpi-card {
     flex: 1;
