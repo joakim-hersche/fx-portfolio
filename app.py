@@ -138,6 +138,19 @@ h3 {
     font-size: 14px;
     margin-bottom: 12px;
 }
+/* Equal-height KPI cards — stretch all columns to the tallest card */
+[data-testid="stHorizontalBlock"]:has(.kpi-card) > [data-testid="column"] {
+    display: flex;
+}
+[data-testid="stHorizontalBlock"]:has(.kpi-card) > [data-testid="column"] > div,
+[data-testid="stHorizontalBlock"]:has(.kpi-card) > [data-testid="column"] > div > div {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+.kpi-card {
+    flex: 1;
+}
 </style>
 """, unsafe_allow_html=True)
 
