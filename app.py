@@ -146,34 +146,13 @@ h3 {
 """, unsafe_allow_html=True)
 
 # ──────────────────────────────────────────────
-# Header
-# ──────────────────────────────────────────────
-col_title, col_currency = st.columns([4, 1])
-
-with col_title:
-    st.markdown("""
-    <div style="display:flex; align-items:center; gap:12px; margin-bottom:4px;">
-        <div style="width:4px; height:40px; background:#4f8ef7; border-radius:2px; flex-shrink:0;"></div>
-        <h1 style="margin:0; padding:0;">Market Dashboard</h1>
-    </div>
-    """, unsafe_allow_html=True)
-    st.markdown("Track your stock portfolio in real time.")
-
-with col_currency:
-    base_currency = st.selectbox(
-        "Currency",
-        options=list(CURRENCY_SYMBOLS.keys()),
-        key="currency",
-    )
-
-currency_symbol = CURRENCY_SYMBOLS[base_currency]
-
-# ──────────────────────────────────────────────
-# Session State
+# Session State  (must run before any widgets)
 # ──────────────────────────────────────────────
 
 # File-based persistence — survives page refresh without any JavaScript.
 # Saved to .portfolio_state.json in the project directory (gitignored).
+# On read-only filesystems (e.g. Streamlit Cloud) saves silently fail,
+# which is fine — the cloud demo just doesn't persist across sessions.
 _STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".portfolio_state.json")
 
 def _load_state() -> dict | None:
@@ -217,6 +196,29 @@ if "pending_remove" not in st.session_state:
     st.session_state.pending_remove = None
 
 _save_state()
+
+# ──────────────────────────────────────────────
+# Header
+# ──────────────────────────────────────────────
+col_title, col_currency = st.columns([4, 1])
+
+with col_title:
+    st.markdown("""
+    <div style="display:flex; align-items:center; gap:12px; margin-bottom:4px;">
+        <div style="width:4px; height:40px; background:#4f8ef7; border-radius:2px; flex-shrink:0;"></div>
+        <h1 style="margin:0; padding:0;">Market Dashboard</h1>
+    </div>
+    """, unsafe_allow_html=True)
+    st.markdown("Track your stock portfolio in real time.")
+
+with col_currency:
+    base_currency = st.selectbox(
+        "Currency",
+        options=list(CURRENCY_SYMBOLS.keys()),
+        key="currency",
+    )
+
+currency_symbol = CURRENCY_SYMBOLS[base_currency]
 
 # ──────────────────────────────────────────────
 # Stock List
