@@ -223,7 +223,7 @@ with st.expander("➕ Add / Manage Positions", expanded=is_new_user):
         )
 
     # Import / Load Sample
-    col_import, col_sample = st.columns([3, 1], vertical_alignment="bottom")
+    col_import, col_sample = st.columns([3, 1], vertical_alignment="top")
     uploaded_file = col_import.file_uploader("Import saved portfolio (.json file)", type="json")
     col_import.caption("Use the file you previously exported with the 'Export Portfolio' button.")
     if col_sample.button("Load Sample Portfolio", use_container_width=True):
