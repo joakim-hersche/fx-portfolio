@@ -110,9 +110,11 @@ def get_etfs():
     }
 
 
+# All colors are chosen to be legible on both light and dark backgrounds.
+# Avoid luminance extremes: nothing too dark (<20% luminance) or too light (>80%).
 TICKER_COLORS = {
     # US Tech
-    "AAPL":   "#555555",  # Apple space grey
+    "AAPL":   "#888888",  # Apple grey (lightened from brand #555 for dark-mode visibility)
     "MSFT":   "#00a4ef",  # Microsoft blue
     "GOOGL":  "#4285f4",  # Google blue
     "GOOG":   "#4285f4",
@@ -130,36 +132,36 @@ TICKER_COLORS = {
     "JPM":    "#005eb8",  # JPMorgan blue
     "GS":     "#7399c6",  # Goldman blue
     "BAC":    "#e31837",  # BofA red
-    "V":      "#1a1f71",  # Visa navy
+    "V":      "#4a52e0",  # Visa (brightened from brand #1a1f71 for dark-mode visibility)
     "MA":     "#eb001b",  # Mastercard red
     # US Consumer / Other
     "WMT":    "#0071ce",  # Walmart blue
     "KO":     "#f40000",  # Coca-Cola red
     "PEP":    "#004b93",  # Pepsi blue
-    "MCD":    "#ffbc0d",  # McDonald's yellow
+    "MCD":    "#c8960a",  # McDonald's (darkened from brand #ffbc0d for light-mode visibility)
     "NKE":    "#f85c00",  # Nike orange
-    "DIS":    "#113ccf",  # Disney blue
+    "DIS":    "#3b5ce6",  # Disney (brightened from brand #113ccf for dark-mode visibility)
     # ETFs
     "SPY":    "#c0392b",
     "QQQ":    "#2980b9",
     "VTI":    "#27ae60",
     "VUG":    "#16a085",
     "VYM":    "#8e44ad",
-    "VT":     "#2c3e50",
+    "VT":     "#5d7a9e",  # (darkened from brand #2c3e50 for dark-mode visibility)
     "VGK":    "#2471a3",
     # UK
     "HSBA.L": "#db0011",  # HSBC red
     "BP.L":   "#009900",  # BP green
     "GSK.L":  "#f36633",  # GSK orange
-    "AZN.L":  "#003865",  # AstraZeneca navy
-    "SHEL.L": "#fbce07",  # Shell yellow
-    "LLOY.L": "#024731",  # Lloyds green
+    "AZN.L":  "#1a6ba0",  # AstraZeneca (brightened from brand #003865 for dark-mode visibility)
+    "SHEL.L": "#c8a200",  # Shell (darkened from brand #fbce07 for light-mode visibility)
+    "LLOY.L": "#1a7a50",  # Lloyds (brightened from brand #024731 for dark-mode visibility)
     "BARC.L": "#00aeef",  # Barclays blue
     # Switzerland
     "UBSG.SW":  "#e30613",  # UBS red
     # Europe
     "SAP.DE":   "#0faaff",  # SAP blue
-    "VOW3.DE":  "#001e50",  # VW navy
+    "VOW3.DE":  "#1a4fa0",  # VW (brightened from brand #001e50 for dark-mode visibility)
     "BMW.DE":   "#1c69d3",  # BMW blue
     "ASML.AS":  "#009ee2",  # ASML blue
     "NESN.SW":  "#e2001a",  # Nestlé red
@@ -170,11 +172,11 @@ TICKER_COLORS = {
     "ETH-USD":  "#627eea",  # Ethereum purple
     "SOL-USD":  "#9945ff",  # Solana purple
     "XRP-USD":  "#346aa9",  # XRP blue
-    "BNB-USD":  "#f3ba2f",  # BNB yellow
+    "BNB-USD":  "#c8960a",  # BNB (darkened from brand #f3ba2f for light-mode visibility)
     # Commodities
-    "GC=F":     "#ffd700",  # Gold
-    "SI=F":     "#c0c0c0",  # Silver
-    "GLD":      "#ffd700",  # Gold ETF
-    "SLV":      "#c0c0c0",  # Silver ETF
-    "CL=F":     "#1a1a2e",  # Crude Oil dark
+    "GC=F":     "#c8a200",  # Gold (darkened from #ffd700 for light-mode visibility)
+    "SI=F":     "#808080",  # Silver (mid-grey, visible on both themes)
+    "GLD":      "#c8a200",  # Gold ETF
+    "SLV":      "#808080",  # Silver ETF
+    "CL=F":     "#6b7280",  # Crude Oil (lightened from near-black for dark-mode visibility)
 }

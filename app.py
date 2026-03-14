@@ -59,6 +59,16 @@ def fetch_fundamentals(ticker: str) -> dict:
         return {}
 
 
+@st.cache_data(ttl=86400)  # 24 hours — company name
+def fetch_company_name(ticker: str) -> str:
+    """Fetch short company name. Falls back to ticker on failure."""
+    try:
+        info = yf.Ticker(ticker).info
+        return info.get("shortName") or info.get("longName") or ticker
+    except Exception:
+        return ticker
+
+
 @st.cache_data(ttl=86400)  # 24 hours — analytics price data
 def fetch_analytics_history(ticker: str) -> pd.DataFrame:
     """Fetch 1-year price history for analytics. Cached for 24 hours."""
@@ -214,7 +224,8 @@ with st.expander("➕ Add / Manage Positions", expanded=is_new_user):
 
     # Import / Load Sample
     col_import, col_sample = st.columns([3, 1], vertical_alignment="bottom")
-    uploaded_file = col_import.file_uploader("Import saved portfolio (JSON)", type="json")
+    uploaded_file = col_import.file_uploader("Import saved portfolio (.json file)", type="json")
+    col_import.caption("Use the file you previously exported with the 'Export Portfolio' button.")
     if col_sample.button("Load Sample Portfolio", use_container_width=True):
         import json, os
         sample_path = os.path.join(os.path.dirname(__file__), "data", "sample_portfolio.json")
@@ -311,6 +322,7 @@ with st.expander("➕ Add / Manage Positions", expanded=is_new_user):
         if not alt_asset:
             st.markdown("<div style='margin-top: 36px;'>", unsafe_allow_html=True)
             manual_price = st.checkbox("Enter price manually", key="manual_price_toggle")
+            st.caption("Leave unchecked to use the actual market price on that date (recommended).")
             st.markdown("</div>", unsafe_allow_html=True)
 
     if st.button("Add to Portfolio"):
@@ -368,8 +380,11 @@ with st.expander("➕ Add / Manage Positions", expanded=is_new_user):
 
         for t, lots in list(st.session_state.portfolio.items()):
             for i, lot in enumerate(lots):
-                col_name, col_date, col_btn, col_spacer = st.columns([2, 2, 1, 6])
-                col_name.write(f"{t} (Buy {i + 1})")
+                col_name, col_detail, col_date, col_btn, col_spacer = st.columns([2, 3, 2, 1, 3])
+                col_name.write(f"{t} — Buy {i + 1}")
+                tc = get_ticker_currency(t)
+                display_tc = "GBP" if tc == "GBX" else tc
+                col_detail.caption(f"{lot['shares']:g} shares · {display_tc} {lot['buy_price']:,.2f}")
                 col_date.write(lot["purchase_date"] or "Manual")
                 if col_btn.button("×", key=f"remove_{t}_{i}"):
                     st.session_state.pending_remove = (t, i)
@@ -403,6 +418,15 @@ if df.empty:
     st.warning("Could not retrieve price data for any positions.")
     st.stop()
 
+# ── Shared display helpers ─────────────────
+# Single color map keyed by portfolio insertion order — used consistently across all charts.
+portfolio_color_map = {
+    t: TICKER_COLORS.get(t, CHART_COLORS[i % len(CHART_COLORS)])
+    for i, t in enumerate(st.session_state.portfolio.keys())
+}
+# Company names — falls back to ticker if fetch fails.
+name_map = {t: fetch_company_name(t) for t in st.session_state.portfolio}
+
 # ── KPI Cards ────────────────────────────────
 total_value   = df["Total Value"].sum()
 daily_pnl     = df["Daily P&L"].sum()
@@ -417,6 +441,10 @@ ret_color  = "#00c853" if total_return >= 0 else "#ff5252"
 
 n_purchases = sum(len(lots) for lots in st.session_state.portfolio.values())
 positions_sub = f'<div style="color:#555; font-size:12px; margin-top:4px;">{n_purchases} purchases</div>' if n_purchases != n_positions else ""
+
+_all_dates = [lot["purchase_date"] for lots in st.session_state.portfolio.values() for lot in lots if lot.get("purchase_date")]
+_first_purchase = min(_all_dates) if _all_dates else None
+return_sub = f'<div style="color:#555; font-size:12px; margin-top:4px;">Since {_first_purchase}</div>' if _first_purchase else ""
 
 col_m1, col_m2, col_m3, col_m4 = st.columns(4)
 
@@ -448,6 +476,7 @@ with col_m3:
         <div style="color: {ret_color}; font-size: 14px; margin-top: 4px;">
             {"+" if total_ret_pct >= 0 else ""}{total_ret_pct:,.2f}%
         </div>
+        {return_sub}
     </div>
     """, unsafe_allow_html=True)
 
@@ -480,15 +509,13 @@ with st.expander("📋 Your Positions", expanded=True):
         unsafe_allow_html=True
     )
 
-    styled_df = (
-        df.copy()
-        .rename(columns={
-            "Return (%)": "Total Return (%)",
-            "Weight (%)": "Portfolio Share (%)",
-            "Daily P&L":  "Today's Change",
-            "Purchase":   "Buy #",
-        })
-    )
+    styled_df = df.copy().rename(columns={
+        "Return (%)": "Total Return (%)",
+        "Weight (%)": "Portfolio Share (%)",
+        "Daily P&L":  "Today's Change",
+        "Purchase":   "Buy #",
+    })
+    styled_df.insert(1, "Company", styled_df["Ticker"].map(name_map))
 
     def _color_pnl(val):
         if val > 0:   return "color: #00c853; font-weight: 500"
@@ -499,7 +526,7 @@ with st.expander("📋 Your Positions", expanded=True):
         return f"{int(x):,}" if x == int(x) else f"{x:g}"
 
     styled = (
-        styled_df.set_index(["Ticker", "Buy #"])
+        styled_df.set_index(["Ticker", "Company", "Buy #"])
         .style
         .format({
             "Shares":           _fmt_shares,
@@ -544,17 +571,15 @@ with st.expander("📊 Portfolio Allocation", expanded=True):
         .assign(**{"Portfolio Share (%)": lambda x: (x["Total Value"] / x["Total Value"].sum() * 100).round(2)})
         .sort_values("Portfolio Share (%)", ascending=True)
     )
-    bar_colors = [
-        TICKER_COLORS.get(t, CHART_COLORS[i % len(CHART_COLORS)])
-        for i, t in enumerate(alloc_df["Ticker"])
-    ]
+    alloc_df["Company"] = alloc_df["Ticker"].map(name_map)
+    alloc_color_map = {name_map[t]: portfolio_color_map[t] for t in alloc_df["Ticker"]}
     fig_alloc = px.bar(
         alloc_df,
         x="Portfolio Share (%)",
-        y="Ticker",
+        y="Company",
         orientation="h",
-        color="Ticker",
-        color_discrete_sequence=bar_colors,
+        color="Company",
+        color_discrete_map=alloc_color_map,
         text=alloc_df["Portfolio Share (%)"].map(lambda v: f"{v:.1f}%"),
     )
     fig_alloc.update_traces(textposition="outside")
@@ -581,13 +606,12 @@ with st.expander("📈 How My Stocks Compare", expanded=True):
         unsafe_allow_html=True
     )
 
-    col_range, col_fx_comp = st.columns([3, 2])
+    col_range, col_fx_comp = st.columns([3, 2], vertical_alignment="bottom")
     with col_range:
         range_options = {"3 months": "3mo", "6 months": "6mo", "1 year": "1y", "All time": "max"}
         range_label = st.radio("Time range", list(range_options.keys()), index=1, horizontal=True)
         selected_range = range_options[range_label]
     with col_fx_comp:
-        st.write("")
         fx_adjust_comparison = st.toggle("Currency-adjusted", key="fx_toggle_comparison")
 
     @st.cache_data(ttl=900)
@@ -622,21 +646,20 @@ with st.expander("📈 How My Stocks Compare", expanded=True):
     comparison_df = pd.DataFrame(comparison_data).dropna()
     comparison_df = comparison_df / comparison_df.iloc[0] * 100
 
-    color_map = {
-        t: TICKER_COLORS.get(t, CHART_COLORS[i % len(CHART_COLORS)])
-        for i, t in enumerate(comparison_df.columns)
-    }
+    comp_name_map = {t: name_map.get(t, t) for t in comparison_df.columns}
+    comp_color_map = {comp_name_map[t]: portfolio_color_map[t] for t in comparison_df.columns if t in portfolio_color_map}
+    comparison_df_display = comparison_df.rename(columns=comp_name_map)
     title_suffix = f"({base_currency}-adjusted)" if fx_adjust_comparison else "(native currencies)"
     fig_comp = px.line(
-        comparison_df,
-        x=comparison_df.index,
-        y=comparison_df.columns,
-        color_discrete_map=color_map,
+        comparison_df_display,
+        x=comparison_df_display.index,
+        y=comparison_df_display.columns,
+        color_discrete_map=comp_color_map,
     )
     fig_comp.update_layout(
         xaxis_title="Date",
         yaxis_title=f"Indexed growth (100 = start)  —  {range_label}  {title_suffix}",
-        legend_title="Ticker",
+        legend_title="Stock",
         template="plotly_dark",
     )
     fig_comp.add_hline(y=100, line_dash="dash", line_color="gray")
@@ -649,7 +672,7 @@ st.divider()
 st.markdown("### 🕐 Price History")
 st.markdown(
     '<p class="section-intro">The full price history for each stock you own. '
-    'The yellow dashed line shows what you paid. The grey line marks when you bought it. '
+    'The dashed line shows what you paid. The grey line marks when you bought it. '
     'Prices are shown in each stock\'s native trading currency — enable <b>Currency-adjusted</b> to convert to your base currency. '
     'Click any stock below to expand its chart.</p>',
     unsafe_allow_html=True
@@ -709,9 +732,12 @@ for idx, (t, lots) in enumerate(st.session_state.portfolio.items()):
     else:
         effective_from = pd.Timestamp.today() - pd.DateOffset(months=_hist_range_months[hist_range_label])
 
-    line_color = TICKER_COLORS.get(t, CHART_COLORS[idx % len(CHART_COLORS)])
+    line_color = portfolio_color_map.get(t, CHART_COLORS[idx % len(CHART_COLORS)])
     title_suffix = f"({base_currency}-adjusted)" if fx_adjust_history else f"({ticker_currency})"
-    with st.expander(f"{t} — Price History {title_suffix}", expanded=False):
+    company = name_map.get(t, t)
+    with st.expander(f"{company} ({t}) — Price History {title_suffix}", expanded=False):
+        if ticker_currency == "GBX" and not fx_adjust_history:
+            st.caption("Prices shown in GBX (British pence). 100 GBX = 1 GBP. Enable Currency-adjusted above to convert to your base currency.")
         fig_hist = px.line(
             hist_converted,
             x=hist_converted.index,
@@ -730,15 +756,15 @@ for idx, (t, lots) in enumerate(st.session_state.portfolio.items()):
             if fx_adjust_history:
                 fx_rate = get_fx_rate(ticker_currency, base_currency)
                 buy_price_display = round(lot["buy_price"] * fx_rate, 2)
-                buy_label = f"Purchase {i + 1}  {currency_symbol}{buy_price_display}"
+                buy_label = f"Buy {i + 1}  {currency_symbol}{buy_price_display}"
             else:
                 buy_price_display = lot["buy_price"]
-                buy_label = f"Purchase {i + 1}  {buy_price_display}"
+                buy_label = f"Buy {i + 1}  {buy_price_display}"
 
             fig_hist.add_hline(
                 y=buy_price_display,
                 line_dash="dash",
-                line_color="yellow",
+                line_color="#e6a817",  # amber — visible on both light and dark backgrounds
                 annotation_text=buy_label,
                 annotation_position="top left"
             )
@@ -777,7 +803,7 @@ with st.expander("🔬 Risk & Analytics", expanded=False):
             '📊 <b>Volatility</b> — how much the price typically swings in a year. 25% means it moves roughly ±25% over 12 months. Higher = more unpredictable.<br>'
             '📉 <b>Worst Drop</b> — the biggest fall from a peak in the past year. −35% means it dropped 35% from its highest point before recovering.<br>'
             '⚖️ <b>Return/Risk Score</b> — how much return you earned per unit of risk. Above 1 is good; above 2 is excellent; below 0 means the risk was not rewarded.<br>'
-            '📈 <b>Market Sensitivity</b> — how much this stock moves when the S&P 500 moves. 1.5 = moves 50% more than the market; 0.5 = half as much.'
+            '📈 <b>Market Sensitivity</b> — how much this stock moves when the S&P 500 moves. 1.0 = moves exactly with the market; 1.5 = moves 50% more; 0.5 = half as much.'
             '</p>',
             unsafe_allow_html=True
         )
@@ -830,7 +856,8 @@ with st.expander("🔬 Risk & Analytics", expanded=False):
                 '<b>1.0</b> = always move in the same direction at the same time. '
                 '<b>−1.0</b> = always move in opposite directions. '
                 '<b>0</b> = no relationship at all. '
-                'Holding stocks that don\'t all move together reduces your overall risk — if one falls, the others may not.'
+                'Holding stocks that don\'t all move together reduces your overall risk — if one falls, the others may not. '
+                'If you see no blue cells, it means none of your stocks tend to move in opposite directions — this is normal for a typical portfolio.'
                 '</p>',
                 unsafe_allow_html=True
             )
