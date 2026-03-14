@@ -151,48 +151,6 @@ if "imported" not in st.session_state:
     st.session_state.imported = False
 
 # ──────────────────────────────────────────────
-# Import Portfolio
-# ──────────────────────────────────────────────
-st.caption("Build your own portfolio using the form below, import a saved JSON file, or load the sample portfolio to explore the dashboard.")
-col_import, col_sample = st.columns([3, 1], vertical_alignment="bottom")
-uploaded_file = col_import.file_uploader("Import Portfolio", type="json")
-if col_sample.button("Load Sample Portfolio", use_container_width=True):
-    import json, os
-    sample_path = os.path.join(os.path.dirname(__file__), "data", "sample_portfolio.json")
-    with open(sample_path) as f:
-        st.session_state.portfolio = json.load(f)
-    st.session_state.imported = False
-    st.rerun()
-
-if uploaded_file is not None and not st.session_state.imported:
-    try:
-        data = pd.read_json(uploaded_file, typ="series").to_dict()
-        valid = (
-            isinstance(data, dict)
-            and all(
-                isinstance(ticker, str)
-                and isinstance(lots, list)
-                and all(
-                    isinstance(lot, dict) and {"shares", "buy_price", "purchase_date"}.issubset(lot.keys())
-                    for lot in lots
-                )
-                for ticker, lots in data.items()
-            )
-        )
-        if not valid:
-            st.error("Invalid portfolio file. Expected format: {ticker: [{shares, buy_price, purchase_date, ...}]}.")
-        else:
-            st.session_state.portfolio = data
-            st.session_state.imported = True
-            st.success("Portfolio imported successfully.")
-            st.rerun()
-    except Exception:
-        st.error("Could not read the file. Make sure it is a valid portfolio JSON export.")
-
-if uploaded_file is None:
-    st.session_state.imported = False
-
-# ──────────────────────────────────────────────
 # Stock List
 # ──────────────────────────────────────────────
 @st.cache_data(ttl=86400)
@@ -211,6 +169,184 @@ def load_stock_options() -> dict:
     }
 
 all_stock_options = load_stock_options()
+
+# ──────────────────────────────────────────────
+# Add / Manage Positions
+# ──────────────────────────────────────────────
+is_new_user = not bool(st.session_state.portfolio)
+
+with st.expander("➕ Add / Manage Positions", expanded=is_new_user):
+    if is_new_user:
+        st.markdown(
+            '<p class="section-intro">'
+            'Welcome! Start by adding your first stock below. '
+            'Select which market it\'s listed on, search for it by name, enter how many shares you bought and when — '
+            'the app looks up the price automatically. '
+            'Already have a saved portfolio? Import it or load the sample to explore.</p>',
+            unsafe_allow_html=True
+        )
+    else:
+        st.markdown(
+            '<p class="section-intro">'
+            'Add a new position or remove an existing one. '
+            'Each time you bought the same stock counts as a separate purchase.</p>',
+            unsafe_allow_html=True
+        )
+
+    # Import / Load Sample
+    col_import, col_sample = st.columns([3, 1], vertical_alignment="bottom")
+    uploaded_file = col_import.file_uploader("Import saved portfolio (JSON)", type="json")
+    if col_sample.button("Load Sample Portfolio", use_container_width=True):
+        import json, os
+        sample_path = os.path.join(os.path.dirname(__file__), "data", "sample_portfolio.json")
+        with open(sample_path) as f:
+            st.session_state.portfolio = json.load(f)
+        st.session_state.imported = False
+        st.rerun()
+
+    if uploaded_file is not None and not st.session_state.imported:
+        try:
+            data = pd.read_json(uploaded_file, typ="series").to_dict()
+            valid = (
+                isinstance(data, dict)
+                and all(
+                    isinstance(ticker, str)
+                    and isinstance(lots, list)
+                    and all(
+                        isinstance(lot, dict) and {"shares", "buy_price", "purchase_date"}.issubset(lot.keys())
+                        for lot in lots
+                    )
+                    for ticker, lots in data.items()
+                )
+            )
+            if not valid:
+                st.error("Invalid portfolio file. Expected format: {ticker: [{shares, buy_price, purchase_date, ...}]}.")
+            else:
+                st.session_state.portfolio = data
+                st.session_state.imported = True
+                st.success("Portfolio imported successfully.")
+                st.rerun()
+        except Exception:
+            st.error("Could not read the file. Make sure it is a valid portfolio JSON export.")
+
+    if uploaded_file is None:
+        st.session_state.imported = False
+
+    st.markdown("---")
+
+    # Add Position form
+    manual_price = st.session_state.get("manual_price_toggle", False)
+    col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
+
+    with col1:
+        index_choice = st.selectbox(
+            "Stock Market",
+            options=list(all_stock_options.keys()),
+            index=0,
+            help="Choose which stock market your stock is listed on. US stocks are in S&P 500; UK stocks in FTSE 100; Swiss stocks in SMI, etc."
+        )
+        stock_options = all_stock_options[index_choice]
+        selected = st.selectbox(
+            "Stock",
+            options=list(stock_options.keys()),
+            index=None,
+            placeholder="Search by name or ticker…"
+        )
+
+    alt_asset = index_choice in ("Crypto", "Commodities")
+
+    with col2:
+        if alt_asset:
+            amount_input = st.number_input(
+                f"Amount ({base_currency})",
+                min_value=0.0, value=None, step=1.0,
+                placeholder="e.g. 5000"
+            )
+            shares_input = None
+        else:
+            shares_input = st.number_input(
+                "Number of Shares",
+                min_value=0.0, value=None, step=1.0,
+                placeholder="e.g. 5"
+            )
+            amount_input = None
+
+    with col3:
+        if not alt_asset and manual_price:
+            buy_price_input = st.number_input(
+                f"Average Buy Price ({base_currency})",
+                min_value=0.0, value=None, step=0.01,
+                placeholder="e.g. 180.00"
+            )
+            purchase_date = None
+        else:
+            purchase_date = st.date_input(
+                "Purchase Date" + (" (optional)" if alt_asset else ""),
+                value=None,
+                min_value=pd.Timestamp("1980-01-01").date(),
+                max_value=pd.Timestamp.today().date()
+            )
+            buy_price_input = None
+
+    with col4:
+        if not alt_asset:
+            st.markdown("<div style='margin-top: 36px;'>", unsafe_allow_html=True)
+            manual_price = st.checkbox("Enter price manually", key="manual_price_toggle")
+            st.markdown("</div>", unsafe_allow_html=True)
+
+    if st.button("Add to Portfolio"):
+        if selected is None:
+            st.warning("Please select a stock.")
+        elif not alt_asset and (shares_input is None or shares_input == 0):
+            st.warning("Please enter the number of shares.")
+        elif alt_asset and (amount_input is None or amount_input == 0):
+            st.warning("Please enter the amount.")
+        elif not alt_asset and not manual_price and purchase_date is None:
+            st.warning("Please select a purchase date or enter a price manually.")
+        elif not alt_asset and manual_price and (buy_price_input is None or buy_price_input == 0):
+            st.warning("Please enter a valid buy price.")
+        else:
+            ticker = stock_options[selected]
+            if not alt_asset and manual_price:
+                buy_price = buy_price_input
+            elif purchase_date is not None:
+                buy_price = fetch_buy_price(ticker, str(purchase_date))
+                if buy_price is None:
+                    st.error("No price data found for that date. Try a different date.")
+            else:
+                buy_price = fetch_buy_price(ticker, str(pd.Timestamp.today().date()))
+                purchase_date = pd.Timestamp.today().date()
+
+            if buy_price is not None:
+                shares = round(amount_input / buy_price, 6) if alt_asset else shares_input
+                lot = {
+                    "shares": shares,
+                    "buy_price": buy_price,
+                    "purchase_date": str(purchase_date) if purchase_date else None,
+                    "manual_price": manual_price
+                }
+                st.session_state.portfolio.setdefault(ticker, []).append(lot)
+                st.success(f"Added {shares:g} units of {ticker} at {currency_symbol}{buy_price:,.2f}")
+
+    # Manage existing positions
+    if st.session_state.portfolio:
+        st.markdown("---")
+        col_manage_title, col_clear, col_spacer = st.columns([3, 1, 6], vertical_alignment="bottom")
+        col_manage_title.markdown("**Your purchases**")
+        if col_clear.button("Clear All", key="clear_portfolio"):
+            st.session_state.portfolio = {}
+            st.rerun()
+
+        for t, lots in list(st.session_state.portfolio.items()):
+            for i, lot in enumerate(lots):
+                col_name, col_date, col_btn, col_spacer = st.columns([2, 2, 1, 6])
+                col_name.write(f"{t} (Purchase {i + 1})")
+                col_date.write(lot["purchase_date"] or "Manual")
+                if col_btn.button("×", key=f"remove_{t}_{i}"):
+                    st.session_state.portfolio[t].pop(i)
+                    if not st.session_state.portfolio[t]:
+                        del st.session_state.portfolio[t]
+                    st.rerun()
 
 # ──────────────────────────────────────────────
 # Portfolio Display
@@ -672,134 +808,3 @@ with st.expander("🔬 Risk & Analytics  —  Advanced", expanded=False):
                 },
             )
 
-# ──────────────────────────────────────────────
-# Add / Manage Positions
-# ──────────────────────────────────────────────
-st.divider()
-with st.expander("➕ Add / Manage Positions", expanded=not bool(st.session_state.portfolio)):
-    st.markdown(
-        '<p class="section-intro">'
-        'Add a new position by selecting which market your stock is listed on, then searching by name or ticker symbol. '
-        'Enter how many shares you bought and when — the app will look up the price automatically. '
-        'Each time you bought the same stock counts as a separate purchase (e.g. buying Apple twice shows as two purchases).'
-        '</p>',
-        unsafe_allow_html=True
-    )
-
-    manual_price = st.session_state.get("manual_price_toggle", False)
-    col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
-
-    with col1:
-        index_choice = st.selectbox(
-            "Stock Market",
-            options=list(all_stock_options.keys()),
-            index=0,
-            help="Choose which stock market or category your stock belongs to. US stocks are in S&P 500; UK stocks in FTSE 100; Swiss stocks in SMI, etc."
-        )
-        stock_options = all_stock_options[index_choice]
-        selected = st.selectbox(
-            "Stock",
-            options=list(stock_options.keys()),
-            index=None,
-            placeholder="Search by name or ticker…"
-        )
-
-    alt_asset = index_choice in ("Crypto", "Commodities")
-
-    with col2:
-        if alt_asset:
-            amount_input = st.number_input(
-                f"Amount ({base_currency})",
-                min_value=0.0, value=None, step=1.0,
-                placeholder="e.g. 5000"
-            )
-            shares_input = None
-        else:
-            shares_input = st.number_input(
-                "Number of Shares",
-                min_value=0.0, value=None, step=1.0,
-                placeholder="e.g. 5"
-            )
-            amount_input = None
-
-    with col3:
-        if not alt_asset and manual_price:
-            buy_price_input = st.number_input(
-                f"Average Buy Price ({base_currency})",
-                min_value=0.0, value=None, step=0.01,
-                placeholder="e.g. 180.00"
-            )
-            purchase_date = None
-        else:
-            purchase_date = st.date_input(
-                "Purchase Date" + (" (optional)" if alt_asset else ""),
-                value=None,
-                min_value=pd.Timestamp("1980-01-01").date(),
-                max_value=pd.Timestamp.today().date()
-            )
-            buy_price_input = None
-
-    with col4:
-        if not alt_asset:
-            st.markdown("<div style='margin-top: 36px;'>", unsafe_allow_html=True)
-            manual_price = st.checkbox("Enter price manually", key="manual_price_toggle")
-            st.markdown("</div>", unsafe_allow_html=True)
-
-    if st.button("Add to Portfolio"):
-        if selected is None:
-            st.warning("Please select a stock.")
-        elif not alt_asset and (shares_input is None or shares_input == 0):
-            st.warning("Please enter the number of shares.")
-        elif alt_asset and (amount_input is None or amount_input == 0):
-            st.warning("Please enter the amount.")
-        elif not alt_asset and not manual_price and purchase_date is None:
-            st.warning("Please select a purchase date or enter a price manually.")
-        elif not alt_asset and manual_price and (buy_price_input is None or buy_price_input == 0):
-            st.warning("Please enter a valid buy price.")
-        else:
-            ticker = stock_options[selected]
-
-            if not alt_asset and manual_price:
-                buy_price = buy_price_input
-            elif purchase_date is not None:
-                buy_price = fetch_buy_price(ticker, str(purchase_date))
-                if buy_price is None:
-                    st.error("No price data found for that date. Try a different date.")
-            else:
-                buy_price = fetch_buy_price(ticker, str(pd.Timestamp.today().date()))
-                purchase_date = pd.Timestamp.today().date()
-
-            if buy_price is not None:
-                if alt_asset:
-                    shares = round(amount_input / buy_price, 6)
-                else:
-                    shares = shares_input
-
-                lot = {
-                    "shares": shares,
-                    "buy_price": buy_price,
-                    "purchase_date": str(purchase_date) if purchase_date else None,
-                    "manual_price": manual_price
-                }
-                st.session_state.portfolio.setdefault(ticker, []).append(lot)
-                st.success(f"Added {shares:g} units of {ticker} at {currency_symbol}{buy_price:,.2f}")
-
-    # ── Manage ──
-    if st.session_state.portfolio:
-        st.markdown("---")
-        col_manage_title, col_clear, col_spacer = st.columns([3, 1, 6], vertical_alignment="bottom")
-        col_manage_title.markdown("**Your purchases**")
-        if col_clear.button("Clear All", key="clear_portfolio"):
-            st.session_state.portfolio = {}
-            st.rerun()
-
-        for t, lots in list(st.session_state.portfolio.items()):
-            for i, lot in enumerate(lots):
-                col_name, col_date, col_btn, col_spacer = st.columns([2, 2, 1, 6])
-                col_name.write(f"{t} (Purchase {i + 1})")
-                col_date.write(lot["purchase_date"] or "Manual")
-                if col_btn.button("×", key=f"remove_{t}_{i}"):
-                    st.session_state.portfolio[t].pop(i)
-                    if not st.session_state.portfolio[t]:
-                        del st.session_state.portfolio[t]
-                    st.rerun()
