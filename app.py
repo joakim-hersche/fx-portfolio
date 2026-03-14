@@ -4,6 +4,7 @@ import yfinance as yf
 import pandas as pd
 import plotly.express as px
 import os
+from src.localstorage_component import ls_get, ls_set
 
 from src.stocks import (
     get_sp500_stocks, get_ftse100_stocks, get_dax_stocks,
@@ -148,6 +149,22 @@ h3 {
 # ──────────────────────────────────────────────
 # Session State  (must run before any widgets)
 # ──────────────────────────────────────────────
+_LS_KEY = "market_dashboard_portfolio"
+
+if "ls_loaded" not in st.session_state:
+    _ls_data = ls_get(_LS_KEY)
+    if _ls_data is not None:
+        st.session_state.ls_loaded = True
+        if _ls_data:
+            try:
+                _parsed = json.loads(_ls_data)
+                if isinstance(_parsed, dict):
+                    if "portfolio" in _parsed:
+                        st.session_state.portfolio = _parsed["portfolio"]
+                    if "currency" in _parsed:
+                        st.session_state.currency = _parsed["currency"]
+            except Exception:
+                pass
 
 if "portfolio" not in st.session_state:
     st.session_state.portfolio = {}
@@ -163,6 +180,12 @@ if "confirm_clear" not in st.session_state:
 
 if "pending_remove" not in st.session_state:
     st.session_state.pending_remove = False
+
+if st.session_state.get("ls_loaded"):
+    ls_set(_LS_KEY, json.dumps({
+        "portfolio": st.session_state.portfolio,
+        "currency": st.session_state.currency,
+    }))
 
 # ──────────────────────────────────────────────
 # Header
