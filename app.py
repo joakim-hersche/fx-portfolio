@@ -1,7 +1,9 @@
+import json
 import streamlit as st
 import yfinance as yf
 import pandas as pd
 import plotly.express as px
+from streamlit_javascript import st_javascript
 
 from src.stocks import (
     get_sp500_stocks, get_ftse100_stocks, get_dax_stocks,
@@ -167,6 +169,22 @@ currency_symbol = CURRENCY_SYMBOLS[base_currency]
 # ──────────────────────────────────────────────
 # Session State
 # ──────────────────────────────────────────────
+
+# localStorage: restore portfolio from previous session.
+# st_javascript returns None on the first render (JS not yet executed),
+# then the actual value on the second render — so we guard with ls_loaded.
+if "ls_loaded" not in st.session_state:
+    _ls_data = st_javascript('localStorage.getItem("market_dashboard_portfolio") ?? ""')
+    if _ls_data is not None:
+        st.session_state.ls_loaded = True
+        if _ls_data:
+            try:
+                _parsed = json.loads(_ls_data)
+                if isinstance(_parsed, dict):
+                    st.session_state.portfolio = _parsed
+            except Exception:
+                pass
+
 if "portfolio" not in st.session_state:
     st.session_state.portfolio = {}
 
@@ -178,6 +196,12 @@ if "confirm_clear" not in st.session_state:
 
 if "pending_remove" not in st.session_state:
     st.session_state.pending_remove = None
+
+# localStorage: persist current portfolio on every render (once initial load is done).
+# Returning null avoids triggering an infinite rerun loop.
+if st.session_state.get("ls_loaded"):
+    _portfolio_json = json.dumps(st.session_state.portfolio)
+    st_javascript(f'localStorage.setItem("market_dashboard_portfolio", {json.dumps(_portfolio_json)}); null')
 
 # ──────────────────────────────────────────────
 # Stock List
@@ -227,7 +251,7 @@ with st.expander("➕ Add / Manage Positions", expanded=is_new_user):
     uploaded_file = col_import.file_uploader("Import saved portfolio (.json file)", type="json")
     st.caption("Use the file you previously exported with the 'Export Portfolio' button.")
     if col_sample.button("Load Sample Portfolio", use_container_width=True):
-        import json, os
+        import os
         sample_path = os.path.join(os.path.dirname(__file__), "data", "sample_portfolio.json")
         with open(sample_path) as f:
             st.session_state.portfolio = json.load(f)
