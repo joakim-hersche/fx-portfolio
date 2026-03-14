@@ -149,39 +149,8 @@ h3 {
 # Session State  (must run before any widgets)
 # ──────────────────────────────────────────────
 
-# File-based persistence — survives page refresh without any JavaScript.
-# Saved to .portfolio_state.json in the project directory (gitignored).
-# On read-only filesystems (e.g. Streamlit Cloud) saves silently fail,
-# which is fine — the cloud demo just doesn't persist across sessions.
-_STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".portfolio_state.json")
-
-def _load_state() -> dict | None:
-    try:
-        with open(_STATE_FILE) as f:
-            data = json.load(f)
-        if isinstance(data, dict):
-            return data
-    except Exception:
-        pass
-    return None
-
-def _save_state() -> None:
-    try:
-        with open(_STATE_FILE, "w") as f:
-            json.dump({
-                "portfolio": st.session_state.portfolio,
-                "currency": st.session_state.currency,
-            }, f)
-    except Exception:
-        pass
-
 if "portfolio" not in st.session_state:
-    _saved = _load_state()
-    if _saved:
-        st.session_state.portfolio = _saved.get("portfolio", {})
-        st.session_state.currency = _saved.get("currency", list(CURRENCY_SYMBOLS.keys())[0])
-    else:
-        st.session_state.portfolio = {}
+    st.session_state.portfolio = {}
 
 if "currency" not in st.session_state:
     st.session_state.currency = list(CURRENCY_SYMBOLS.keys())[0]
@@ -193,9 +162,7 @@ if "confirm_clear" not in st.session_state:
     st.session_state.confirm_clear = False
 
 if "pending_remove" not in st.session_state:
-    st.session_state.pending_remove = None
-
-_save_state()
+    st.session_state.pending_remove = False
 
 # ──────────────────────────────────────────────
 # Header
