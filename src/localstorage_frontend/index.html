@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<body>
+<script>
+(function () {
+  function send(type, data) {
+    window.parent.postMessage(
+      Object.assign({ isStreamlitMessage: true, type: type }, data || {}),
+      "*"
+    );
+  }
+
+  window.addEventListener("message", function (event) {
+    if (!event.data || event.data.type !== "streamlit:render") return;
+    var args = event.data.args || {};
+    var op = args.operation;
+    var key = args.storage_key;
+
+    if (op === "get") {
+      var val = "";
+      try {
+        val = window.parent.localStorage.getItem(key) || "";
+      } catch (e) {
+        try { val = localStorage.getItem(key) || ""; } catch (e2) {}
+      }
+      send("streamlit:componentValue", { value: val, dataType: "json" });
+      send("streamlit:setFrameHeight", { height: 0 });
+
+    } else if (op === "set") {
+      try {
+        window.parent.localStorage.setItem(key, args.value);
+      } catch (e) {
+        try { localStorage.setItem(key, args.value); } catch (e2) {}
+      }
+      send("streamlit:componentValue", { value: 1, dataType: "json" });
+      send("streamlit:setFrameHeight", { height: 0 });
+    }
+  });
+
+  send("streamlit:componentReady", { apiVersion: 1 });
+})();
+</script>
+</body>
+</html>

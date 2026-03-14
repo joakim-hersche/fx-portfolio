@@ -4,4 +4,3 @@ pandas
 plotly
 requests
 lxml
-streamlit-javascript
