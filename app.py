@@ -50,7 +50,7 @@ def fetch_fundamentals(ticker: str) -> dict:
 
         return {
             "P/E Ratio":      round(pe, 1)       if pe      else None,
-            "Div Yield (%)":  round(div * 100, 2) if div     else None,
+            "Div Yield (%)":  round(div * 100, 2) if div and div < 1 else (round(div, 2) if div else None),
             "1-Year Low":     round(low_1y, 2)    if low_1y  else None,
             "1-Year High":    round(high_1y, 2)   if high_1y else None,
             "1-Year Position": position,
@@ -70,7 +70,20 @@ def fetch_analytics_history(ticker: str) -> pd.DataFrame:
         return pd.DataFrame()
 
 
-CHART_COLORS = px.colors.qualitative.Plotly
+# Fallback colors for tickers without a brand color.
+# Deliberately avoids red and green so bars can't be misread as gain/loss signals.
+CHART_COLORS = [
+    "#4a90d9",  # steel blue
+    "#7b5ea7",  # purple
+    "#17becf",  # teal
+    "#f0a500",  # amber
+    "#5c7cfa",  # indigo
+    "#00b4d8",  # sky blue
+    "#e6a817",  # golden
+    "#9467bd",  # medium purple
+    "#74c0fc",  # light blue
+    "#da77f2",  # lavender
+]
 
 # ──────────────────────────────────────────────
 # Page Config
@@ -149,6 +162,12 @@ if "portfolio" not in st.session_state:
 
 if "imported" not in st.session_state:
     st.session_state.imported = False
+
+if "confirm_clear" not in st.session_state:
+    st.session_state.confirm_clear = False
+
+if "pending_remove" not in st.session_state:
+    st.session_state.pending_remove = None
 
 # ──────────────────────────────────────────────
 # Stock List
@@ -334,19 +353,41 @@ with st.expander("➕ Add / Manage Positions", expanded=is_new_user):
         col_manage_title, col_clear, col_spacer = st.columns([3, 1, 6], vertical_alignment="bottom")
         col_manage_title.markdown("**Your purchases**")
         if col_clear.button("Clear All", key="clear_portfolio"):
-            st.session_state.portfolio = {}
-            st.rerun()
+            st.session_state.confirm_clear = True
+
+        if st.session_state.confirm_clear:
+            st.warning("This will delete all your positions. Are you sure?")
+            col_yes, col_no, _ = st.columns([1, 1, 8])
+            if col_yes.button("Yes, clear all", key="confirm_clear_yes"):
+                st.session_state.portfolio = {}
+                st.session_state.confirm_clear = False
+                st.rerun()
+            if col_no.button("Cancel", key="confirm_clear_no"):
+                st.session_state.confirm_clear = False
+                st.rerun()
 
         for t, lots in list(st.session_state.portfolio.items()):
             for i, lot in enumerate(lots):
                 col_name, col_date, col_btn, col_spacer = st.columns([2, 2, 1, 6])
-                col_name.write(f"{t} (Purchase {i + 1})")
+                col_name.write(f"{t} (Buy {i + 1})")
                 col_date.write(lot["purchase_date"] or "Manual")
                 if col_btn.button("×", key=f"remove_{t}_{i}"):
-                    st.session_state.portfolio[t].pop(i)
-                    if not st.session_state.portfolio[t]:
-                        del st.session_state.portfolio[t]
+                    st.session_state.pending_remove = (t, i)
                     st.rerun()
+
+        if st.session_state.pending_remove:
+            pt, pi = st.session_state.pending_remove
+            st.warning(f"Remove {pt} (Buy {pi + 1})? This cannot be undone.")
+            col_yes, col_no, _ = st.columns([1, 1, 8])
+            if col_yes.button("Remove", key="confirm_remove_yes"):
+                st.session_state.portfolio[pt].pop(pi)
+                if not st.session_state.portfolio[pt]:
+                    del st.session_state.portfolio[pt]
+                st.session_state.pending_remove = None
+                st.rerun()
+            if col_no.button("Cancel", key="confirm_remove_no"):
+                st.session_state.pending_remove = None
+                st.rerun()
 
 # ──────────────────────────────────────────────
 # Portfolio Display
@@ -374,7 +415,10 @@ total_ret_pct = (total_return / cost_basis * 100) if cost_basis else 0.0
 pnl_color  = "#00c853" if daily_pnl    >= 0 else "#ff5252"
 ret_color  = "#00c853" if total_return >= 0 else "#ff5252"
 
-col_m1, col_m2, col_m3, col_m4, col_m5 = st.columns(5)
+n_purchases = sum(len(lots) for lots in st.session_state.portfolio.values())
+positions_sub = f'<div style="color:#555; font-size:12px; margin-top:4px;">{n_purchases} purchases</div>' if n_purchases != n_positions else ""
+
+col_m1, col_m2, col_m3, col_m4 = st.columns(4)
 
 with col_m1:
     st.markdown(f"""
@@ -401,27 +445,27 @@ with col_m3:
         <div class="kpi-value" style="color: {ret_color};">
             {"+" if total_return >= 0 else ""}{currency_symbol}{total_return:,.2f}
         </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-with col_m4:
-    st.markdown(f"""
-    <div class="kpi-card" style="border: 1px solid {ret_color};">
-        <div class="kpi-label">Total Return %</div>
-        <div class="kpi-value" style="color: {ret_color};">
+        <div style="color: {ret_color}; font-size: 14px; margin-top: 4px;">
             {"+" if total_ret_pct >= 0 else ""}{total_ret_pct:,.2f}%
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-with col_m5:
+with col_m4:
     st.markdown(f"""
     <div class="kpi-card" style="border: 1px solid #2d2d2d;">
         <div class="kpi-label">Positions</div>
         <div class="kpi-value" style="color: white;">{n_positions}</div>
+        {positions_sub}
     </div>
     """, unsafe_allow_html=True)
 
+from datetime import datetime
+_last_updated = datetime.now().strftime("%H:%M")
+st.markdown(
+    f'<p style="text-align:right; color:#555; font-size:12px; margin-top:4px;">Prices last fetched at {_last_updated} (cached up to 15 min)</p>',
+    unsafe_allow_html=True
+)
 st.markdown("<div style='margin-bottom: 16px;'></div>", unsafe_allow_html=True)
 
 # ──────────────────────────────────────────────
@@ -442,6 +486,7 @@ with st.expander("📋 Your Positions", expanded=True):
             "Return (%)": "Total Return (%)",
             "Weight (%)": "Portfolio Share (%)",
             "Daily P&L":  "Today's Change",
+            "Purchase":   "Buy #",
         })
     )
 
@@ -454,7 +499,7 @@ with st.expander("📋 Your Positions", expanded=True):
         return f"{int(x):,}" if x == int(x) else f"{x:g}"
 
     styled = (
-        styled_df.set_index(["Ticker", "Purchase"])
+        styled_df.set_index(["Ticker", "Buy #"])
         .style
         .format({
             "Shares":           _fmt_shares,
@@ -572,7 +617,7 @@ with st.expander("📈 How My Stocks Compare", expanded=True):
     )
     fig_comp.update_layout(
         xaxis_title="Date",
-        yaxis_title=f"Growth from starting point (100 = your starting value)  —  6 months  {title_suffix}",
+        yaxis_title=f"Indexed growth (100 = start)  —  {title_suffix}",
         legend_title="Ticker",
         template="plotly_dark",
     )
@@ -676,7 +721,7 @@ for idx, (t, lots) in enumerate(st.session_state.portfolio.items()):
 # Risk & Analytics
 # ──────────────────────────────────────────────
 st.divider()
-with st.expander("🔬 Risk & Analytics  —  Advanced", expanded=False):
+with st.expander("🔬 Risk & Analytics", expanded=False):
     st.markdown(
         '<p class="section-intro">A deeper look at how risky your positions are and how efficiently they\'ve rewarded that risk. '
         'All figures are based on the past 12 months of daily price data. '
