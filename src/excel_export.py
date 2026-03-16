@@ -161,9 +161,9 @@ def _sheet_net_worth(wb: Workbook, kpis: dict, currency: str) -> None:
 
     # ── Rows 5–7: KPI cards ───────────────────────────────────────────────────
     kpi_cards = [
-        ("A", "C", "TOTAL PORTFOLIO VALUE", "=Summary!B5", curr_fmt),
-        ("D", "F", "TODAY'S CHANGE",         kpis["daily_pnl"],          curr_fmt),
-        ("G", "I", "TOTAL RETURN",           kpis.get("total_ret_pct"),  '0.00"%"'),
+        ("A", "C", "TOTAL PORTFOLIO VALUE", "=Summary!B5",  curr_fmt),
+        ("D", "F", "TODAY'S CHANGE",         "=Summary!B6",  curr_fmt),
+        ("G", "I", "TOTAL RETURN (%)",       "=Summary!B10", '0.00"%"'),
     ]
     ws.row_dimensions[5].height = 18
     ws.row_dimensions[6].height = 38
@@ -210,11 +210,11 @@ def _sheet_net_worth(wb: Workbook, kpis: dict, currency: str) -> None:
     # ── Rows 11–12: data ──────────────────────────────────────────────────────
     ws.cell(11, 1, "Portfolio (Dashboard)").font = Font(size=10)
     ws.cell(11, 2, "=Summary!B5").number_format  = curr_fmt
-    ws.cell(11, 3, '=IF(B13=0,"",B11/B13)').number_format = '0.0"%"'
+    ws.cell(11, 3, '=IF(B13=0,"",B11/B13*100)').number_format = '0.0"%"'
 
     ws.cell(12, 1, "Other Assets (Manual)").font = Font(size=10)
     ws.cell(12, 2, f"='Other Assets'!H{_OA_SUM_ROW}").number_format = curr_fmt
-    ws.cell(12, 3, '=IF(B13=0,"",B12/B13)').number_format = '0.0"%"'
+    ws.cell(12, 3, '=IF(B13=0,"",B12/B13*100)').number_format = '0.0"%"'
 
     for r in (11, 12):
         for col in range(1, 4):
@@ -324,12 +324,12 @@ def _sheet_summary(wb: Workbook, kpis: dict, currency: str, n_rows: int) -> None
     # NOTE: row numbers here must stay in sync with Net Worth references to Summary!B5
     formula_rows = [
         ("Total Portfolio Value", f"=SUM(Positions!$H$2:$H${n_rows + 1})",                        curr_fmt,    True),
-        ("Today's Change",         kpis["daily_pnl"],                                            curr_fmt,    False),
+        ("Today's Change",        f"=SUM(Positions!$J$2:$J${n_rows + 1})",                        curr_fmt,    True),
         ("Cost Basis",             f"=SUMPRODUCT(Positions!$D$2:$D${n_rows + 1},Positions!$E$2:$E${n_rows + 1})", curr_fmt, True),
         ("Dividends Received",     f"=SUM(Positions!$I$2:$I${n_rows + 1})",                      curr_fmt,    True),
         ("Total Return",           "=B5+B8-B7",                                                  curr_fmt,    True),
         ("Total Return (%)",       '=IF(B7=0,"",B9/B7*100)',                                     '0.00"%"',  True),
-        ("Number of Positions",    kpis["n_positions"],                                          "0",         False),
+        ("Number of Positions",    f"=COUNTA(Positions!$A$2:$A${n_rows + 1})",                   "0",         True),
     ]
 
     for idx, (label, value, fmt, is_formula) in enumerate(formula_rows, 5):
@@ -384,6 +384,7 @@ def _sheet_positions(wb: Workbook, df: pd.DataFrame, name_map: dict, currency: s
     export_df = df.copy()
     export_df.insert(1, "Company", export_df["Ticker"].map(name_map))
     export_df = export_df[[c for c in _POS_COLS if c in export_df.columns]]
+    export_df = export_df.rename(columns={"Purchase": "Lot #"})
 
     # Column letters
     D = get_column_letter(_POS_IDX["Shares"])
@@ -412,7 +413,17 @@ def _sheet_positions(wb: Workbook, df: pd.DataFrame, name_map: dict, currency: s
             if alt and col_name not in input_cols:
                 cell.fill = alt
 
-            if col_name == "Current Price":
+            if col_name == "Purchase Date":
+                # Convert text dates (e.g. "2023-05-12") to actual date values
+                # so Excel can sort, filter, and compute holding period.
+                if isinstance(safe, str) and safe:
+                    try:
+                        safe = datetime.strptime(safe, "%Y-%m-%d").date()
+                    except ValueError:
+                        pass
+                cell.value         = safe
+                cell.number_format = "YYYY-MM-DD"
+            elif col_name == "Current Price":
                 # Hardcoded FX-converted price from positions_df (base currency).
                 # Price History stores native-currency prices so INDEX/MATCH would
                 # give wrong values for EUR/CHF/GBX tickers.
@@ -622,6 +633,16 @@ def _sheet_risk(wb: Workbook, analytics_df: pd.DataFrame, name_map: dict, positi
         ws.conditional_formatting.add(data_range, CellIsRule(operator="between",            formula=["0", "1"], fill=_AMBER_FILL))
         ws.conditional_formatting.add(data_range, CellIsRule(operator="lessThan",           formula=["0"],      fill=_RED_FILL))
 
+    # Last-updated note — risk metrics are pre-computed and will go stale if positions change
+    note_row = (len(export_df) + 4) if not positions_df.empty and len(export_df) > 1 else len(export_df) + 2
+    note_cell = ws.cell(note_row, 1,
+        f"Risk data last computed: {datetime.now().strftime('%d %B %Y  %H:%M')}. "
+        "Weighted averages will be outdated if position sizes change. Re-download to refresh.")
+    note_cell.font      = _NOTE_FONT
+    note_cell.alignment = Alignment(wrap_text=True, indent=1)
+    ws.merge_cells(start_row=note_row, start_column=1, end_row=note_row, end_column=len(headers))
+    ws.row_dimensions[note_row].height = 28
+
     _autofit(ws)
     ws.freeze_panes = "A2"
     _add_table(ws, "tblRisk", f"A1:{get_column_letter(len(headers))}{len(export_df) + 1}")
@@ -680,9 +701,7 @@ def _sheet_correlation(wb: Workbook, price_histories: dict, positions_df: pd.Dat
     corr_df = pd.DataFrame(returns).dropna().corr()
     tickers = list(corr_df.columns)
 
-    total_val  = positions_df.groupby("Ticker")["Total Value"].sum() if not positions_df.empty else pd.Series(dtype=float)
-    port_total = total_val.sum()
-    weights    = {t: round(total_val.get(t, 0) / port_total * 100, 1) if port_total else 0 for t in tickers}
+    # weights are linked via formula to Allocation sheet (VLOOKUP) so they stay in sync
 
     # Row 1: note
     ws.merge_cells(f"A1:{get_column_letter(len(tickers) + 2)}1")
@@ -710,7 +729,8 @@ def _sheet_correlation(wb: Workbook, price_histories: dict, positions_df: pd.Dat
         label.alignment = Alignment(horizontal="center")
         label.border    = _CELL_BORDER
 
-        wt_cell               = ws.cell(row_idx, 2, weights.get(t_row, 0))
+        wt_cell               = ws.cell(row_idx, 2,
+            f'=IFERROR(VLOOKUP(A{row_idx},Allocation!$A:$D,4,FALSE),0)')
         wt_cell.number_format = '0.0"%"'
         wt_cell.alignment     = Alignment(horizontal="center")
         wt_cell.border        = _CELL_BORDER
@@ -762,19 +782,32 @@ def _sheet_price_history(wb: Workbook, price_histories: dict) -> None:
     n_tickers   = len(pivot.columns)
     n_rows      = len(pivot)
 
-    ws.cell(1, 1, "Date").fill      = _HEADER_FILL
-    ws.cell(1, 1).font              = _HEADER_FONT
-    ws.cell(1, 1).alignment         = Alignment(horizontal="center")
-    ws.cell(1, 1).border            = Border(bottom=Side(style="medium", color=_C_GOLD))
+    # Row 1: note about native currency
+    ws.merge_cells(f"A1:{get_column_letter(n_tickers + 1)}1")
+    note_ph           = ws["A1"]
+    note_ph.value     = (
+        "Prices are in each ticker's native trading currency (USD, EUR, GBP/100 for London, CHF). "
+        "They are NOT converted to the reporting currency. "
+        "This differs from the Positions sheet which shows FX-converted values."
+    )
+    note_ph.font      = _NOTE_FONT
+    note_ph.fill      = PatternFill("solid", fgColor=_C_AMBER_BG)
+    note_ph.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True, indent=2)
+    ws.row_dimensions[1].height = 36
+
+    ws.cell(2, 1, "Date").fill      = _HEADER_FILL
+    ws.cell(2, 1).font              = _HEADER_FONT
+    ws.cell(2, 1).alignment         = Alignment(horizontal="center")
+    ws.cell(2, 1).border            = Border(bottom=Side(style="medium", color=_C_GOLD))
     for col_idx, t in enumerate(pivot.columns, 2):
-        cell           = ws.cell(1, col_idx, t)
+        cell           = ws.cell(2, col_idx, t)
         cell.fill      = _HEADER_FILL
         cell.font      = _HEADER_FONT
         cell.alignment = Alignment(horizontal="center")
         cell.border    = Border(bottom=Side(style="medium", color=_C_GOLD))
-    ws.row_dimensions[1].height = 22
+    ws.row_dimensions[2].height = 22
 
-    for row_idx, (date, row) in enumerate(pivot.iterrows(), 2):
+    for row_idx, (date, row) in enumerate(pivot.iterrows(), 3):
         alt           = _row_fill(row_idx)
         date_cell     = ws.cell(row_idx, 1, date.to_pydatetime())
         date_cell.number_format = "YYYY-MM-DD"
@@ -793,16 +826,16 @@ def _sheet_price_history(wb: Workbook, price_histories: dict) -> None:
 
         ws.row_dimensions[row_idx].height = 16
 
-    # Line chart
+    # Line chart (header now at row 2, data at rows 3 to n_rows+2)
     chart              = LineChart()
-    chart.title        = "Price History (6 months, base currency)"
+    chart.title        = "Price History (6 months, native currency per ticker)"
     chart.style        = 10
-    chart.y_axis.title = "Price"
+    chart.y_axis.title = "Price (native currency)"
     chart.x_axis.title = "Date"
     chart.smooth       = True
 
     for col_idx in range(2, n_tickers + 2):
-        data = Reference(ws, min_col=col_idx, max_col=col_idx, min_row=1, max_row=n_rows + 1)
+        data = Reference(ws, min_col=col_idx, max_col=col_idx, min_row=2, max_row=n_rows + 2)
         chart.add_data(data, titles_from_data=True)
         i = col_idx - 2
         ser = chart.series[i]
@@ -810,14 +843,14 @@ def _sheet_price_history(wb: Workbook, price_histories: dict) -> None:
         ser.graphicalProperties.line.width = 20000  # 2pt in EMU units
         ser.smooth = True
 
-    cats = Reference(ws, min_col=1, min_row=2, max_row=n_rows + 1)
+    cats = Reference(ws, min_col=1, min_row=3, max_row=n_rows + 2)
     chart.set_categories(cats)
     chart.width  = 28
     chart.height = 16
-    ws.add_chart(chart, f"A{n_rows + 3}")
+    ws.add_chart(chart, f"A{n_rows + 4}")
 
     _autofit(ws)
-    ws.freeze_panes = "B2"
+    ws.freeze_panes = "B3"
 
 
 def _sheet_daily_returns(wb: Workbook, price_histories: dict) -> None:
@@ -858,7 +891,7 @@ def _sheet_daily_returns(wb: Workbook, price_histories: dict) -> None:
         for col_idx, value in enumerate(row, 2):
             safe               = round(float(value), 6) if pd.notna(value) else None
             cell               = ws.cell(row_idx, col_idx, safe)
-            cell.number_format = '0.00"%"'
+            cell.number_format = '0.00%'  # standard % format: multiplies by 100 automatically
             cell.font          = Font(size=10)
             cell.border        = _CELL_BORDER
             if safe is not None:
@@ -1026,7 +1059,8 @@ def _sheet_scenario(wb: Workbook, positions_df: pd.DataFrame, name_map: dict, cu
     banner           = ws["A1"]
     banner.value     = (
         "Scenario Analysis  —  edit Target Price (blue cells) to model portfolio impact. "
-        "All other columns update automatically."
+        "All other columns update automatically. "
+        "Projected Return (%) measures return from average cost basis to target price (not from current price)."
     )
     banner.font      = Font(italic=True, size=10, color="BFCDE0")
     banner.fill      = PatternFill("solid", fgColor=_C_NAVY_DARK)

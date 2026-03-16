@@ -49,10 +49,12 @@ def fetch_fundamentals(ticker: str) -> dict:
         pe       = info.get("trailingPE")
         div      = info.get("dividendYield")
 
-        # yfinance sometimes returns dividendYield as a decimal (0.0042 = 0.42%)
-        # and sometimes as a percentage (0.42 = 0.42%). Normalise to a percentage number.
+        # yfinance returns dividendYield as a decimal fraction (0.0042 = 0.42%).
+        # Some versions return values already as percent form (0.42 = 0.42%).
+        # Use threshold of 0.20: values below that are decimal fractions → multiply by 100.
+        # Values ≥ 0.20 are already in percent form (e.g. 0.92 = 0.92%).
         if div is not None:
-            div_pct = div * 100 if div < 1 else div
+            div_pct = div * 100 if div < 0.20 else div
         else:
             div_pct = None
 
