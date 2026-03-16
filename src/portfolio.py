@@ -88,7 +88,11 @@ def _dividends_in_base_currency(
             fallback = get_fx_rate(from_currency, base_currency)
             return float(dividends.sum() * fallback)
 
-        fx_series = fx_hist["Close"].reindex(dividends.index, method="ffill").bfill()
+        fx_series = fx_hist["Close"].reindex(dividends.index, method="ffill")
+        # For dividends paid before FX history starts, use the earliest
+        # available rate rather than bfill() which would pull a future rate.
+        earliest_rate = fx_hist["Close"].iloc[0]
+        fx_series = fx_series.fillna(earliest_rate)
         if gbx:
             fx_series = fx_series / 100
 
@@ -115,7 +119,10 @@ def build_portfolio_df(portfolio: dict, base_currency: str) -> pd.DataFrame:
 
         for i, lot in enumerate(lots):
             shares = lot["shares"]
-            buy_price = lot["buy_price"] * fx_rate
+            # Use purchase-date FX rate if stored; fall back to current rate for
+            # legacy lots that pre-date this field.
+            lot_fx = lot.get("buy_fx_rate", fx_rate)
+            buy_price = lot["buy_price"] * lot_fx
             purchase_date = lot["purchase_date"]
 
             dividends_per_share = (
@@ -138,7 +145,7 @@ def build_portfolio_df(portfolio: dict, base_currency: str) -> pd.DataFrame:
                 "Daily P&L": round((current_price - prev_price) * shares, 2),
                 "Return (%)": round(
                     (current_price * shares + total_dividends - cost_basis) / cost_basis * 100, 2
-                ),
+                ) if cost_basis else None,
             })
 
     if not rows:
@@ -149,13 +156,20 @@ def build_portfolio_df(portfolio: dict, base_currency: str) -> pd.DataFrame:
     return df
 
 
-def fetch_buy_price(ticker: str, purchase_date: str) -> float | None:
-    """Fetch closing price on or just after a given purchase date."""
+def fetch_buy_price(ticker: str, purchase_date: str) -> tuple[float, str] | None:
+    """
+    Fetch closing price on or just after a given purchase date.
+
+    Returns (price, actual_date_str) so callers can detect when the market
+    was closed on the requested date and the next trading day was used instead.
+    Returns None if no price data is found within 7 days.
+    """
     try:
         end = str((pd.Timestamp(purchase_date) + pd.DateOffset(days=7)).date())
         hist = yf.Ticker(ticker).history(start=purchase_date, end=end)
         if hist.empty:
             return None
-        return round(hist["Close"].iloc[0], 2)
+        actual_date = str(hist.index[0].date())
+        return round(hist["Close"].iloc[0], 2), actual_date
     except Exception:
         return None

@@ -15,6 +15,9 @@ A real-time stock portfolio tracker built with Streamlit. Add positions across m
 - **Dividend tracking** — dividends fetched from purchase date with historical FX conversion, factored into total return
 - **Interactive charts** — portfolio allocation bar chart, normalised performance comparison with configurable time range (3M / 6M / 1Y / All time), and individual price history with buy price and purchase date overlays; click legend items to show/hide individual lines
 - **Global stock coverage** — S&P 500, FTSE 100, DAX, CAC 40, SMI, AEX, IBEX 35, ETFs, crypto, commodities, REITs, bonds, and emerging markets; searchable via index-filtered dropdown
+- **Risk analytics** — per-ticker volatility, max drawdown, Sharpe ratio, and beta vs S&P 500; pairwise correlation heatmap; P/E ratio, dividend yield, and 52-week range
+- **Monte Carlo simulation** — forward-looking price projection for individual positions with 50%/80% confidence bands, buy price overlays, and probability of being above breakeven at a chosen horizon (3M / 6M / 1Y)
+- **Monte Carlo backtest** — validates the model against the past year of actual portfolio data; reports per-ticker hit rates, excess kurtosis, and a reliability label so you know which positions the model fits well
 - **Excel report export** — download a formatted multi-sheet `.xlsx` report with embedded charts, live formulas, and a pre-built template for manually adding other assets (real estate, private equity, etc.) to calculate total net worth
 - **Import / export** — save and load your portfolio as JSON, with validated parsing on import
 - **Performance** — all price data and stock lists are cached; price history charts lazy-load on demand
@@ -66,6 +69,7 @@ market-dashboard/
 ├── app.py                # Streamlit application
 ├── src/
 │   ├── portfolio.py      # Portfolio construction and P&L calculations
+│   ├── monte_carlo.py    # Monte Carlo simulation and backtest
 │   ├── stocks.py         # Stock list fetching (Wikipedia scraper)
 │   ├── fx.py             # FX rate fetching and currency detection
 │   └── excel_export.py   # Multi-sheet Excel report generation
@@ -85,6 +89,10 @@ market-dashboard/
 - [Plotly](https://plotly.com/python/) — interactive charts
 - [openpyxl](https://openpyxl.readthedocs.io) — Excel report generation
 
+## Disclaimer
+
+The Monte Carlo simulation and all probability figures in this dashboard are statistical outputs based on historical return distributions. They do not constitute financial advice, and they do not account for future events, news, earnings, or macroeconomic changes not reflected in past prices. Positions flagged as fat-tailed (high excess kurtosis) violate the model's normality assumption — confidence bands for those assets will understate real tail risk. Use this tool as one analytical input among many.
+
 ## Technical Notes
 
 - **GBX/GBP handling** — London Stock Exchange tickers (`.L`) are quoted in pence by yfinance. All `.L` prices are divided by 100 before P&L or FX calculations to correct for this.
@@ -92,3 +100,4 @@ market-dashboard/
 - **Tiered caching** — two `@st.cache_data` TTLs: 15 minutes for current quotes (acceptable staleness for intraday use) and 24 hours for full price history and stock lists (expensive fetches that rarely change).
 - **Multi-lot support** — each ticker can hold multiple lots with independent purchase dates and prices. The normalised chart groups by ticker using the earliest lot's start date.
 - **Error handling** — all yfinance calls are wrapped in try/except with graceful `st.warning` fallbacks, so a single failed ticker doesn't crash the dashboard.
+- **Monte Carlo** — simulations use log-normally distributed daily returns calibrated from up to 5 years of historical data. Correlated multi-ticker paths are generated via Cholesky decomposition of the historical covariance matrix. Per-ticker reliability is validated by backtesting the model against the past year of actual prices. Tickers with insufficient history (< 2 years) are excluded from the backtest automatically.

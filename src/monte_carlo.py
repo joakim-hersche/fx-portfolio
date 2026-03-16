@@ -94,9 +94,10 @@ def compute_distribution_flags(price_data: dict) -> dict:
     """
     Compute excess kurtosis and skewness of log-returns per ticker.
 
-    Excess kurtosis > 3 indicates fat-tailed returns — the core assumption
-    the Gaussian Monte Carlo model violates. When fat tails are present,
-    the confidence bands will underestimate tail risk.
+    Excess kurtosis > 1 indicates meaningfully fat-tailed returns — the core
+    assumption the Gaussian Monte Carlo model violates. When fat tails are
+    present, the confidence bands will underestimate tail risk.
+    pandas .kurt() returns excess kurtosis (normal distribution = 0).
 
     Returns
     -------
@@ -114,7 +115,7 @@ def compute_distribution_flags(price_data: dict) -> dict:
         flags[ticker] = {
             "kurtosis":  round(kurt, 2),
             "skewness":  round(skew, 2),
-            "fat_tailed": kurt > 3,
+            "fat_tailed": kurt > 1,
         }
     return flags
 
@@ -269,6 +270,149 @@ def run_monte_carlo_backtest(
     }
 
 
+# ── Portfolio forward simulation ──────────────────────────────────────────────
+
+def run_monte_carlo_portfolio(
+    portfolio: dict,
+    price_data: dict,
+    start_prices_base: dict,
+    n_sims: int = 1000,
+    horizon_days: int = 252,
+    lookback_days: int | None = None,
+    seed: int = 42,
+) -> dict:
+    """
+    Forward-looking correlated Monte Carlo simulation for the full portfolio.
+
+    Uses all available price data for calibration (no train/test split).
+    Runs two simulations — correlated (Cholesky) and independent (diagonal
+    covariance) — so the diversification benefit can be measured directly.
+
+    Parameters
+    ----------
+    portfolio : dict
+        Session-state portfolio {ticker: [lots]}.
+    price_data : dict
+        {ticker: DataFrame with 'Close' column}. 5-year history recommended.
+    start_prices_base : dict
+        {ticker: current price in base currency}. FX conversion must be done
+        by the caller before passing this in.
+    n_sims : int
+        Number of simulation paths.
+    horizon_days : int
+        Trading days to simulate forward. Full paths are returned so the
+        caller can slice to any sub-horizon without re-running.
+    lookback_days : int or None
+        If set, only the last N days of history are used for calibration.
+    seed : int
+        Random seed. Independent simulation uses the same seed so results
+        are directly comparable.
+
+    Returns
+    -------
+    dict with keys:
+        dates              — DatetimeIndex, future trading dates
+        percentiles        — DataFrame(p10, p25, p50, p75, p90), portfolio value
+        portfolio_paths    — ndarray (n_sims, horizon_days), correlated paths
+        portfolio_paths_i  — ndarray (n_sims, horizon_days), independent paths
+        start_value        — float
+        tickers_used       — list[str]
+        ticker_flags       — dict
+        train_days         — int
+
+    Returns empty dict if insufficient data.
+    """
+    shares_by_ticker = _total_shares(portfolio)
+
+    MIN_DAYS = 252
+    valid_tickers = [
+        t for t in shares_by_ticker
+        if (
+            t in price_data
+            and t in start_prices_base
+            and price_data[t] is not None
+            and not price_data[t].empty
+            and "Close" in price_data[t].columns
+            and price_data[t]["Close"].dropna().shape[0] >= MIN_DAYS
+        )
+    ]
+    if not valid_tickers:
+        return {}
+
+    log_returns = _build_log_returns(price_data, valid_tickers)
+    if lookback_days is not None:
+        log_returns = log_returns.iloc[-lookback_days:]
+    if len(log_returns) < MIN_DAYS:
+        return {}
+
+    mean_log = log_returns.mean().values
+    cov_log  = log_returns.cov().values
+    cov_diag = np.diag(np.diag(cov_log))   # diagonal = independent tickers
+
+    start_prices = np.array([start_prices_base[t] for t in valid_tickers])
+    shares       = np.array([shares_by_ticker[t]  for t in valid_tickers])
+    start_value  = float((start_prices * shares).sum())
+
+    # Correlated paths
+    rng = np.random.default_rng(seed)
+    portfolio_paths, _ = _simulate_paths(
+        mean_log, cov_log, start_prices, shares, n_sims, horizon_days, rng
+    )
+
+    # Independent paths — same seed so the only difference is the covariance
+    rng_i = np.random.default_rng(seed)
+    portfolio_paths_i, _ = _simulate_paths(
+        mean_log, cov_diag, start_prices, shares, n_sims, horizon_days, rng_i
+    )
+
+    last_date    = log_returns.index[-1]
+    future_dates = pd.bdate_range(start=last_date, periods=horizon_days + 1)[1:]
+
+    pcts = np.percentile(portfolio_paths, [10, 25, 50, 75, 90], axis=0)
+    percentiles = pd.DataFrame(
+        pcts.T,
+        columns=["p10", "p25", "p50", "p75", "p90"],
+        index=future_dates,
+    )
+
+    return {
+        "dates":             future_dates,
+        "percentiles":       percentiles,
+        "portfolio_paths":   portfolio_paths,
+        "portfolio_paths_i": portfolio_paths_i,
+        "start_value":       start_value,
+        "tickers_used":      valid_tickers,
+        "ticker_flags":      compute_distribution_flags({t: price_data[t] for t in valid_tickers}),
+        "train_days":        len(log_returns),
+    }
+
+
+def compute_var_cvar(
+    end_paths: np.ndarray,
+    start_value: float,
+    confidence: float = 0.95,
+) -> dict:
+    """
+    Compute Value at Risk and Conditional VaR (Expected Shortfall) from
+    a 1-D array of simulated end-values.
+
+    VaR(95%)  — the loss threshold such that only 5% of simulations are worse.
+    CVaR(95%) — the average loss in those worst 5% of simulations.
+
+    Both are returned as fractions (e.g. 0.15 = 15%) and absolute amounts.
+    """
+    returns   = (end_paths - start_value) / start_value
+    var       = float(-np.percentile(returns, (1 - confidence) * 100))
+    tail_mask = returns <= -var
+    cvar      = float(-returns[tail_mask].mean()) if tail_mask.any() else var
+    return {
+        "var":      var,
+        "cvar":     cvar,
+        "var_abs":  var  * start_value,
+        "cvar_abs": cvar * start_value,
+    }
+
+
 # ── Per-ticker forward simulation ─────────────────────────────────────────────
 
 def run_monte_carlo_ticker(
@@ -311,7 +455,7 @@ def run_monte_carlo_ticker(
         percentiles   — DataFrame(p10, p25, p50, p75, p90), price levels
         end_paths     — ndarray (n_sims,), simulated end prices
         start_price   — float, current_price used as starting point
-        mu_annual     — float, annualised expected return used (%)
+        mu_annual     — float, arithmetic annualised expected return (%): (μ_geo + σ²/2) × 252 × 100
         sigma_annual  — float, annualised volatility used (%)
         flag          — dict from compute_distribution_flags (kurtosis, skewness, fat_tailed)
         train_days    — int, number of days used for calibration
@@ -354,7 +498,11 @@ def run_monte_carlo_ticker(
         "percentiles":  percentiles,
         "end_paths":    paths[:, -1],
         "start_price":  current_price,
-        "mu_annual":    round(mu * 252 * 100, 2),
+        # Arithmetic annualised expected return: μ_geo + σ²/2, then * 252.
+        # The simulation drift uses μ_geo (log-return mean), which gives an
+        # unbiased median path. The displayed figure is the arithmetic mean
+        # return, which is what most users and financial publications quote.
+        "mu_annual":    round((mu + 0.5 * sigma ** 2) * 252 * 100, 2),
         "sigma_annual": round(sigma * (252 ** 0.5) * 100, 2),
         "flag":         flag,
         "train_days":   len(log_r),

@@ -1,6 +1,7 @@
 import io
 from datetime import datetime
 
+import numpy as np
 import pandas as pd
 from openpyxl import Workbook
 from openpyxl.chart import BarChart, LineChart, Reference
@@ -83,11 +84,6 @@ def _autofit(ws) -> None:
         ws.column_dimensions[get_column_letter(col[0].column)].width = min(width + 3, 42)
 
 
-def _freeze_and_filter(ws, freeze_at: str = "A2") -> None:
-    ws.freeze_panes    = freeze_at
-    ws.auto_filter.ref = ws.dimensions
-
-
 def _add_table(ws, name: str, ref: str) -> None:
     t = Table(displayName=name, ref=ref)
     t.tableStyleInfo = _TABLE_STYLE
@@ -105,15 +101,6 @@ def _set_print(ws, area: str = None) -> None:
 
 def _no_gridlines(ws) -> None:
     ws.sheet_view.showGridLines = False
-
-
-def _input_cell(cell, value, number_format: str = None) -> None:
-    """Write a blue-styled editable input cell."""
-    cell.value         = value
-    cell.font          = _INPUT_FONT
-    cell.fill          = _INPUT_FILL
-    if number_format:
-        cell.number_format = number_format
 
 
 def _row_fill(row_idx: int) -> PatternFill | None:
@@ -322,14 +309,20 @@ def _sheet_summary(wb: Workbook, kpis: dict, currency: str, n_rows: int) -> None
 
     # ── Rows 5–11: KPIs ───────────────────────────────────────────────────────
     # NOTE: row numbers here must stay in sync with Net Worth references to Summary!B5
+    _A = get_column_letter(_POS_IDX["Ticker"])
+    _D = get_column_letter(_POS_IDX["Shares"])
+    _E = get_column_letter(_POS_IDX["Buy Price"])
+    _H = get_column_letter(_POS_IDX["Total Value"])
+    _I = get_column_letter(_POS_IDX["Dividends"])
+    _J = get_column_letter(_POS_IDX["Daily P&L"])
     formula_rows = [
-        ("Total Portfolio Value", f"=SUM(Positions!$H$2:$H${n_rows + 1})",                        curr_fmt,    True),
-        ("Today's Change",        f"=SUM(Positions!$J$2:$J${n_rows + 1})",                        curr_fmt,    True),
-        ("Cost Basis",             f"=SUMPRODUCT(Positions!$D$2:$D${n_rows + 1},Positions!$E$2:$E${n_rows + 1})", curr_fmt, True),
-        ("Dividends Received",     f"=SUM(Positions!$I$2:$I${n_rows + 1})",                      curr_fmt,    True),
+        ("Total Portfolio Value", f"=SUM(Positions!${_H}$2:${_H}${n_rows + 1})",                        curr_fmt,    True),
+        ("Today's Change",        f"=SUM(Positions!${_J}$2:${_J}${n_rows + 1})",                        curr_fmt,    True),
+        ("Cost Basis",             f"=SUMPRODUCT(Positions!${_D}$2:${_D}${n_rows + 1},Positions!${_E}$2:${_E}${n_rows + 1})", curr_fmt, True),
+        ("Dividends Received",     f"=SUM(Positions!${_I}$2:${_I}${n_rows + 1})",                      curr_fmt,    True),
         ("Total Return",           "=B5+B8-B7",                                                  curr_fmt,    True),
         ("Total Return (%)",       '=IF(B7=0,"",B9/B7*100)',                                     '0.00"%"',  True),
-        ("Number of Lots",          f"=COUNTA(Positions!$A$2:$A${n_rows + 1})",                   "0",         True),
+        ("Number of Lots",          f"=COUNTA(Positions!${_A}$2:${_A}${n_rows + 1})",                   "0",         True),
     ]
 
     for idx, (label, value, fmt, is_formula) in enumerate(formula_rows, 5):
@@ -486,7 +479,14 @@ def _sheet_positions(wb: Workbook, df: pd.DataFrame, name_map: dict, currency: s
         cell.font          = _TOTAL_FONT
 
     ret_cell               = ws.cell(totals_row, _POS_IDX["Return (%)"])
-    ret_cell.value         = f'=IF(SUM({H}2:{H}{last_data})=0,"",SUMPRODUCT({H}2:{H}{last_data},{K}2:{K}{last_data})/SUM({H}2:{H}{last_data}))'
+    # True portfolio return: (total value + dividends - cost basis) / cost basis * 100
+    # Cost basis = SUMPRODUCT(Shares, Buy Price) = D * E columns
+    ret_cell.value         = (
+        f'=IF(SUMPRODUCT({D}2:{D}{last_data},{E}2:{E}{last_data})=0,"",'
+        f'(SUM({H}2:{H}{last_data})+SUM({I}2:{I}{last_data})'
+        f'-SUMPRODUCT({D}2:{D}{last_data},{E}2:{E}{last_data}))'
+        f'/SUMPRODUCT({D}2:{D}{last_data},{E}2:{E}{last_data})*100)'
+    )
     ret_cell.number_format = '0.00"%"'
     ret_cell.font          = _TOTAL_FONT
 
@@ -616,11 +616,18 @@ def _sheet_risk(wb: Workbook, analytics_df: pd.DataFrame, name_map: dict, positi
                 continue
             col_idx  = headers.index(col_name) + 1
             col_l    = get_column_letter(col_idx)
-            # SUMPRODUCT(allocation_weights%, risk_values) / 100
-            # Allocation!D holds Weight(%) values (e.g. 30.5), divide by 100 to get proper weight
-            formula  = (
-                f"=IFERROR(SUMPRODUCT(Allocation!$D$2:$D${alloc_last},"
-                f"{col_l}2:{col_l}{last_row})/100,\"\")"
+            # VLOOKUP each Risk ticker (column A) into Allocation!A:D to get its
+            # weight, then compute the weighted average only over tickers present
+            # in analytics. This correctly handles cases where some tickers are
+            # excluded from analytics (insufficient history), so weights don't
+            # need to sum to 100% across the full portfolio.
+            formula = (
+                f"=IFERROR("
+                f"SUMPRODUCT("
+                f"IFERROR(VLOOKUP(A2:A{last_row},Allocation!$A:$D,4,0),0),"
+                f"IF(ISNUMBER({col_l}2:{col_l}{last_row}),{col_l}2:{col_l}{last_row},0)"
+                f")/SUM(IFERROR(VLOOKUP(A2:A{last_row},Allocation!$A:$D,4,0),0))"
+                f',"")'
             )
             cell               = ws.cell(totals_row, col_idx, formula)
             cell.font          = _TOTAL_FONT
@@ -705,7 +712,7 @@ def _sheet_correlation(wb: Workbook, price_histories: dict, positions_df: pd.Dat
 
     # Row 1: note
     ws.merge_cells(f"A1:{get_column_letter(len(tickers) + 2)}1")
-    ws["A1"]      = "Correlation of daily returns (12-month). Weight (%) = portfolio allocation per ticker."
+    ws["A1"]      = "Correlation of daily returns (6-month). Weight (%) = portfolio allocation per ticker."
     ws["A1"].font = _NOTE_FONT
 
     # Row 2: column headers
@@ -869,7 +876,10 @@ def _sheet_daily_returns(wb: Workbook, price_histories: dict) -> None:
 
     pivot   = pd.DataFrame(close_series).sort_index()
     pivot.index = pd.to_datetime(pivot.index).tz_localize(None)
-    returns = pivot.ffill().pct_change().dropna()
+    # Do NOT ffill before pct_change: carrying a stale price forward produces a
+    # spurious 0% return on non-trading days and understates daily volatility.
+    # dropna(how="all") removes only rows where every ticker has no data.
+    returns = pivot.pct_change().dropna(how="all")
 
     ws.cell(1, 1, "Date").fill      = _HEADER_FILL
     ws.cell(1, 1).font              = _HEADER_FONT
@@ -1044,6 +1054,357 @@ def _sheet_other_assets(wb: Workbook, currency: str) -> None:
     ws.column_dimensions["L"].width = 25
 
 
+def _sheet_monte_carlo(
+    wb: Workbook,
+    bt_result: dict,
+    ticker_mc_results: dict,
+    portfolio_mc: dict,
+    name_map: dict,
+    currency: str,
+) -> None:
+    """
+    Monte Carlo sheet with summary KPIs, two tables, and two line charts.
+
+    Summary  — portfolio VaR(95%), CVaR(95%), diversification effect (1Y).
+    Table 1  — Backtest: per-ticker hit rates, kurtosis, skewness, reliability.
+    Table 2  — Forward projection: annualised return/volatility and p10/median/p90
+               at 3M, 6M, and 1Y horizons per ticker, in base currency.
+    Chart    — Simulated portfolio bands vs. actual over the past year.
+    """
+    ws = wb.create_sheet("Monte Carlo")
+    _no_gridlines(ws)
+    ccy_fmt = _CURRENCY_FMT.get(currency, '"$"#,##0.00')
+
+    N_COLS = 13  # widest table (forward projection)
+
+    if not bt_result and not ticker_mc_results and not portfolio_mc:
+        ws["A1"] = (
+            "Monte Carlo data not available. "
+            "Each position needs at least 2 years of price history."
+        )
+        ws["A1"].font = _NOTE_FONT
+        return
+
+    row = 1
+
+    # ── Title ─────────────────────────────────────────────────────────────────
+    title = ws.cell(row, 1, "Monte Carlo Simulation")
+    title.font = Font(bold=True, size=14, color=_C_NAVY)
+    ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=N_COLS)
+    ws.row_dimensions[row].height = 26
+    row += 1
+
+    disc = ws.cell(
+        row, 1,
+        f"Statistical model based on historical log-return distributions calibrated on up to 5 years of data. "
+        f"Assumes log-normally distributed daily returns and stable correlations — both simplifications. "
+        f"Positions with excess kurtosis > 3 (fat-tailed) will have understated tail risk. "
+        f"This is not financial advice.   Generated: {datetime.now().strftime('%d %B %Y  %H:%M')}.",
+    )
+    disc.font      = _NOTE_FONT
+    disc.alignment = Alignment(wrap_text=True, indent=1)
+    ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=N_COLS)
+    ws.row_dimensions[row].height = 40
+    row += 2  # blank gap
+
+    # ── Portfolio summary KPIs ────────────────────────────────────────────────
+    if portfolio_mc and portfolio_mc.get("portfolio_paths") is not None:
+        try:
+            pp        = np.asarray(portfolio_mc["portfolio_paths"])   # (n_sims, horizon)
+            pp_i      = np.asarray(portfolio_mc.get("portfolio_paths_i", pp))
+            sv        = float(portfolio_mc.get("start_value", 0) or 0)
+            end_corr  = pp[:, -1]
+            end_indep = pp_i[:, -1]
+            idx5      = max(1, int(0.05 * len(end_corr)))
+
+            sorted_c  = np.sort(end_corr)
+            var_abs   = sv - float(sorted_c[idx5])          # positive = loss
+            cvar_abs  = sv - float(sorted_c[:idx5].mean())
+            var_pct   = var_abs  / sv * 100 if sv else 0
+            cvar_pct  = cvar_abs / sv * 100 if sv else 0
+
+            corr_p10  = float(np.percentile(end_corr,  10))
+            indep_p10 = float(np.percentile(end_indep, 10))
+            div_abs   = indep_p10 - corr_p10     # +ve = correlation hurts
+
+            sec0 = ws.cell(row, 1, "Portfolio Summary — 1-Year Forward Outlook")
+            sec0.font = Font(bold=True, size=11, color=_C_NAVY)
+            ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=N_COLS)
+            ws.row_dimensions[row].height = 20
+            row += 1
+
+            KPI_COLS = [
+                ("Start Value",        sv,       ccy_fmt,   None),
+                ("VaR 95%  (abs)",     var_abs,  ccy_fmt,   _RED_FILL),
+                ("VaR 95%  (%)",       var_pct,  '0.0"%"',  _RED_FILL),
+                ("CVaR 95%  (abs)",    cvar_abs, ccy_fmt,   _RED_FILL),
+                ("CVaR 95%  (%)",      cvar_pct, '0.0"%"',  _RED_FILL),
+                ("Diversification Effect  (p10 impact)", div_abs, ccy_fmt,
+                 _AMBER_FILL if div_abs >= 0 else _GREEN_FILL),
+            ]
+            for col_idx, (label, val, fmt, fill) in enumerate(KPI_COLS, 1):
+                lc = ws.cell(row, col_idx, label)
+                lc.font = Font(bold=True, size=9, color=_C_NAVY)
+                lc.fill = _HEADER_FILL if fill is None else PatternFill("solid", fgColor=_C_NAVY)
+                lc.font = Font(bold=True, color=_C_WHITE, size=9)
+                lc.alignment = Alignment(horizontal="center", wrap_text=True)
+                ws.row_dimensions[row].height = 28
+            row += 1
+            for col_idx, (label, val, fmt, fill) in enumerate(KPI_COLS, 1):
+                vc = ws.cell(row, col_idx, round(val, 2))
+                vc.number_format = fmt
+                vc.font          = Font(bold=True, size=11, color=_C_NAVY)
+                vc.alignment     = Alignment(horizontal="center")
+                vc.fill          = fill or _ALT_FILL
+                vc.border        = _CELL_BORDER
+            ws.row_dimensions[row].height = 22
+            row += 1
+
+            note_kpi = ws.cell(
+                row, 1,
+                f"Start Value = current portfolio in {currency}. "
+                "VaR 95% = worst expected 1-year loss at 5th percentile of 1,000 simulations. "
+                "CVaR 95% = average of the worst 5% outcomes (Expected Shortfall). "
+                "Diversification Effect = difference between p10 under independent vs. correlated paths — "
+                "positive means correlation amplifies downside risk.",
+            )
+            note_kpi.font      = _NOTE_FONT
+            note_kpi.alignment = Alignment(wrap_text=True, indent=1)
+            ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=N_COLS)
+            ws.row_dimensions[row].height = 36
+            row += 2
+        except Exception:
+            row += 1  # silently skip if portfolio_mc is incomplete
+
+    # ── Section 1: Backtest table ─────────────────────────────────────────────
+    bt_section_start = row
+    sec1 = ws.cell(row, 1, "Backtest — Model vs. Actual (Past 12 Months)")
+    sec1.font = Font(bold=True, size=11, color=_C_NAVY)
+    ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=8)
+    ws.row_dimensions[row].height = 20
+    row += 1
+
+    BT_HEADERS = [
+        "Ticker", "Company",
+        "Hit Rate 80% CI", "Hit Rate 50% CI",
+        "Kurtosis", "Skewness", "Fat-tailed", "Reliability",
+    ]
+    _write_headers(ws, BT_HEADERS, start_row=row)
+    ws.row_dimensions[row].height = 22
+    bt_table_header_row = row
+    row += 1
+
+    bt_data_start = row
+    if bt_result:
+        for i, ticker in enumerate(bt_result.get("tickers_used", [])):
+            hr   = bt_result["ticker_hit_rates"].get(ticker, {})
+            flag = bt_result["ticker_flags"].get(ticker, {})
+            hr_80    = hr.get("hit_rate_80")
+            hr_50    = hr.get("hit_rate_50")
+            kurtosis = flag.get("kurtosis")
+            skewness = flag.get("skewness")
+            fat      = "Yes" if flag.get("fat_tailed") else "No"
+            if hr_80 is None:       rel = None
+            elif hr_80 >= 80:       rel = "Good"
+            elif hr_80 >= 65:       rel = "Moderate"
+            else:                   rel = "Low"
+
+            alt    = _row_fill(i + 1)
+            values = [ticker, name_map.get(ticker, ticker), hr_80, hr_50, kurtosis, skewness, fat, rel]
+            for col_idx, val in enumerate(values, 1):
+                cell        = ws.cell(row, col_idx, val)
+                cell.border = _CELL_BORDER
+                cell.font   = Font(size=10)
+                if alt:
+                    cell.fill = alt
+                if col_idx in (3, 4) and isinstance(val, (int, float)):
+                    cell.number_format = '0.0"%"'
+                elif col_idx in (5, 6) and isinstance(val, (int, float)):
+                    cell.number_format = "0.00"
+                # Colour coding overrides alternating fill
+                if col_idx == 3 and isinstance(val, (int, float)):
+                    cell.fill = _GREEN_FILL if val >= 80 else (_AMBER_FILL if val >= 65 else _RED_FILL)
+                if col_idx == 5 and isinstance(val, (int, float)):
+                    cell.fill = _GREEN_FILL if val <= 1  else (_AMBER_FILL if val <= 3  else _RED_FILL)
+                if col_idx == 8 and isinstance(val, str):
+                    cell.fill = {"Good": _GREEN_FILL, "Moderate": _AMBER_FILL, "Low": _RED_FILL}.get(val, PatternFill())
+
+            ws.row_dimensions[row].height = 18
+            row += 1
+
+        bt_data_end = row - 1
+        _add_table(ws, "tblMCBacktest",
+                   f"A{bt_table_header_row}:{get_column_letter(len(BT_HEADERS))}{bt_data_end}")
+
+        # Portfolio total row
+        row += 1
+        for col_idx in range(1, len(BT_HEADERS) + 1):
+            c        = ws.cell(row, col_idx)
+            c.fill   = _TOTAL_FILL
+            c.border = _TOP_BORDER
+            c.font   = _TOTAL_FONT
+        ws.cell(row, 1, "Portfolio").font  = _TOTAL_FONT
+        ws.cell(row, 1).fill              = _TOTAL_FILL
+        ws.cell(row, 1).border            = _TOP_BORDER
+        for col_idx, key in ((3, "hit_rate_80"), (4, "hit_rate_50")):
+            v = bt_result.get(key)
+            if v is not None:
+                c                = ws.cell(row, col_idx, v)
+                c.font           = _TOTAL_FONT
+                c.number_format  = '0.0"%"'
+                c.fill           = _GREEN_FILL if (key == "hit_rate_80" and v >= 80) or (key == "hit_rate_50") else _AMBER_FILL
+                c.border         = _TOP_BORDER
+        ws.row_dimensions[row].height = 22
+        row += 1
+
+        note_bt = ws.cell(row, 1,
+            f"Trained on {bt_result.get('train_days', '?')} trading days before {bt_result.get('split_date', '?')}. "
+            "Hit Rate = fraction of the past year's trading days where the actual portfolio value stayed within the "
+            "simulated confidence band. Target: ~80% for the 80% band, ~50% for the 50% band.")
+        note_bt.font      = _NOTE_FONT
+        note_bt.alignment = Alignment(wrap_text=True, indent=1)
+        ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=8)
+        ws.row_dimensions[row].height = 32
+        row += 2
+    else:
+        no_bt = ws.cell(row, 1, "Backtest not available — each position needs at least 2 years of price history.")
+        no_bt.font = _NOTE_FONT
+        ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=8)
+        row += 2
+
+    # ── Section 2: Forward projection table ───────────────────────────────────
+    sec2 = ws.cell(row, 1, "Forward Projection — Per Position")
+    sec2.font = Font(bold=True, size=11, color=_C_NAVY)
+    ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=N_COLS)
+    ws.row_dimensions[row].height = 20
+    row += 1
+
+    FWD_HEADERS = [
+        "Ticker", "Company",
+        "Ann. Return (%)", "Ann. Volatility (%)",
+        "3M p10", "3M Median", "3M p90",
+        "6M p10", "6M Median", "6M p90",
+        "1Y p10",  "1Y Median",  "1Y p90",
+    ]
+    _write_headers(ws, FWD_HEADERS, start_row=row)
+    ws.row_dimensions[row].height = 22
+    fwd_table_header_row = row
+    row += 1
+
+    fwd_data_start = row
+    if ticker_mc_results:
+        for i, (ticker, mc) in enumerate(ticker_mc_results.items()):
+            if not mc:
+                continue
+            pct = mc.get("percentiles")  # DataFrame indexed by future dates
+
+            def _at(day_idx: int, col: str):
+                if pct is None or len(pct) <= day_idx:
+                    return None
+                v = pct.iloc[day_idx][col]
+                return float(v) if pd.notna(v) else None
+
+            alt    = _row_fill(i + 1)
+            values = [
+                ticker, name_map.get(ticker, ticker),
+                mc.get("mu_annual"), mc.get("sigma_annual"),
+                _at(62, "p10"),  _at(62,  "p50"),  _at(62,  "p90"),
+                _at(125, "p10"), _at(125, "p50"),  _at(125, "p90"),
+                _at(251, "p10"), _at(251, "p50"),  _at(251, "p90"),
+            ]
+            for col_idx, val in enumerate(values, 1):
+                cell        = ws.cell(row, col_idx, val)
+                cell.border = _CELL_BORDER
+                cell.font   = Font(size=10)
+                if alt:
+                    cell.fill = alt
+                if col_idx in (3, 4) and isinstance(val, (int, float)):
+                    cell.number_format = "0.0"
+                elif col_idx >= 5 and isinstance(val, (int, float)):
+                    cell.number_format = ccy_fmt
+                if col_idx == 3 and isinstance(val, (int, float)):
+                    cell.fill = _GREEN_FILL if val >= 0 else _RED_FILL
+            ws.row_dimensions[row].height = 18
+            row += 1
+
+        fwd_data_end = row - 1
+        _add_table(ws, "tblMCForward",
+                   f"A{fwd_table_header_row}:{get_column_letter(len(FWD_HEADERS))}{fwd_data_end}")
+
+    note_fwd = ws.cell(row, 1,
+        f"Projected prices in {currency} using 1,000 simulations calibrated on up to 5 years of history. "
+        "Ann. Return and Volatility are annualised from daily log-returns. "
+        "p10/p90 = 80% confidence interval end-price. Assumes stable return distribution — "
+        "verify against the Backtest hit rates above before drawing conclusions.")
+    note_fwd.font      = _NOTE_FONT
+    note_fwd.alignment = Alignment(wrap_text=True, indent=1)
+    ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=N_COLS)
+    ws.row_dimensions[row].height = 36
+    row += 3
+
+    # ── Section 3: Backtest chart ─────────────────────────────────────────────
+    if bt_result and "actual" in bt_result and "percentiles" in bt_result:
+        actual = bt_result["actual"]
+        pct_df = bt_result["percentiles"]
+
+        # Write chart data starting at current row
+        chart_data_start = row
+        CHART_COLS = ["Date", "p10", "p25", "Median", "p75", "p90", "Actual"]
+        for ci, h in enumerate(CHART_COLS, 1):
+            cell      = ws.cell(chart_data_start, ci, h)
+            cell.fill = _HEADER_FILL
+            cell.font = _HEADER_FONT
+
+        for ri, (date, act_val) in enumerate(actual.items(), 1):
+            r = chart_data_start + ri
+            ws.cell(r, 1, date.to_pydatetime()).number_format = "YYYY-MM-DD"
+            for ci_offset, col in enumerate(["p10", "p25", "p50", "p75", "p90"], 2):
+                v = pct_df.loc[date, col] if date in pct_df.index else None
+                ws.cell(r, ci_offset, round(float(v), 2) if v is not None and pd.notna(v) else None)
+            ws.cell(r, 7, round(float(act_val), 2) if pd.notna(act_val) else None)
+
+        n_chart_rows  = len(actual)
+        chart_data_end = chart_data_start + n_chart_rows
+
+        chart              = LineChart()
+        chart.title        = "Backtest: Simulated Portfolio Bands vs. Actual"
+        chart.style        = 10
+        chart.y_axis.title = f"Portfolio Value ({currency})"
+        chart.x_axis.title = "Date"
+        chart.width        = 28
+        chart.height       = 16
+
+        SERIES_COLORS = [
+            "C9D8F0",  # p10  — very light blue
+            "7BAADE",  # p25  — light blue
+            "2255A4",  # Median — medium blue
+            "7BAADE",  # p75  — light blue (mirrors p25)
+            "C9D8F0",  # p90  — very light blue (mirrors p10)
+            "1A1A1A",  # Actual — near black
+        ]
+        SERIES_WIDTHS = [15000, 15000, 20000, 15000, 15000, 30000]  # EMU
+
+        for col_idx in range(2, 8):  # columns B–G
+            data = Reference(ws,
+                min_col=col_idx, max_col=col_idx,
+                min_row=chart_data_start, max_row=chart_data_end)
+            chart.add_data(data, titles_from_data=True)
+            ser = chart.series[col_idx - 2]
+            ser.graphicalProperties.line.solidFill = SERIES_COLORS[col_idx - 2]
+            ser.graphicalProperties.line.width     = SERIES_WIDTHS[col_idx - 2]
+            ser.smooth = False
+
+        # Median as dashed
+        chart.series[2].graphicalProperties.line.dashDot = "dash"
+
+        cats = Reference(ws, min_col=1, min_row=chart_data_start + 1, max_row=chart_data_end)
+        chart.set_categories(cats)
+        ws.add_chart(chart, f"A{chart_data_end + 2}")
+
+    _autofit(ws)
+    ws.freeze_panes = "A4"
+
+
 def _sheet_scenario(wb: Workbook, positions_df: pd.DataFrame, name_map: dict, currency: str) -> None:
     ws       = wb.create_sheet("Scenario Analysis")
     curr_fmt = _CURRENCY_FMT.get(currency, "#,##0.00")
@@ -1173,6 +1534,9 @@ def build_excel_report(
     name_map: dict[str, str],
     currency: str,
     summary_kpis: dict,
+    bt_result: dict | None = None,
+    ticker_mc_results: dict | None = None,
+    portfolio_mc: dict | None = None,
 ) -> bytes:
     """
     Build a comprehensive multi-sheet interactive Excel report.
@@ -1180,6 +1544,10 @@ def build_excel_report(
     """
     wb = Workbook()
     wb.remove(wb.active)
+
+    _bt  = bt_result          or {}
+    _tmc = ticker_mc_results  or {}
+    _pmc = portfolio_mc       or {}
 
     builders = [
         ("Net Worth",         lambda: _sheet_net_worth(wb, summary_kpis, currency)),
@@ -1189,6 +1557,7 @@ def build_excel_report(
         ("Allocation",        lambda: _sheet_allocation(wb, positions_df, name_map, currency)),
         ("Risk Metrics",      lambda: _sheet_risk(wb, analytics_df, name_map, positions_df)),
         ("Fundamentals",      lambda: _sheet_fundamentals(wb, fund_rows, name_map)),
+        ("Monte Carlo",       lambda: _sheet_monte_carlo(wb, _bt, _tmc, _pmc, name_map, currency)),
         ("Correlation",       lambda: _sheet_correlation(wb, price_histories, positions_df)),
         ("Price History",     lambda: _sheet_price_history(wb, price_histories)),
         ("Daily Returns",     lambda: _sheet_daily_returns(wb, price_histories)),
