@@ -167,7 +167,7 @@ h3 {{
 }}
 .kpi-label {{
     font-size: 12px;
-    color: #475569;
+    color: rgba(148,163,184,0.9);
     margin-bottom: 6px;
     text-transform: uppercase;
     letter-spacing: 0.07em;
@@ -180,7 +180,7 @@ h3 {{
     color: var(--text-color);
 }}
 .section-intro {{
-    color: #64748B;
+    color: rgba(148,163,184,0.9);
     font-size: 14px;
     margin-bottom: 12px;
     line-height: 1.6;
@@ -222,6 +222,10 @@ if "confirm_clear" not in st.session_state:
 
 if "pending_remove" not in st.session_state:
     st.session_state.pending_remove = False
+
+if "confirm_sample" not in st.session_state:
+    st.session_state.confirm_sample = False
+
 
 if st.session_state.get("ls_loaded"):
     ls_set(_LS_KEY, json.dumps({
@@ -308,12 +312,22 @@ with st.expander("Add / Manage Positions", expanded=is_new_user):
     uploaded_file = col_import.file_uploader("Import saved portfolio (.json file)", type="json")
     st.caption("Use the file you previously exported with the 'Export Portfolio' button.")
     if col_sample.button("Load Sample Portfolio", use_container_width=True):
-        import os
-        sample_path = os.path.join(os.path.dirname(__file__), "data", "sample_portfolio.json")
-        with open(sample_path) as f:
-            st.session_state.portfolio = json.load(f)
-        st.session_state.imported = False
-        st.rerun()
+        st.session_state.confirm_sample = True
+
+    if st.session_state.confirm_sample:
+        st.warning("This will replace your current portfolio with sample data. Your existing positions will be lost.")
+        col_yes, col_no, _ = st.columns([1, 1, 8])
+        if col_yes.button("Yes, load sample", key="confirm_sample_yes"):
+            import os
+            sample_path = os.path.join(os.path.dirname(__file__), "data", "sample_portfolio.json")
+            with open(sample_path) as f:
+                st.session_state.portfolio = json.load(f)
+            st.session_state.imported = False
+            st.session_state.confirm_sample = False
+            st.rerun()
+        if col_no.button("Cancel", key="confirm_sample_no"):
+            st.session_state.confirm_sample = False
+            st.rerun()
 
     if uploaded_file is not None and not st.session_state.imported:
         try:
@@ -691,13 +705,55 @@ with st.expander("Your Positions", expanded=True):
         unsafe_allow_html=True
     )
 
-    styled_df = df.copy().rename(columns={
+    # Tickers with >1 lot — used both for summary row insertion and child-row styling.
+    _multi_tickers = {t for t, g in df.groupby("Ticker", sort=False) if len(g) > 1}
+
+    show_individual = _multi_tickers and st.toggle(
+        "Show individual purchases", value=False, key="show_individual_lots"
+    )
+
+    # Build display rows: summary view or individual lot view, never both.
+    display_rows = []
+    for ticker, group in df.groupby("Ticker", sort=False):
+        if len(group) > 1:
+            if show_individual:
+                # Individual mode: lot rows only, no summary
+                display_rows.append(group)
+            else:
+                # Summary mode: one aggregated row per multi-lot ticker
+                total_value_t = group["Total Value"].sum()
+                total_cost_t  = (group["Buy Price"] * group["Shares"]).sum()
+                total_divs_t  = group["Dividends"].sum()
+                summary = {
+                    "Ticker":        f"► {ticker}",
+                    "Purchase":      "Total",
+                    "Shares":        group["Shares"].sum(),
+                    "Buy Price":     round(total_cost_t / group["Shares"].sum(), 2),
+                    "Purchase Date": "",
+                    "Current Price": group["Current Price"].iloc[0],
+                    "Total Value":   round(total_value_t, 2),
+                    "Dividends":     round(total_divs_t, 2),
+                    "Daily P&L":     round(group["Daily P&L"].sum(), 2),
+                    "Return (%)":    round(
+                        (total_value_t + total_divs_t - total_cost_t) / total_cost_t * 100, 2
+                    ) if total_cost_t else None,
+                    "Weight (%)":    round(group["Weight (%)"].sum(), 2),
+                }
+                display_rows.append(pd.DataFrame([summary]))
+        else:
+            display_rows.append(group)
+    display_df = pd.concat(display_rows, ignore_index=True) if display_rows else df.copy()
+    # Cast Purchase to str to avoid mixed int/str PyArrow type error when summary rows are present
+    display_df["Purchase"] = display_df["Purchase"].astype(str)
+
+    styled_df = display_df.rename(columns={
         "Return (%)": "Total Return (%)",
         "Weight (%)": "Portfolio Share (%)",
         "Daily P&L":  "Today's Change",
         "Purchase":   "Buy #",
     })
-    styled_df.insert(1, "Company", styled_df["Ticker"].map(name_map))
+    # Company name: summary rows have "► TICKER" so strip the prefix before lookup
+    styled_df.insert(1, "Company", styled_df["Ticker"].str.replace("► ", "", regex=False).map(name_map))
 
     def _color_pnl(val):
         if val > 0:   return f"color: {_C_POSITIVE}; font-weight: 500"
@@ -706,6 +762,14 @@ with st.expander("Your Positions", expanded=True):
 
     def _fmt_shares(x):
         return f"{int(x):,}" if x == int(x) else f"{x:g}"
+
+    def _style_row(row):
+        if show_individual:
+            return [""] * len(row)
+        ticker_val = row.name[0]  # first level of (Ticker, Company, Buy #) MultiIndex
+        if ticker_val.startswith("► "):
+            return ["font-weight: 700; background-color: rgba(29,78,216,0.08)"] * len(row)
+        return [""] * len(row)
 
     styled = (
         styled_df.set_index(["Ticker", "Company", "Buy #"])
@@ -721,6 +785,7 @@ with st.expander("Your Positions", expanded=True):
             "Portfolio Share (%)": "{:,.2f}%",
         })
         .map(_color_pnl, subset=["Today's Change", "Total Return (%)"])
+        .apply(_style_row, axis=1)
     )
 
     st.dataframe(styled, use_container_width=True, column_config={
@@ -780,7 +845,7 @@ with st.expander("Portfolio Allocation", expanded=True):
 # Side-by-Side Comparison
 # ──────────────────────────────────────────────
 st.divider()
-with st.expander("How My Stocks Compare", expanded=True):
+with st.expander("Portfolio Comparison", expanded=True):
     st.markdown(
         '<p class="section-intro">All your stocks shown on the same scale. '
         'Every stock starts at 100 on the left so you can fairly compare their growth — '
@@ -792,7 +857,7 @@ with st.expander("How My Stocks Compare", expanded=True):
 
     col_range, col_fx_comp = st.columns([3, 2], vertical_alignment="bottom")
     with col_range:
-        range_options = {"3 months": "3mo", "6 months": "6mo", "1 year": "1y", "All time": "max"}
+        range_options = {"3 months": "3mo", "6 months": "6mo", "1 year": "1y", "Since first purchase": "max"}
         range_label = st.radio("Time range", list(range_options.keys()), index=1, horizontal=True)
         selected_range = range_options[range_label]
     with col_fx_comp:
@@ -882,6 +947,13 @@ if hist_range_label == "Custom":
 
 _hist_range_months = {"3 months": 3, "6 months": 6, "1 year": 12, "2 years": 24}
 
+_gbx_tickers = [t for t in st.session_state.portfolio if get_ticker_currency(t) == "GBX"]
+if _gbx_tickers and not fx_adjust_history:
+    st.caption(
+        f"Prices for {', '.join(_gbx_tickers)} are shown in GBX (British pence). "
+        "100 GBX = 1 GBP. Enable Currency-adjusted above to convert to your base currency."
+    )
+
 for idx, (t, lots) in enumerate(st.session_state.portfolio.items()):
     hist = fetch_price_history_long(t)
     if hist.empty:
@@ -923,8 +995,6 @@ for idx, (t, lots) in enumerate(st.session_state.portfolio.items()):
     title_suffix = f"({base_currency}-adjusted)" if fx_adjust_history else f"({ticker_currency})"
     company = name_map.get(t, t)
     with st.expander(f"{company} ({t}) — Price History {title_suffix}", expanded=False):
-        if ticker_currency == "GBX" and not fx_adjust_history:
-            st.caption("Prices shown in GBX (British pence). 100 GBX = 1 GBP. Enable Currency-adjusted above to convert to your base currency.")
         fig_hist = px.line(
             hist_converted,
             x=hist_converted.index,
@@ -1013,16 +1083,16 @@ with st.expander("Risk & Analytics", expanded=False):
             "Volatility":   "Volatility (%)",
             "Max Drawdown": "Worst Drop (%)",
             "Sharpe Ratio": "Return/Risk Score",
-            "Beta":         "Market Sensitivity",
+            "Beta":         "Market Sensitivity (vs. S&P 500)",
         })
 
         styled_risk = (
             risk_display.style
             .format({
-                "Volatility (%)":     "{:.1f}%",
-                "Worst Drop (%)":     "{:.1f}%",
-                "Return/Risk Score":  "{:.2f}",
-                "Market Sensitivity": "{:.2f}",
+                "Volatility (%)":               "{:.1f}%",
+                "Worst Drop (%)":               "{:.1f}%",
+                "Return/Risk Score":            "{:.2f}",
+                "Market Sensitivity (vs. S&P 500)": "{:.2f}",
             }, na_rep="—")
             .map(_color_volatility, subset=["Volatility (%)"])
             .map(_color_drawdown,   subset=["Worst Drop (%)"])
@@ -1054,7 +1124,7 @@ with st.expander("Risk & Analytics", expanded=False):
                 corr_df = pd.DataFrame(_returns).dropna().corr()
                 fig_corr = px.imshow(
                     corr_df,
-                    color_continuous_scale="RdBu_r",
+                    color_continuous_scale="RdBu",
                     zmin=-1, zmax=1,
                     text_auto=".2f",
                 )
@@ -1063,7 +1133,7 @@ with st.expander("Risk & Analytics", expanded=False):
                     paper_bgcolor="rgba(0,0,0,0)",
                     plot_bgcolor="rgba(0,0,0,0)",
                     margin=dict(t=20),
-                    coloraxis_colorbar=dict(title="Correlation"),
+                    coloraxis_colorbar=dict(title="Correlation<br>(1 = moves together,<br>−1 = moves opposite)"),
                 )
                 st.plotly_chart(fig_corr, use_container_width=True)
 
@@ -1217,6 +1287,11 @@ with st.expander("Monte Carlo Backtest", expanded=False):
                 hovermode="x unified",
             )
 
+            st.caption(
+                "Assumes normally distributed returns and stable correlations. "
+                "Fat-tailed assets (flagged below) may have higher real tail risk than shown. "
+                "Not financial advice."
+            )
             st.plotly_chart(_fig_bt, use_container_width=True)
 
             # ── Per-ticker reliability table ─────────────────────────────
