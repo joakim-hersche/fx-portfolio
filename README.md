@@ -1,6 +1,6 @@
 # Market Dashboard
 
-A real-time stock portfolio tracker built with Streamlit. Add positions across major global exchanges, monitor performance in your home currency, and visualise portfolio allocation and price history. Built as a portfolio project for data/business analyst roles in Finance and FinTech.
+A real-time stock portfolio tracker built with Streamlit. Add positions across major global exchanges, monitor performance in your home currency, and visualise portfolio allocation and price history.
 
 ![Dashboard Overview](Screenshots/01_overview.png)
 
