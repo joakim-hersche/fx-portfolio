@@ -49,15 +49,29 @@ def fetch_fundamentals(ticker: str) -> dict:
         pe       = info.get("trailingPE")
         div      = info.get("dividendYield")
 
+        # yfinance sometimes returns dividendYield as a decimal (0.0042 = 0.42%)
+        # and sometimes as a percentage (0.42 = 0.42%). Normalise to a percentage number.
+        if div is not None:
+            div_pct = div * 100 if div < 1 else div
+        else:
+            div_pct = None
+
+        # For London-listed tickers yfinance returns fiftyTwoWeekLow/High in GBX
+        # (pence) but currentPrice in GBP, so divide by 100 to make units consistent.
+        ticker_ccy = get_ticker_currency(ticker)
+        if ticker_ccy == "GBX":
+            low_1y  = low_1y  / 100 if low_1y  else None
+            high_1y = high_1y / 100 if high_1y else None
+
         position = None
         if current and low_1y and high_1y and high_1y > low_1y:
             position = round((current - low_1y) / (high_1y - low_1y) * 100, 1)
 
         return {
-            "P/E Ratio":      round(pe, 1)       if pe      else None,
-            "Div Yield (%)":  round(div * 100, 2) if div else None,
-            "1-Year Low":     round(low_1y, 2)    if low_1y  else None,
-            "1-Year High":    round(high_1y, 2)   if high_1y else None,
+            "P/E Ratio":      round(pe, 1)        if pe      else None,
+            "Div Yield (%)":  round(div_pct, 2)   if div_pct else None,
+            "1-Year Low":     round(low_1y, 2)     if low_1y  else None,
+            "1-Year High":    round(high_1y, 2)    if high_1y else None,
             "1-Year Position": position,
         }
     except Exception:
@@ -85,20 +99,17 @@ def fetch_analytics_history(ticker: str) -> pd.DataFrame:
         return pd.DataFrame()
 
 
-# Fallback colors for tickers without a brand color.
-# Deliberately avoids red and green so bars can't be misread as gain/loss signals.
-CHART_COLORS = [
-    "#4a90d9",  # steel blue
-    "#7b5ea7",  # purple
-    "#17becf",  # teal
-    "#f0a500",  # amber
-    "#5c7cfa",  # indigo
-    "#00b4d8",  # sky blue
-    "#e6a817",  # golden
-    "#9467bd",  # medium purple
-    "#74c0fc",  # light blue
-    "#da77f2",  # lavender
-]
+# ── Color tokens ──────────────────────────────────────────────────────────────
+CHART_COLORS = ["#1D4ED8", "#0EA5E9", "#6366F1", "#10B981", "#F59E0B",
+                "#EC4899", "#8B5CF6", "#06B6D4", "#22C55E", "#F97316"]
+
+_C_POSITIVE    = "#16A34A"
+_C_NEGATIVE    = "#DC2626"
+_C_NEUTRAL     = "#94A3B8"
+_C_AMBER       = "#D97706"
+_PLOT_TMPL     = "plotly"
+_C_METRIC_BRD  = "rgba(29,78,216,0.25)"
+_C_CARD_BRD    = "rgba(29,78,216,0.3)"
 
 # ──────────────────────────────────────────────
 # Page Config
@@ -108,43 +119,44 @@ st.set_page_config(page_title="Market Dashboard", layout="wide")
 # ──────────────────────────────────────────────
 # Global CSS
 # ──────────────────────────────────────────────
-st.markdown("""
+st.markdown(f"""
 <style>
-h3 {
+h3 {{
     margin-top: 1.8rem !important;
     margin-bottom: 0.8rem !important;
-}
-[data-testid="metric-container"] {
+}}
+[data-testid="metric-container"] {{
     background-color: var(--secondary-background-color);
-    border: 1px solid rgba(128,128,128,0.3);
+    border: 1px solid {_C_METRIC_BRD};
     border-radius: 8px;
     padding: 16px 20px;
-}
-.kpi-card {
+}}
+.kpi-card {{
     background-color: var(--secondary-background-color);
     border-radius: 8px;
     padding: 18px 24px;
     text-align: center;
-}
-.kpi-label {
-    font-size: 13px;
-    color: var(--text-color);
-    opacity: 0.6;
+}}
+.kpi-label {{
+    font-size: 12px;
+    color: #475569;
     margin-bottom: 6px;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-.kpi-value {
+    letter-spacing: 0.07em;
+    font-weight: 500;
+}}
+.kpi-value {{
     font-size: 26px;
     font-weight: 600;
     line-height: 1.2;
-}
-.section-intro {
     color: var(--text-color);
-    opacity: 0.7;
+}}
+.section-intro {{
+    color: #64748B;
     font-size: 14px;
     margin-bottom: 12px;
-}
+    line-height: 1.6;
+}}
 </style>
 """, unsafe_allow_html=True)
 
@@ -197,7 +209,7 @@ col_title, col_currency = st.columns([4, 1])
 with col_title:
     st.markdown("""
     <div style="display:flex; align-items:center; gap:12px; margin-bottom:4px;">
-        <div style="width:4px; height:40px; background:#4f8ef7; border-radius:2px; flex-shrink:0;"></div>
+        <div style="width:4px; height:40px; background:#1D4ED8; border-radius:2px; flex-shrink:0;"></div>
         <h1 style="margin:0; padding:0;">Market Dashboard</h1>
     </div>
     """, unsafe_allow_html=True)
@@ -485,8 +497,8 @@ total_divs    = df["Dividends"].sum()
 total_return  = total_value + total_divs - cost_basis
 total_ret_pct = (total_return / cost_basis * 100) if cost_basis else 0.0
 
-pnl_color  = "#2e7d32" if daily_pnl    >= 0 else "#c0392b"
-ret_color  = "#2e7d32" if total_return >= 0 else "#c0392b"
+pnl_color  = _C_POSITIVE if daily_pnl    >= 0 else _C_NEGATIVE
+ret_color  = _C_POSITIVE if total_return >= 0 else _C_NEGATIVE
 
 n_purchases = sum(len(lots) for lots in st.session_state.portfolio.values())
 positions_sub = f'<div style="color: var(--text-color); opacity: 0.55; font-size:12px; margin-top:4px;">{n_purchases} purchases</div>' if n_purchases != n_positions else ""
@@ -502,7 +514,7 @@ _spacer_line_sm  = '<div style="font-size:12px; margin-top:4px; visibility:hidde
 
 with col_m1:
     st.markdown(f"""
-    <div class="kpi-card" style="border: 1px solid rgba(128,128,128,0.3);">
+    <div class="kpi-card" style="border: 1px solid {_C_CARD_BRD};">
         <div class="kpi-label">Total Portfolio Value</div>
         <div class="kpi-value" style="color: var(--text-color);">{currency_symbol}{total_value:,.2f}</div>
         {_spacer_line_md}
@@ -538,7 +550,7 @@ with col_m3:
 
 with col_m4:
     st.markdown(f"""
-    <div class="kpi-card" style="border: 1px solid rgba(128,128,128,0.3);">
+    <div class="kpi-card" style="border: 1px solid {_C_CARD_BRD};">
         <div class="kpi-label">Positions</div>
         <div class="kpi-value" style="color: var(--text-color);">{n_positions}</div>
         {positions_sub if positions_sub else _spacer_line_md}
@@ -603,9 +615,9 @@ with st.expander("📋 Your Positions", expanded=True):
     styled_df.insert(1, "Company", styled_df["Ticker"].map(name_map))
 
     def _color_pnl(val):
-        if val > 0:   return "color: #2e7d32; font-weight: 500"
-        elif val < 0: return "color: #c0392b; font-weight: 500"
-        return "color: var(--text-color)"
+        if val > 0:   return f"color: {_C_POSITIVE}; font-weight: 500"
+        elif val < 0: return f"color: {_C_NEGATIVE}; font-weight: 500"
+        return f"color: {_C_NEUTRAL}"
 
     def _fmt_shares(x):
         return f"{int(x):,}" if x == int(x) else f"{x:g}"
@@ -672,7 +684,7 @@ with st.expander("📊 Portfolio Allocation", expanded=True):
         xaxis_title="Portfolio Share (%)",
         yaxis_title=None,
         showlegend=False,
-        template="plotly",
+        template=_PLOT_TMPL,
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         xaxis=dict(range=[0, alloc_df["Portfolio Share (%)"].max() * 1.15]),
@@ -747,7 +759,7 @@ with st.expander("📈 How My Stocks Compare", expanded=True):
         xaxis_title="Date",
         yaxis_title=f"Indexed growth (100 = start)  —  {range_label}  {title_suffix}",
         legend_title="Stock",
-        template="plotly",
+        template=_PLOT_TMPL,
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
     )
@@ -838,7 +850,7 @@ for idx, (t, lots) in enumerate(st.session_state.portfolio.items()):
             yaxis_title=y_label,
             xaxis_range=[str(pd.Timestamp(effective_from).date()), str(date_to)],
             showlegend=False,
-            template="plotly",
+            template=_PLOT_TMPL,
             paper_bgcolor="rgba(0,0,0,0)",
             plot_bgcolor="rgba(0,0,0,0)",
         )
@@ -855,7 +867,7 @@ for idx, (t, lots) in enumerate(st.session_state.portfolio.items()):
             fig_hist.add_hline(
                 y=buy_price_display,
                 line_dash="dash",
-                line_color="#e6a817",  # amber — visible on both light and dark backgrounds
+                line_color=_C_AMBER,
                 annotation_text=buy_label,
                 annotation_position="top left"
             )
@@ -895,21 +907,21 @@ with st.expander("🔬 Risk & Analytics", expanded=False):
 
         def _color_sharpe(val):
             if not isinstance(val, (int, float)): return ""
-            if val >= 1:   return "color: #2e7d32"
-            if val >= 0:   return "color: #b8860b"
-            return "color: #c0392b"
+            if val >= 1:   return f"color: {_C_POSITIVE}"
+            if val >= 0:   return f"color: {_C_AMBER}"
+            return f"color: {_C_NEGATIVE}"
 
         def _color_volatility(val):
             if not isinstance(val, (int, float)): return ""
-            if val <= 20:  return "color: #2e7d32"
-            if val <= 35:  return "color: #b8860b"
-            return "color: #c0392b"
+            if val <= 20:  return f"color: {_C_POSITIVE}"
+            if val <= 35:  return f"color: {_C_AMBER}"
+            return f"color: {_C_NEGATIVE}"
 
         def _color_drawdown(val):
             if not isinstance(val, (int, float)): return ""
-            if val >= -20: return "color: #2e7d32"
-            if val >= -40: return "color: #b8860b"
-            return "color: #c0392b"
+            if val >= -20: return f"color: {_C_POSITIVE}"
+            if val >= -40: return f"color: {_C_AMBER}"
+            return f"color: {_C_NEGATIVE}"
 
         risk_display = analytics_df.set_index("Ticker").rename(columns={
             "Volatility":   "Volatility (%)",
@@ -960,7 +972,7 @@ with st.expander("🔬 Risk & Analytics", expanded=False):
                     text_auto=".2f",
                 )
                 fig_corr.update_layout(
-                    template="plotly",
+                    template=_PLOT_TMPL,
                     paper_bgcolor="rgba(0,0,0,0)",
                     plot_bgcolor="rgba(0,0,0,0)",
                     margin=dict(t=20),

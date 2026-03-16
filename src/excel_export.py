@@ -10,20 +10,47 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
-# ── Styling constants ──────────────────────────────────────────────────────────
+# ── Design tokens — JP Morgan / institutional palette ─────────────────────────
 
-_HEADER_FILL   = PatternFill("solid", fgColor="1F4E79")
-_HEADER_FONT   = Font(bold=True, color="FFFFFF")
-_LABEL_FONT    = Font(bold=True)
-_TOTAL_FONT    = Font(bold=True, color="1F4E79")
-_INPUT_FONT    = Font(color="1F4E79")           # blue  — user-editable cells
-_INPUT_FILL    = PatternFill("solid", fgColor="EBF3FB")
-_GREEN_FILL    = PatternFill("solid", fgColor="C8E6C9")
-_RED_FILL      = PatternFill("solid", fgColor="FFCDD2")
-_AMBER_FILL    = PatternFill("solid", fgColor="FFF9C4")
-_TEMPLATE_FILL = PatternFill("solid", fgColor="E3F2FD")
-_TOTAL_FILL    = PatternFill("solid", fgColor="EEF2F7")
-_TOP_BORDER    = Border(top=Side(style="medium", color="1F4E79"))
+_C_NAVY       = "003087"   # primary navy (JP Morgan)
+_C_NAVY_DARK  = "001E5C"   # cover banner
+_C_NAVY_SUB   = "002579"   # cover sub-banner
+_C_GOLD       = "B8962E"   # gold accent
+_C_WHITE      = "FFFFFF"
+_C_ALT        = "F3F6FA"   # alternating row tint
+_C_TOTAL_BG   = "E8EDF5"   # total/subtotal row
+_C_INPUT_BG   = "EBF3FB"   # editable input fill
+_C_INPUT_FG   = "1A4FA0"   # editable input font
+_C_GRID       = "BFC9D4"   # cell border
+_C_NOTE       = "5A6472"   # secondary/note text
+_C_POS_BG     = "E8F5E9"   # positive fill
+_C_NEG_BG     = "FBE9E9"   # negative fill
+_C_AMBER_BG   = "FFF8E1"
+
+# ── Chart palette — matches app.py CHART_COLORS (hex, no leading #) ───────────
+_CHART_COLORS = [
+    "1D4ED8", "0EA5E9", "6366F1", "10B981", "F59E0B",
+    "EC4899", "8B5CF6", "06B6D4", "22C55E", "F97316",
+]
+
+# ── Reusable style objects ─────────────────────────────────────────────────────
+
+_HEADER_FILL   = PatternFill("solid", fgColor=_C_NAVY)
+_HEADER_FONT   = Font(bold=True, color=_C_WHITE, size=10)
+_LABEL_FONT    = Font(bold=True, size=10)
+_TOTAL_FONT    = Font(bold=True, color=_C_NAVY, size=10)
+_NOTE_FONT     = Font(italic=True, size=9, color=_C_NOTE)
+_INPUT_FONT    = Font(color=_C_INPUT_FG, size=10)
+_INPUT_FILL    = PatternFill("solid", fgColor=_C_INPUT_BG)
+_ALT_FILL      = PatternFill("solid", fgColor=_C_ALT)
+_TOTAL_FILL    = PatternFill("solid", fgColor=_C_TOTAL_BG)
+_TEMPLATE_FILL = PatternFill("solid", fgColor=_C_INPUT_BG)
+_GREEN_FILL    = PatternFill("solid", fgColor=_C_POS_BG)
+_RED_FILL      = PatternFill("solid", fgColor=_C_NEG_BG)
+_AMBER_FILL    = PatternFill("solid", fgColor=_C_AMBER_BG)
+
+_CELL_BORDER = Border(bottom=Side(style="thin", color=_C_GRID))
+_TOP_BORDER  = Border(top=Side(style="medium", color=_C_NAVY))
 
 _CURRENCY_FMT = {
     "USD": '"$"#,##0.00',
@@ -33,9 +60,9 @@ _CURRENCY_FMT = {
 }
 
 _TABLE_STYLE = TableStyleInfo(
-    name="TableStyleMedium2",
+    name="TableStyleMedium9",
     showFirstColumn=False, showLastColumn=False,
-    showRowStripes=True,   showColumnStripes=False,
+    showRowStripes=False,  showColumnStripes=False,
 )
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -46,6 +73,8 @@ def _write_headers(ws, headers: list[str], start_row: int = 1) -> None:
         cell.fill      = _HEADER_FILL
         cell.font      = _HEADER_FONT
         cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border    = Border(bottom=Side(style="medium", color=_C_GOLD))
+    ws.row_dimensions[start_row].height = 22
 
 
 def _autofit(ws) -> None:
@@ -74,6 +103,10 @@ def _set_print(ws, area: str = None) -> None:
         ws.print_area = area
 
 
+def _no_gridlines(ws) -> None:
+    ws.sheet_view.showGridLines = False
+
+
 def _input_cell(cell, value, number_format: str = None) -> None:
     """Write a blue-styled editable input cell."""
     cell.value         = value
@@ -83,124 +116,255 @@ def _input_cell(cell, value, number_format: str = None) -> None:
         cell.number_format = number_format
 
 
+def _row_fill(row_idx: int) -> PatternFill | None:
+    """Return alternating row fill for data rows (even = light tint, odd = none)."""
+    return _ALT_FILL if row_idx % 2 == 0 else None
+
+
 # ── Sheet builders ─────────────────────────────────────────────────────────────
 
 def _sheet_net_worth(wb: Workbook, kpis: dict, currency: str) -> None:
     ws       = wb.create_sheet("Net Worth")
     curr_fmt = _CURRENCY_FMT.get(currency, "#,##0.00")
+    n_cols   = 9
 
-    # Banner
-    ws.merge_cells("A1:C1")
-    banner           = ws["A1"]
-    banner.value     = "Net Worth Overview"
-    banner.font      = Font(bold=True, size=14, color="1F4E79")
-    banner.fill      = _TEMPLATE_FILL
-    banner.alignment = Alignment(horizontal="left", vertical="center")
-    ws.row_dimensions[1].height = 28
+    _no_gridlines(ws)
 
-    ws.merge_cells("A2:C2")
+    # ── Row 1: primary header banner ──────────────────────────────────────────
+    ws.merge_cells(f"A1:{get_column_letter(n_cols)}1")
+    h           = ws["A1"]
+    h.value     = "PORTFOLIO REPORT"
+    h.font      = Font(bold=True, size=20, color=_C_WHITE)
+    h.fill      = PatternFill("solid", fgColor=_C_NAVY_DARK)
+    h.alignment = Alignment(horizontal="left", vertical="center", indent=2)
+    ws.row_dimensions[1].height = 52
+
+    # ── Row 2: sub-header ─────────────────────────────────────────────────────
+    ws.merge_cells(f"A2:{get_column_letter(n_cols)}2")
     sub           = ws["A2"]
     sub.value     = (
-        f"Portfolio values snapshot from the dashboard. "
-        f"Fill in 'Other Assets' to complete your net worth ({currency})."
+        f"Prepared  {datetime.now().strftime('%d %B %Y')}    ·    "
+        f"Reporting Currency: {currency}    ·    Private & Confidential"
     )
-    sub.font      = Font(italic=True, size=10, color="595959")
-    sub.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
-    ws.row_dimensions[2].height = 24
+    sub.font      = Font(size=10, color="BFCDE0")
+    sub.fill      = PatternFill("solid", fgColor=_C_NAVY_SUB)
+    sub.alignment = Alignment(horizontal="left", vertical="center", indent=2)
+    ws.row_dimensions[2].height = 26
 
-    # Table headers (row 3)
+    # ── Row 3: gold accent line ───────────────────────────────────────────────
+    ws.merge_cells(f"A3:{get_column_letter(n_cols)}3")
+    ws["A3"].fill = PatternFill("solid", fgColor=_C_GOLD)
+    ws.row_dimensions[3].height = 5
+
+    # ── Row 4: spacer ─────────────────────────────────────────────────────────
+    ws.row_dimensions[4].height = 16
+
+    # ── Rows 5–7: KPI cards ───────────────────────────────────────────────────
+    kpi_cards = [
+        ("A", "C", "TOTAL PORTFOLIO VALUE", "=Summary!B5", curr_fmt),
+        ("D", "F", "TODAY'S CHANGE",         kpis["daily_pnl"],          curr_fmt),
+        ("G", "I", "TOTAL RETURN",           kpis.get("total_ret_pct"),  '0.00"%"'),
+    ]
+    ws.row_dimensions[5].height = 18
+    ws.row_dimensions[6].height = 38
+    ws.row_dimensions[7].height = 10
+
+    for start_col, end_col, label, value, fmt in kpi_cards:
+        ws.merge_cells(f"{start_col}5:{end_col}5")
+        lbl           = ws[f"{start_col}5"]
+        lbl.value     = label
+        lbl.font      = Font(size=9, color=_C_NOTE)
+        lbl.alignment = Alignment(horizontal="left", vertical="bottom", indent=1)
+
+        ws.merge_cells(f"{start_col}6:{end_col}6")
+        val               = ws[f"{start_col}6"]
+        val.value         = value
+        val.number_format = fmt
+        val.font          = Font(bold=True, size=18, color=_C_NAVY_DARK)
+        val.alignment     = Alignment(horizontal="left", vertical="center", indent=1)
+
+        ws.merge_cells(f"{start_col}7:{end_col}7")
+        ws[f"{start_col}7"].border = Border(bottom=Side(style="thin", color=_C_GOLD))
+
+    # ── Row 8: spacer ─────────────────────────────────────────────────────────
+    ws.row_dimensions[8].height = 18
+
+    # ── Row 9: section label ──────────────────────────────────────────────────
+    ws.merge_cells(f"A9:{get_column_letter(n_cols)}9")
+    sec           = ws["A9"]
+    sec.value     = "NET WORTH BREAKDOWN"
+    sec.font      = Font(bold=True, size=9, color=_C_NAVY_DARK)
+    sec.alignment = Alignment(horizontal="left", vertical="center", indent=1)
+    sec.border    = Border(bottom=Side(style="thin", color=_C_NAVY))
+    ws.row_dimensions[9].height = 22
+
+    # ── Row 10: table header ──────────────────────────────────────────────────
     for col, label in enumerate(["Category", f"Value ({currency})", "% of Total"], 1):
-        cell           = ws.cell(3, col, label)
+        cell           = ws.cell(10, col, label)
         cell.fill      = _HEADER_FILL
         cell.font      = _HEADER_FONT
-        cell.alignment = Alignment(horizontal="center")
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border    = Border(bottom=Side(style="medium", color=_C_GOLD))
+    ws.row_dimensions[10].height = 22
 
-    # Row 4: Portfolio — links to Summary!B4 (which is a SUM formula)
-    ws["A4"] = "Portfolio (Dashboard)"
-    ws["A4"].font = _LABEL_FONT
-    ws["B4"] = "=Summary!B4"
-    ws["B4"].number_format = curr_fmt
-    ws["C4"] = '=IF(B6=0,"",B4/B6)'
-    ws["C4"].number_format = '0.0"%"'
+    # ── Rows 11–12: data ──────────────────────────────────────────────────────
+    ws.cell(11, 1, "Portfolio (Dashboard)").font = Font(size=10)
+    ws.cell(11, 2, "=Summary!B5").number_format  = curr_fmt
+    ws.cell(11, 3, '=IF(B13=0,"",B11/B13)').number_format = '0.0"%"'
 
-    # Row 5: Other Assets — links to Net Equity SUM in Other Assets!H23
-    ws["A5"] = "Other Assets (Manual)"
-    ws["A5"].font = _LABEL_FONT
-    ws["B5"] = "='Other Assets'!H23"
-    ws["B5"].number_format = curr_fmt
-    ws["C5"] = '=IF(B6=0,"",B5/B6)'
-    ws["C5"].number_format = '0.0"%"'
+    ws.cell(12, 1, "Other Assets (Manual)").font = Font(size=10)
+    ws.cell(12, 2, f"='Other Assets'!H{_OA_SUM_ROW}").number_format = curr_fmt
+    ws.cell(12, 3, '=IF(B13=0,"",B12/B13)').number_format = '0.0"%"'
 
-    # Row 6: Total
+    for r in (11, 12):
+        for col in range(1, 4):
+            ws.cell(r, col).border = _CELL_BORDER
+        ws.row_dimensions[r].height = 20
+
+    # alternate fill on row 12
     for col in range(1, 4):
-        c        = ws.cell(6, col)
+        ws.cell(12, col).fill = _ALT_FILL
+
+    # ── Row 13: total ─────────────────────────────────────────────────────────
+    for col in range(1, 4):
+        c        = ws.cell(13, col)
         c.border = _TOP_BORDER
         c.fill   = _TOTAL_FILL
         c.font   = _TOTAL_FONT
-    ws["A6"] = "Total Net Worth"
-    ws["B6"] = "=B4+B5"
-    ws["B6"].number_format = curr_fmt
-    ws["C6"] = "100%"
-    ws["C6"].number_format = '0.0"%"'
+    ws.cell(13, 1, "Total Net Worth")
+    ws.cell(13, 2, "=B11+B12").number_format = curr_fmt
+    ws.cell(13, 3, "100%").number_format      = '0.0"%"'
+    ws.row_dimensions[13].height = 22
 
-    # Bar chart
+    # ── Row 14: spacer ────────────────────────────────────────────────────────
+    ws.row_dimensions[14].height = 14
+
+    # ── Bar chart ─────────────────────────────────────────────────────────────
     chart              = BarChart()
     chart.type         = "bar"
     chart.title        = "Net Worth Breakdown"
-    chart.style        = 2
+    chart.style        = 10
     chart.grouping     = "clustered"
+    chart.x_axis.title = f"Value ({currency})"
     chart.y_axis.delete = True
 
-    data = Reference(ws, min_col=2, max_col=2, min_row=3, max_row=5)
-    cats = Reference(ws, min_col=1, min_row=4, max_row=5)
+    data = Reference(ws, min_col=2, max_col=2, min_row=10, max_row=12)
+    cats = Reference(ws, min_col=1, min_row=11, max_row=12)
     chart.add_data(data, titles_from_data=True)
     chart.set_categories(cats)
+    chart.series[0].graphicalProperties.solidFill = _CHART_COLORS[0]
+    chart.series[0].graphicalProperties.line.solidFill = _CHART_COLORS[0]
     chart.width  = 18
     chart.height = 10
-    ws.add_chart(chart, "E3")
+    ws.add_chart(chart, "E9")
 
-    ws.column_dimensions["A"].width = 28
-    ws.column_dimensions["B"].width = 18
-    ws.column_dimensions["C"].width = 14
-    _set_print(ws, "A1:I12")
-
-
-def _sheet_summary(wb: Workbook, kpis: dict, currency: str) -> None:
-    ws       = wb.create_sheet("Summary")
-    curr_fmt = _CURRENCY_FMT.get(currency, "#,##0.00")
-
-    # Row 1-2: metadata (hardcoded — snapshot info)
-    ws.cell(1, 1, "Report Generated").font = _LABEL_FONT
-    ws.cell(1, 2, datetime.now().strftime("%Y-%m-%d %H:%M")).alignment = Alignment(horizontal="right")
-    ws.cell(2, 1, "Currency").font = _LABEL_FONT
-    ws.cell(2, 2, currency).alignment = Alignment(horizontal="right")
-
-    # Row 4+: live formulas referencing tblPositions
-    formula_rows = [
-        # (label, formula_or_value, number_format, is_formula)
-        ("Total Portfolio Value", "=SUM(Positions!$H:$H)",                                  curr_fmt, True),
-        ("Today's Change",        kpis["daily_pnl"],                                        curr_fmt, False),  # needs yesterday's close — hardcoded
-        ("Cost Basis",            "=SUMPRODUCT(Positions!$D$2:$D$10000,Positions!$E$2:$E$10000)", curr_fmt, True),
-        ("Dividends Received",    "=SUM(Positions!$I:$I)",                                  curr_fmt, True),
-        ("Total Return",          "=B4+B7-B6",                                            curr_fmt, True),
-        ("Total Return (%)",      '=IF(B6=0,"",B8/B6*100)',                               '0.00"%"', True),
-        ("Number of Positions",   kpis["n_positions"],                                    "0",      False),
-    ]
-
-    for idx, (label, value, fmt, is_formula) in enumerate(formula_rows, 4):
-        ws.cell(idx, 1, label).font = _LABEL_FONT
-        cell               = ws.cell(idx, 2, value)
-        cell.number_format = fmt
-        cell.alignment     = Alignment(horizontal="right")
-        if is_formula:
-            cell.font = Font(color="000000")  # black = computed
+    # ── Row 16: disclaimer ────────────────────────────────────────────────────
+    ws.merge_cells(f"A16:{get_column_letter(n_cols)}16")
+    disc           = ws["A16"]
+    disc.value     = (
+        "This report is generated from live market data and is for informational purposes only. "
+        "Past performance is not indicative of future results. Not financial advice."
+    )
+    disc.font      = _NOTE_FONT
+    disc.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True, indent=1)
+    ws.row_dimensions[16].height = 28
 
     ws.column_dimensions["A"].width = 28
     ws.column_dimensions["B"].width = 20
-    _set_print(ws, "A1:B10")
+    ws.column_dimensions["C"].width = 14
+    for col in "DEFGHI":
+        ws.column_dimensions[col].width = 16
+
+    _set_print(ws, "A1:I16")
 
 
-# Column layout for Positions (must be stable — other sheets reference by name via tblPositions)
+def _sheet_summary(wb: Workbook, kpis: dict, currency: str, n_rows: int) -> None:
+    ws       = wb.create_sheet("Summary")
+    curr_fmt = _CURRENCY_FMT.get(currency, "#,##0.00")
+
+    _no_gridlines(ws)
+
+    # ── Row 1: title ──────────────────────────────────────────────────────────
+    ws.merge_cells("A1:B1")
+    h           = ws["A1"]
+    h.value     = "PORTFOLIO SUMMARY"
+    h.font      = Font(bold=True, size=14, color=_C_NAVY_DARK)
+    h.fill      = PatternFill("solid", fgColor=_C_ALT)
+    h.alignment = Alignment(horizontal="left", vertical="center", indent=2)
+    h.border    = Border(bottom=Side(style="medium", color=_C_GOLD))
+    ws.row_dimensions[1].height = 38
+
+    # ── Rows 2–3: metadata ────────────────────────────────────────────────────
+    ws.cell(2, 1, "Report Date").font        = _NOTE_FONT
+    ws.cell(2, 1).alignment                  = Alignment(indent=1)
+    ws.cell(2, 2, datetime.now().strftime("%d %B %Y  %H:%M"))
+    ws.cell(2, 2).font                       = Font(size=10, color=_C_NAVY)
+    ws.cell(2, 2).alignment                  = Alignment(horizontal="right")
+    ws.cell(2, 2).border                     = _CELL_BORDER
+
+    ws.cell(3, 1, "Reporting Currency").font = _NOTE_FONT
+    ws.cell(3, 1).alignment                  = Alignment(indent=1)
+    ws.cell(3, 2, currency)
+    ws.cell(3, 2).font                       = Font(size=10, color=_C_NAVY)
+    ws.cell(3, 2).alignment                  = Alignment(horizontal="right")
+    ws.cell(3, 2).border                     = _CELL_BORDER
+    for r in (2, 3):
+        ws.row_dimensions[r].height = 20
+
+    # ── Row 4: section separator ──────────────────────────────────────────────
+    ws.merge_cells("A4:B4")
+    sec           = ws["A4"]
+    sec.value     = "PERFORMANCE"
+    sec.font      = Font(bold=True, size=8, color=_C_NOTE)
+    sec.alignment = Alignment(horizontal="left", vertical="center", indent=1)
+    sec.border    = Border(bottom=Side(style="thin", color=_C_GRID))
+    ws.row_dimensions[4].height = 20
+
+    # ── Rows 5–11: KPIs ───────────────────────────────────────────────────────
+    # NOTE: row numbers here must stay in sync with Net Worth references to Summary!B5
+    formula_rows = [
+        ("Total Portfolio Value", f"=SUM(Positions!$H$2:$H${n_rows + 1})",                        curr_fmt,    True),
+        ("Today's Change",         kpis["daily_pnl"],                                            curr_fmt,    False),
+        ("Cost Basis",             f"=SUMPRODUCT(Positions!$D$2:$D${n_rows + 1},Positions!$E$2:$E${n_rows + 1})", curr_fmt, True),
+        ("Dividends Received",     f"=SUM(Positions!$I$2:$I${n_rows + 1})",                      curr_fmt,    True),
+        ("Total Return",           "=B5+B8-B7",                                                  curr_fmt,    True),
+        ("Total Return (%)",       '=IF(B7=0,"",B9/B7*100)',                                     '0.00"%"',  True),
+        ("Number of Positions",    kpis["n_positions"],                                          "0",         False),
+    ]
+
+    for idx, (label, value, fmt, is_formula) in enumerate(formula_rows, 5):
+        lbl_cell           = ws.cell(idx, 1, label)
+        lbl_cell.alignment = Alignment(vertical="center", indent=1)
+        lbl_cell.border    = _CELL_BORDER
+        if idx == 5:  # Total Portfolio Value — highlight
+            lbl_cell.font = Font(bold=True, size=10, color=_C_NAVY)
+            for c in (1, 2):
+                ws.cell(idx, c).fill = _TOTAL_FILL
+        else:
+            lbl_cell.font = Font(size=10)
+
+        val_cell               = ws.cell(idx, 2, value)
+        val_cell.number_format = fmt
+        val_cell.alignment     = Alignment(horizontal="right", vertical="center")
+        val_cell.border        = _CELL_BORDER
+        val_cell.font          = Font(size=10) if is_formula else _INPUT_FONT
+
+        if idx % 2 == 0:
+            ws.cell(idx, 1).fill = _ALT_FILL
+            if not ws.cell(idx, 2).fill.fgColor.rgb == _C_TOTAL_BG:
+                ws.cell(idx, 2).fill = _ALT_FILL
+
+        ws.row_dimensions[idx].height = 22
+
+    # Bold Total Portfolio Value value
+    ws.cell(5, 2).font = Font(bold=True, size=10, color=_C_NAVY)
+
+    ws.column_dimensions["A"].width = 28
+    ws.column_dimensions["B"].width = 22
+    _set_print(ws, "A1:B12")
+
+
+# Column layout for Positions (must be stable — other sheets reference by column position)
 _POS_COLS = [
     "Ticker", "Company", "Purchase", "Shares",
     "Buy Price", "Purchase Date", "Current Price",
@@ -215,36 +379,49 @@ def _sheet_positions(wb: Workbook, df: pd.DataFrame, name_map: dict, currency: s
     ws       = wb.create_sheet("Positions")
     curr_fmt = _CURRENCY_FMT.get(currency, "#,##0.00")
 
+    _no_gridlines(ws)
+
     export_df = df.copy()
     export_df.insert(1, "Company", export_df["Ticker"].map(name_map))
     export_df = export_df[[c for c in _POS_COLS if c in export_df.columns]]
 
-    # Column indices (letters)
-    D = get_column_letter(_POS_IDX["Shares"])         # Shares
-    E = get_column_letter(_POS_IDX["Buy Price"])      # Buy Price
-    G = get_column_letter(_POS_IDX["Current Price"])  # Current Price
-    H = get_column_letter(_POS_IDX["Total Value"])    # Total Value
-    I = get_column_letter(_POS_IDX["Dividends"])      # Dividends
-    K = get_column_letter(_POS_IDX["Return (%)"])     # Return
-    L = get_column_letter(_POS_IDX["Weight (%)"])     # Weight
+    # Column letters
+    D = get_column_letter(_POS_IDX["Shares"])
+    E = get_column_letter(_POS_IDX["Buy Price"])
+    G = get_column_letter(_POS_IDX["Current Price"])
+    H = get_column_letter(_POS_IDX["Total Value"])
+    I = get_column_letter(_POS_IDX["Dividends"])
+    K = get_column_letter(_POS_IDX["Return (%)"])
+    L = get_column_letter(_POS_IDX["Weight (%)"])
 
-    n            = len(export_df)
-    last_data    = n + 1            # last data row (header is row 1)
-    totals_row   = last_data + 2    # blank gap then totals
+    n          = len(export_df)
+    last_data  = n + 1
+    totals_row = last_data + 2
 
     _write_headers(ws, list(export_df.columns))
 
-    # Blue-input columns: Shares, Buy Price, Current Price
+    # Blue-input columns: Shares, Buy Price, Current Price (hardcoded; FX-converted to base currency)
     input_cols = {"Shares", "Buy Price", "Current Price"}
 
     for row_idx, row in enumerate(export_df.itertuples(index=False), 2):
+        alt = _row_fill(row_idx)
         for col_idx, (col_name, value) in enumerate(zip(export_df.columns, row), 1):
-            cell = ws.cell(row_idx, col_idx)
-            safe = value if pd.notna(value) else None
+            cell      = ws.cell(row_idx, col_idx)
+            safe      = value if pd.notna(value) else None
+            cell.border = _CELL_BORDER
+            if alt and col_name not in input_cols:
+                cell.fill = alt
 
-            if col_name == "Total Value":
+            if col_name == "Current Price":
+                # Hardcoded FX-converted price from positions_df (base currency).
+                # Price History stores native-currency prices so INDEX/MATCH would
+                # give wrong values for EUR/CHF/GBX tickers.
+                cell.value         = safe
+                cell.number_format = curr_fmt
+            elif col_name == "Total Value":
                 cell.value         = f"={D}{row_idx}*{G}{row_idx}"
                 cell.number_format = curr_fmt
+                cell.font          = Font(size=10)
             elif col_name == "Return (%)":
                 cell.value = (
                     f'=IF({E}{row_idx}*{D}{row_idx}=0,"",'
@@ -252,23 +429,27 @@ def _sheet_positions(wb: Workbook, df: pd.DataFrame, name_map: dict, currency: s
                     f'/({E}{row_idx}*{D}{row_idx}))*100)'
                 )
                 cell.number_format = '0.00"%"'
+                cell.font          = Font(size=10)
             elif col_name == "Weight (%)":
                 cell.value = (
                     f'=IF(SUM({H}$2:{H}${last_data})=0,"",'
                     f'{H}{row_idx}/SUM({H}$2:{H}${last_data})*100)'
                 )
                 cell.number_format = '0.00"%"'
+                cell.font          = Font(size=10)
             else:
                 cell.value = safe
-                if col_name in {"Buy Price", "Current Price", "Dividends", "Daily P&L"}:
+                cell.font  = Font(size=10)
+                if col_name in {"Buy Price", "Dividends", "Daily P&L"}:
                     cell.number_format = curr_fmt
                 elif col_name == "Shares":
                     cell.number_format = "#,##0.######"
 
-            # Blue styling for editable inputs
             if col_name in input_cols:
                 cell.font = _INPUT_FONT
                 cell.fill = _INPUT_FILL
+
+        ws.row_dimensions[row_idx].height = 18
 
     # Conditional formatting: green/red on Return (%) and Daily P&L
     J = get_column_letter(_POS_IDX["Daily P&L"])
@@ -280,28 +461,24 @@ def _sheet_positions(wb: Workbook, df: pd.DataFrame, name_map: dict, currency: s
     # Totals row
     ws.cell(totals_row, 1, "TOTAL").font = _TOTAL_FONT
     for col_idx in range(1, len(export_df.columns) + 1):
-        ws.cell(totals_row, col_idx).fill   = _TOTAL_FILL
-        ws.cell(totals_row, col_idx).border = _TOP_BORDER
-        ws.cell(totals_row, col_idx).font   = _TOTAL_FONT
+        c        = ws.cell(totals_row, col_idx)
+        c.fill   = _TOTAL_FILL
+        c.border = _TOP_BORDER
+        c.font   = _TOTAL_FONT
+    ws.row_dimensions[totals_row].height = 22
 
-    sum_cols = {
-        H: curr_fmt,
-        I: curr_fmt,
-        J: curr_fmt,
-    }
+    sum_cols = {H: curr_fmt, I: curr_fmt, J: curr_fmt}
     for col_l, fmt in sum_cols.items():
         cell               = ws.cell(totals_row, _POS_IDX[{H: "Total Value", I: "Dividends", J: "Daily P&L"}[col_l]])
         cell.value         = f"=SUM({col_l}2:{col_l}{last_data})"
         cell.number_format = fmt
         cell.font          = _TOTAL_FONT
 
-    # Weighted-average return
     ret_cell               = ws.cell(totals_row, _POS_IDX["Return (%)"])
     ret_cell.value         = f'=IF(SUM({H}2:{H}{last_data})=0,"",SUMPRODUCT({H}2:{H}{last_data},{K}2:{K}{last_data})/SUM({H}2:{H}{last_data}))'
     ret_cell.number_format = '0.00"%"'
     ret_cell.font          = _TOTAL_FONT
 
-    # Weight sum (should be 100%)
     wt_cell               = ws.cell(totals_row, _POS_IDX["Weight (%)"])
     wt_cell.value         = f"=SUM({L}2:{L}{last_data})"
     wt_cell.number_format = '0.00"%"'
@@ -317,30 +494,43 @@ def _sheet_allocation(wb: Workbook, df: pd.DataFrame, name_map: dict, currency: 
     ws       = wb.create_sheet("Allocation")
     curr_fmt = _CURRENCY_FMT.get(currency, "#,##0.00")
 
-    tickers  = list(dict.fromkeys(df["Ticker"]))   # unique, preserve order
+    _no_gridlines(ws)
+
+    tickers  = list(dict.fromkeys(df["Ticker"]))
     n        = len(tickers)
     last_row = n + 1
 
     _write_headers(ws, ["Ticker", "Company", "Total Value", "Weight (%)"])
 
     for row_idx, ticker in enumerate(tickers, 2):
-        ws.cell(row_idx, 1, ticker)
-        ws.cell(row_idx, 2, name_map.get(ticker, ticker))
+        alt = _row_fill(row_idx)
+        ws.cell(row_idx, 1, ticker).border  = _CELL_BORDER
+        ws.cell(row_idx, 2, name_map.get(ticker, ticker)).border = _CELL_BORDER
 
-        # SUMIF referencing Positions sheet — live: updates when user edits Current Price
         val_cell               = ws.cell(row_idx, 3,
             f"=SUMIF(Positions!$A:$A,A{row_idx},Positions!$H:$H)")
         val_cell.number_format = curr_fmt
+        val_cell.border        = _CELL_BORDER
 
         wt_cell               = ws.cell(row_idx, 4,
             f'=IF(SUM(C$2:C${last_row})=0,"",C{row_idx}/SUM(C$2:C${last_row})*100)')
         wt_cell.number_format = '0.00"%"'
+        wt_cell.border        = _CELL_BORDER
+
+        if alt:
+            for col in range(1, 5):
+                ws.cell(row_idx, col).fill = alt
+
+        for col in range(1, 5):
+            ws.cell(row_idx, col).font = Font(size=10)
+
+        ws.row_dimensions[row_idx].height = 18
 
     # Horizontal bar chart
     chart              = BarChart()
     chart.type         = "bar"
     chart.title        = "Portfolio Allocation"
-    chart.style        = 2
+    chart.style        = 10
     chart.y_axis.title = "Ticker"
     chart.x_axis.title = "Weight (%)"
 
@@ -348,6 +538,8 @@ def _sheet_allocation(wb: Workbook, df: pd.DataFrame, name_map: dict, currency: 
     cats = Reference(ws, min_col=1, min_row=2, max_row=last_row)
     chart.add_data(data, titles_from_data=True)
     chart.set_categories(cats)
+    chart.series[0].graphicalProperties.solidFill = _CHART_COLORS[0]
+    chart.series[0].graphicalProperties.line.solidFill = _CHART_COLORS[0]
     chart.shape  = 4
     chart.width  = 20
     chart.height = max(10, n * 1.2)
@@ -360,6 +552,8 @@ def _sheet_allocation(wb: Workbook, df: pd.DataFrame, name_map: dict, currency: 
 
 def _sheet_risk(wb: Workbook, analytics_df: pd.DataFrame, name_map: dict, positions_df: pd.DataFrame) -> None:
     ws = wb.create_sheet("Risk Metrics")
+
+    _no_gridlines(ws)
 
     if analytics_df.empty:
         ws["A1"] = "Risk data not available — open the Risk & Analytics section in the dashboard first."
@@ -379,38 +573,46 @@ def _sheet_risk(wb: Workbook, analytics_df: pd.DataFrame, name_map: dict, positi
             sharpe_col = get_column_letter(col_idx)
 
     for row_idx, row in enumerate(export_df.itertuples(index=False), 2):
+        alt = _row_fill(row_idx)
         for col_idx, (col_name, value) in enumerate(zip(export_df.columns, row), 1):
-            cell = ws.cell(row_idx, col_idx, value if pd.notna(value) else None)
+            cell        = ws.cell(row_idx, col_idx, value if pd.notna(value) else None)
+            cell.border = _CELL_BORDER
+            cell.font   = Font(size=10)
+            if alt:
+                cell.fill = alt
             if col_name in ("Volatility (%)", "Max Drawdown (%)") and isinstance(value, (int, float)):
                 cell.number_format = '0.0"%"'
             elif col_name in ("Sharpe Ratio", "Beta") and isinstance(value, (int, float)):
                 cell.number_format = "0.00"
+        ws.row_dimensions[row_idx].height = 18
 
-    # Portfolio weighted-average row (computed in Python — requires positions for weights)
+    # Portfolio weighted-average row
     if not positions_df.empty and len(export_df) > 1:
-        total_val = positions_df.groupby("Ticker")["Total Value"].sum()
+        total_val     = positions_df.groupby("Ticker")["Total Value"].sum()
         portfolio_val = total_val.sum()
         if portfolio_val > 0:
             weights = (total_val / portfolio_val).reindex(export_df["Ticker"].values, fill_value=0)
 
             def _wavg(col):
-                vals  = export_df[col].fillna(0).values
+                vals = export_df[col].fillna(0).values
                 return round(float((weights.values * vals).sum()), 2)
 
-            last_row = len(export_df) + 1
+            last_row   = len(export_df) + 1
             totals_row = last_row + 2
             ws.cell(totals_row, 1, "Portfolio (weighted avg)").font = _TOTAL_FONT
             for col_idx in range(1, len(headers) + 1):
-                ws.cell(totals_row, col_idx).fill   = _TOTAL_FILL
-                ws.cell(totals_row, col_idx).border = _TOP_BORDER
-                ws.cell(totals_row, col_idx).font   = _TOTAL_FONT
+                c        = ws.cell(totals_row, col_idx)
+                c.fill   = _TOTAL_FILL
+                c.border = _TOP_BORDER
+                c.font   = _TOTAL_FONT
+            ws.row_dimensions[totals_row].height = 22
 
             for col_name in ("Volatility (%)", "Max Drawdown (%)", "Sharpe Ratio", "Beta"):
                 if col_name not in export_df.columns:
                     continue
                 col_idx = headers.index(col_name) + 1
                 cell = ws.cell(totals_row, col_idx, _wavg(col_name))
-                cell.font = _TOTAL_FONT
+                cell.font          = _TOTAL_FONT
                 cell.number_format = '0.0"%"' if col_name in ("Volatility (%)", "Max Drawdown (%)") else "0.00"
 
     if sharpe_col:
@@ -428,6 +630,8 @@ def _sheet_risk(wb: Workbook, analytics_df: pd.DataFrame, name_map: dict, positi
 def _sheet_fundamentals(wb: Workbook, fund_rows: list[dict], name_map: dict) -> None:
     ws = wb.create_sheet("Fundamentals")
 
+    _no_gridlines(ws)
+
     if not fund_rows:
         ws["A1"] = "Fundamentals data not available — open the Risk & Analytics section in the dashboard first."
         return
@@ -439,14 +643,20 @@ def _sheet_fundamentals(wb: Workbook, fund_rows: list[dict], name_map: dict) -> 
 
     _write_headers(ws, list(fund_df.columns))
     for row_idx, row in enumerate(fund_df.itertuples(index=False), 2):
+        alt = _row_fill(row_idx)
         for col_idx, (col_name, value) in enumerate(zip(fund_df.columns, row), 1):
-            cell = ws.cell(row_idx, col_idx, value if pd.notna(value) else None)
+            cell        = ws.cell(row_idx, col_idx, value if pd.notna(value) else None)
+            cell.border = _CELL_BORDER
+            cell.font   = Font(size=10)
+            if alt:
+                cell.fill = alt
             if col_name == "P/E Ratio" and isinstance(value, (int, float)):
                 cell.number_format = "0.0"
             elif col_name in ("Div Yield (%)", "1-Year Position (%)") and isinstance(value, (int, float)):
                 cell.number_format = '0.00"%"'
             elif col_name in ("1-Year Low", "1-Year High") and isinstance(value, (int, float)):
                 cell.number_format = "#,##0.00"
+        ws.row_dimensions[row_idx].height = 18
 
     _autofit(ws)
     ws.freeze_panes = "A2"
@@ -455,6 +665,8 @@ def _sheet_fundamentals(wb: Workbook, fund_rows: list[dict], name_map: dict) -> 
 
 def _sheet_correlation(wb: Workbook, price_histories: dict, positions_df: pd.DataFrame) -> None:
     ws = wb.create_sheet("Correlation")
+
+    _no_gridlines(ws)
 
     returns = {
         t: h["Close"].pct_change().dropna()
@@ -468,46 +680,56 @@ def _sheet_correlation(wb: Workbook, price_histories: dict, positions_df: pd.Dat
     corr_df = pd.DataFrame(returns).dropna().corr()
     tickers = list(corr_df.columns)
 
-    # Portfolio weights for context column
-    total_val = positions_df.groupby("Ticker")["Total Value"].sum() if not positions_df.empty else pd.Series(dtype=float)
+    total_val  = positions_df.groupby("Ticker")["Total Value"].sum() if not positions_df.empty else pd.Series(dtype=float)
     port_total = total_val.sum()
-    weights = {t: round(total_val.get(t, 0) / port_total * 100, 1) if port_total else 0 for t in tickers}
+    weights    = {t: round(total_val.get(t, 0) / port_total * 100, 1) if port_total else 0 for t in tickers}
 
     # Row 1: note
     ws.merge_cells(f"A1:{get_column_letter(len(tickers) + 2)}1")
-    ws["A1"] = "Correlation of daily returns (12-month). Weight (%) = portfolio allocation per ticker."
-    ws["A1"].font = Font(italic=True, size=10, color="595959")
+    ws["A1"]      = "Correlation of daily returns (12-month). Weight (%) = portfolio allocation per ticker."
+    ws["A1"].font = _NOTE_FONT
 
-    # Row 2: headers — col A = "Ticker", col B = "Weight (%)", cols C+ = tickers
-    ws.cell(2, 1, "Ticker").fill      = _HEADER_FILL
-    ws.cell(2, 1).font                = _HEADER_FONT
-    ws.cell(2, 1).alignment           = Alignment(horizontal="center")
-    ws.cell(2, 2, "Weight (%)").fill  = _HEADER_FILL
-    ws.cell(2, 2).font                = _HEADER_FONT
-    ws.cell(2, 2).alignment           = Alignment(horizontal="center")
-    for col_idx, t in enumerate(tickers, 3):
-        cell           = ws.cell(2, col_idx, t)
+    # Row 2: column headers
+    for col_idx, (label, fill) in enumerate(
+        [("Ticker", True), ("Weight (%)", True)] + [(t, True) for t in tickers], 1
+    ):
+        cell           = ws.cell(2, col_idx, label if col_idx <= 2 else tickers[col_idx - 3])
         cell.fill      = _HEADER_FILL
         cell.font      = _HEADER_FONT
         cell.alignment = Alignment(horizontal="center")
+        cell.border    = Border(bottom=Side(style="medium", color=_C_GOLD))
+    ws.row_dimensions[2].height = 22
 
     # Data rows start at row 3
     for row_idx, t_row in enumerate(tickers, 3):
+        alt = _row_fill(row_idx)
+
         label           = ws.cell(row_idx, 1, t_row)
         label.fill      = _HEADER_FILL
         label.font      = _HEADER_FONT
         label.alignment = Alignment(horizontal="center")
+        label.border    = _CELL_BORDER
 
         wt_cell               = ws.cell(row_idx, 2, weights.get(t_row, 0))
         wt_cell.number_format = '0.0"%"'
         wt_cell.alignment     = Alignment(horizontal="center")
+        wt_cell.border        = _CELL_BORDER
+        wt_cell.font          = Font(size=10)
+        if alt:
+            wt_cell.fill = alt
 
         for col_idx, t_col in enumerate(tickers, 3):
             cell               = ws.cell(row_idx, col_idx, round(corr_df.loc[t_row, t_col], 4))
             cell.number_format = "0.00"
             cell.alignment     = Alignment(horizontal="center")
+            cell.border        = _CELL_BORDER
+            cell.font          = Font(size=10)
+            if alt:
+                cell.fill = alt
 
-    # Color scale on correlation values only (skip weight column)
+        ws.row_dimensions[row_idx].height = 18
+
+    # Color scale on correlation values
     n          = len(tickers)
     data_range = f"C3:{get_column_letter(n + 2)}{n + 2}"
     ws.conditional_formatting.add(data_range, ColorScaleRule(
@@ -523,8 +745,10 @@ def _sheet_correlation(wb: Workbook, price_histories: dict, positions_df: pd.Dat
 def _sheet_price_history(wb: Workbook, price_histories: dict) -> None:
     ws = wb.create_sheet("Price History")
 
+    _no_gridlines(ws)
+
     close_series = {
-        t: h["Close"]
+        t: (h["Close"] / 100 if t.endswith(".L") else h["Close"])
         for t, h in price_histories.items()
         if not h.empty and "Close" in h.columns
     }
@@ -534,36 +758,57 @@ def _sheet_price_history(wb: Workbook, price_histories: dict) -> None:
 
     pivot       = pd.DataFrame(close_series).sort_index()
     pivot.index = pd.to_datetime(pivot.index).tz_localize(None)
-    pivot       = pivot.ffill()   # forward-fill market holiday gaps so charts have no holes
+    pivot       = pivot.ffill()
     n_tickers   = len(pivot.columns)
     n_rows      = len(pivot)
 
     ws.cell(1, 1, "Date").fill      = _HEADER_FILL
     ws.cell(1, 1).font              = _HEADER_FONT
     ws.cell(1, 1).alignment         = Alignment(horizontal="center")
+    ws.cell(1, 1).border            = Border(bottom=Side(style="medium", color=_C_GOLD))
     for col_idx, t in enumerate(pivot.columns, 2):
         cell           = ws.cell(1, col_idx, t)
         cell.fill      = _HEADER_FILL
         cell.font      = _HEADER_FONT
         cell.alignment = Alignment(horizontal="center")
+        cell.border    = Border(bottom=Side(style="medium", color=_C_GOLD))
+    ws.row_dimensions[1].height = 22
 
     for row_idx, (date, row) in enumerate(pivot.iterrows(), 2):
-        date_cell               = ws.cell(row_idx, 1, date.to_pydatetime())
+        alt           = _row_fill(row_idx)
+        date_cell     = ws.cell(row_idx, 1, date.to_pydatetime())
         date_cell.number_format = "YYYY-MM-DD"
+        date_cell.font          = Font(size=10)
+        date_cell.border        = _CELL_BORDER
+        if alt:
+            date_cell.fill = alt
+
         for col_idx, value in enumerate(row, 2):
             cell               = ws.cell(row_idx, col_idx, round(float(value), 4) if pd.notna(value) else None)
             cell.number_format = "#,##0.00"
+            cell.font          = Font(size=10)
+            cell.border        = _CELL_BORDER
+            if alt:
+                cell.fill = alt
 
-    # Line chart placed below data
+        ws.row_dimensions[row_idx].height = 16
+
+    # Line chart
     chart              = LineChart()
-    chart.title        = "6-Month Price History"
-    chart.style        = 2
+    chart.title        = "Price History (6 months, base currency)"
+    chart.style        = 10
     chart.y_axis.title = "Price"
+    chart.x_axis.title = "Date"
     chart.smooth       = True
 
     for col_idx in range(2, n_tickers + 2):
         data = Reference(ws, min_col=col_idx, max_col=col_idx, min_row=1, max_row=n_rows + 1)
         chart.add_data(data, titles_from_data=True)
+        i = col_idx - 2
+        ser = chart.series[i]
+        ser.graphicalProperties.line.solidFill = _CHART_COLORS[i % len(_CHART_COLORS)]
+        ser.graphicalProperties.line.width = 20000  # 2pt in EMU units
+        ser.smooth = True
 
     cats = Reference(ws, min_col=1, min_row=2, max_row=n_rows + 1)
     chart.set_categories(cats)
@@ -577,6 +822,8 @@ def _sheet_price_history(wb: Workbook, price_histories: dict) -> None:
 
 def _sheet_daily_returns(wb: Workbook, price_histories: dict) -> None:
     ws = wb.create_sheet("Daily Returns")
+
+    _no_gridlines(ws)
 
     close_series = {
         t: h["Close"]
@@ -594,24 +841,33 @@ def _sheet_daily_returns(wb: Workbook, price_histories: dict) -> None:
     ws.cell(1, 1, "Date").fill      = _HEADER_FILL
     ws.cell(1, 1).font              = _HEADER_FONT
     ws.cell(1, 1).alignment         = Alignment(horizontal="center")
+    ws.cell(1, 1).border            = Border(bottom=Side(style="medium", color=_C_GOLD))
     for col_idx, t in enumerate(returns.columns, 2):
         cell           = ws.cell(1, col_idx, t)
         cell.fill      = _HEADER_FILL
         cell.font      = _HEADER_FONT
         cell.alignment = Alignment(horizontal="center")
+        cell.border    = Border(bottom=Side(style="medium", color=_C_GOLD))
+    ws.row_dimensions[1].height = 22
 
     for row_idx, (date, row) in enumerate(returns.iterrows(), 2):
         date_cell               = ws.cell(row_idx, 1, date.to_pydatetime())
         date_cell.number_format = "YYYY-MM-DD"
+        date_cell.font          = Font(size=10)
+        date_cell.border        = _CELL_BORDER
         for col_idx, value in enumerate(row, 2):
-            safe = round(float(value), 6) if pd.notna(value) else None
+            safe               = round(float(value), 6) if pd.notna(value) else None
             cell               = ws.cell(row_idx, col_idx, safe)
             cell.number_format = '0.00"%"'
+            cell.font          = Font(size=10)
+            cell.border        = _CELL_BORDER
             if safe is not None:
                 if safe > 0:
                     cell.fill = _GREEN_FILL
                 elif safe < 0:
                     cell.fill = _RED_FILL
+
+        ws.row_dimensions[row_idx].height = 16
 
     _autofit(ws)
     ws.freeze_panes = "B2"
@@ -624,15 +880,15 @@ _OA_HEADERS = [
     "Debt / Mortgage", "Net Equity", "Annual Income",
     "Unrealised Gain", "Weight (%)", "Notes",
 ]
-_OA_DATA_ROWS   = range(3, 22)  # rows 3–21 (19 usable rows)
+_OA_DATA_ROWS   = range(3, 22)
 _OA_SUM_ROW     = 22
 _OA_COL_COST    = 4   # D
 _OA_COL_VALUE   = 6   # F
 _OA_COL_DEBT    = 7   # G
-_OA_COL_EQUITY  = 8   # H  (formula = F - G)
+_OA_COL_EQUITY  = 8   # H
 _OA_COL_INCOME  = 9   # I
-_OA_COL_GAIN    = 10  # J  (formula = F - D)
-_OA_COL_WEIGHT  = 11  # K  (formula = H / SUM(H) * 100)
+_OA_COL_GAIN    = 10  # J
+_OA_COL_WEIGHT  = 11  # K
 
 
 def _sheet_other_assets(wb: Workbook, currency: str) -> None:
@@ -641,50 +897,61 @@ def _sheet_other_assets(wb: Workbook, currency: str) -> None:
     n_cols   = len(_OA_HEADERS)
     sum_row  = _OA_SUM_ROW
 
-    # Row 1: instruction banner (merged)
+    _no_gridlines(ws)
+
+    # Row 1: instruction banner
     ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=n_cols)
     instruction           = ws.cell(1, 1,
         f"Add your non-market assets below. Values in {currency}. "
         "Blue cells are editable inputs. Orange cells are computed automatically."
     )
-    instruction.fill      = _TEMPLATE_FILL
-    instruction.font      = Font(italic=True, color="1F4E79")
-    instruction.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
-    ws.row_dimensions[1].height = 30
+    instruction.fill      = PatternFill("solid", fgColor=_C_NAVY_DARK)
+    instruction.font      = Font(italic=True, size=10, color="BFCDE0")
+    instruction.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True, indent=2)
+    ws.row_dimensions[1].height = 32
 
-    # Row 2: column headers  ← fixed: now correctly in row 2 (not row 1)
+    # Row 2: column headers
     _write_headers(ws, _OA_HEADERS, start_row=2)
     ws.freeze_panes = "A3"
 
     # Rows 3–21: data rows
     for row_idx in _OA_DATA_ROWS:
-        # Blue input cells: Cost Basis, Current Value, Debt, Annual Income
+        alt = _row_fill(row_idx)
+
+        for col_idx in range(1, n_cols + 1):
+            ws.cell(row_idx, col_idx).border = _CELL_BORDER
+            ws.cell(row_idx, col_idx).font   = Font(size=10)
+            if alt:
+                ws.cell(row_idx, col_idx).fill = alt
+
         for col_idx in (_OA_COL_COST, _OA_COL_VALUE, _OA_COL_DEBT, _OA_COL_INCOME):
             c               = ws.cell(row_idx, col_idx)
             c.font          = _INPUT_FONT
             c.fill          = _INPUT_FILL
             c.number_format = curr_fmt
 
-        # Purchase Date
         ws.cell(row_idx, 5).number_format = "YYYY-MM-DD"
 
-        # Net Equity formula: Current Value - Debt
-        eq = ws.cell(row_idx, _OA_COL_EQUITY,
-            f'=IF(AND(F{row_idx}="",G{row_idx}=""),"",F{row_idx}-G{row_idx})')
+        # IF(F="",0,F) - IF(G="",0,G) treats empty inputs as 0 so subtraction never
+        # sees "" on either side, avoiding #VALUE! when only one cell has data.
+        eq               = ws.cell(row_idx, _OA_COL_EQUITY,
+            f'=IF(AND(F{row_idx}="",G{row_idx}=""),"",IF(F{row_idx}="",0,F{row_idx})-IF(G{row_idx}="",0,G{row_idx}))')
         eq.number_format = curr_fmt
-        eq.font          = Font(color="E65100")  # orange = computed from inputs
+        eq.font          = Font(color="E65100", size=10)
 
-        # Unrealised Gain formula: Current Value - Cost Basis
-        gain = ws.cell(row_idx, _OA_COL_GAIN,
-            f'=IF(AND(F{row_idx}="",D{row_idx}=""),"",F{row_idx}-D{row_idx})')
+        gain               = ws.cell(row_idx, _OA_COL_GAIN,
+            f'=IF(AND(F{row_idx}="",D{row_idx}=""),"",IF(F{row_idx}="",0,F{row_idx})-IF(D{row_idx}="",0,D{row_idx}))')
         gain.number_format = curr_fmt
-        gain.font          = Font(color="E65100")
+        gain.font          = Font(color="E65100", size=10)
 
-        # Weight (%) formula: Net Equity / SUM(Net Equity column) * 100
-        wt = ws.cell(row_idx, _OA_COL_WEIGHT,
-            f'=IF(SUM(H$3:H${sum_row - 1})=0,"",H{row_idx}/SUM(H$3:H${sum_row - 1})*100)')
+        # IFERROR handles the case where H{row_idx} is "" (returns "" from equity formula)
+        # which would cause #VALUE! in the division.
+        wt               = ws.cell(row_idx, _OA_COL_WEIGHT,
+            f'=IFERROR(IF(OR(H{row_idx}="",SUM(H$3:H${sum_row - 1})=0),"",H{row_idx}/SUM(H$3:H${sum_row - 1})*100),"")')
         wt.number_format = '0.0"%"'
-        wt.font          = Font(color="E65100")
+        wt.font          = Font(color="E65100", size=10)
+
+        ws.row_dimensions[row_idx].height = 18
 
     # Row 22: SUM totals
     for col_idx in range(1, n_cols + 1):
@@ -692,7 +959,8 @@ def _sheet_other_assets(wb: Workbook, currency: str) -> None:
         c.fill   = _TOTAL_FILL
         c.font   = _TOTAL_FONT
         c.border = _TOP_BORDER
-    ws.cell(sum_row, 1, "Total").font = _TOTAL_FONT
+    ws.cell(sum_row, 1, "Total")
+    ws.row_dimensions[sum_row].height = 22
 
     for col_idx, col_letter in [
         (_OA_COL_COST,   "D"),
@@ -706,7 +974,7 @@ def _sheet_other_assets(wb: Workbook, currency: str) -> None:
         c.number_format = curr_fmt
         c.font          = _TOTAL_FONT
 
-    # Type dropdown (B3:B21) — expanded list
+    # Type dropdown
     dv = DataValidation(
         type="list",
         formula1=(
@@ -723,14 +991,11 @@ def _sheet_other_assets(wb: Workbook, currency: str) -> None:
     ws.add_data_validation(dv)
     dv.sqref = f"B3:B{sum_row - 1}"
 
-    # Input validation: Cost Basis, Current Value, Debt, Annual Income must be >= 0
     dv_num = DataValidation(
-        type="decimal",
-        operator="greaterThanOrEqual",
-        formula1="0",
-        showErrorMessage=True,
+        type="decimal", operator="greaterThanOrEqual", formula1="0",
+        showErrorMessage=True, errorStyle="warning",
         errorTitle="Invalid Value",
-        error="Value must be 0 or greater.",
+        error="Expected a number >= 0. You can still proceed.",
     )
     ws.add_data_validation(dv_num)
     dv_num.sqref = (
@@ -738,23 +1003,11 @@ def _sheet_other_assets(wb: Workbook, currency: str) -> None:
         f"G3:G{sum_row - 1} I3:I{sum_row - 1}"
     )
 
-    # Date validation on Purchase Date (E3:E21)
-    dv_date = DataValidation(
-        type="date",
-        operator="greaterThan",
-        formula1="1900-01-01",
-        showErrorMessage=True,
-        errorTitle="Invalid Date",
-        error="Enter a valid date (YYYY-MM-DD).",
-    )
-    ws.add_data_validation(dv_date)
-    dv_date.sqref = f"E3:E{sum_row - 1}"
-
-    # Excel Table for auto-expand (header row 2, data rows 3–21)
     _add_table(ws, "tblOther", f"A2:{get_column_letter(n_cols)}{sum_row - 1}")
 
     _autofit(ws)
     ws.column_dimensions["A"].width = 30
+    ws.column_dimensions["B"].width = 22  # fits longest dropdown: "Retirement Account"
     ws.column_dimensions["L"].width = 25
 
 
@@ -762,21 +1015,23 @@ def _sheet_scenario(wb: Workbook, positions_df: pd.DataFrame, name_map: dict, cu
     ws       = wb.create_sheet("Scenario Analysis")
     curr_fmt = _CURRENCY_FMT.get(currency, "#,##0.00")
 
+    _no_gridlines(ws)
+
     if positions_df.empty:
         ws["A1"] = "No positions available."
         return
 
-    # Banner
+    # Row 1: banner
     ws.merge_cells("A1:J1")
     banner           = ws["A1"]
     banner.value     = (
-        "Scenario Analysis — edit Target Price (blue cells) to model portfolio impact. "
+        "Scenario Analysis  —  edit Target Price (blue cells) to model portfolio impact. "
         "All other columns update automatically."
     )
-    banner.font      = Font(italic=True, size=10, color="1F4E79")
-    banner.fill      = _TEMPLATE_FILL
-    banner.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
-    ws.row_dimensions[1].height = 26
+    banner.font      = Font(italic=True, size=10, color="BFCDE0")
+    banner.fill      = PatternFill("solid", fgColor=_C_NAVY_DARK)
+    banner.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True, indent=2)
+    ws.row_dimensions[1].height = 28
 
     headers = [
         "Ticker", "Company", "Total Shares", "Avg Buy Price",
@@ -787,11 +1042,9 @@ def _sheet_scenario(wb: Workbook, positions_df: pd.DataFrame, name_map: dict, cu
     _write_headers(ws, headers, start_row=2)
     ws.freeze_panes = "A3"
 
-    # One row per unique ticker
     tickers = list(dict.fromkeys(positions_df["Ticker"]))
     n       = len(tickers)
 
-    # Precompute aggregates in Python for display; formulas link to tblPositions
     agg = (
         positions_df.groupby("Ticker")
         .apply(lambda g: pd.Series({
@@ -803,64 +1056,73 @@ def _sheet_scenario(wb: Workbook, positions_df: pd.DataFrame, name_map: dict, cu
         .reindex(tickers)
     )
 
-    last_data = n + 2   # header at row 2, data rows 3 to n+2
+    last_data = n + 2  # header at row 2, data rows 3 to n+2
 
     for row_idx, ticker in enumerate(tickers, 3):
         row_data = agg.loc[ticker]
+        alt      = _row_fill(row_idx)
 
-        # A: Ticker
+        for col_idx in range(1, len(headers) + 1):
+            c        = ws.cell(row_idx, col_idx)
+            c.border = _CELL_BORDER
+            c.font   = Font(size=10)
+            if alt and col_idx not in (5, 6):  # don't overwrite input fills
+                c.fill = alt
+
         ws.cell(row_idx, 1, ticker)
-        # B: Company
         ws.cell(row_idx, 2, name_map.get(ticker, ticker))
-        # C: Total Shares — SUMIF formula (live)
-        ws.cell(row_idx, 3, f"=SUMIF(Positions!$A:$A,A{row_idx},Positions!$D:$D)").number_format = "#,##0.######"
-        # D: Avg Buy Price — SUMPRODUCT weighted average
+
+        ws.cell(row_idx, 3,
+            f"=SUMIF(Positions!$A:$A,A{row_idx},Positions!$D:$D)").number_format = "#,##0.######"
+
         ws.cell(row_idx, 4,
             f"=IFERROR(SUMPRODUCT((Positions!$A$2:$A$10000=A{row_idx})"
             f"*Positions!$D$2:$D$10000*Positions!$E$2:$E$10000)"
             f"/SUMIF(Positions!$A:$A,A{row_idx},Positions!$D:$D),\"\")"
         ).number_format = curr_fmt
-        # E: Current Price — blue input (pre-filled, user can override for scenario)
-        curr_cell = ws.cell(row_idx, 5, float(row_data["CurrentPrice"]) if pd.notna(row_data["CurrentPrice"]) else 0)
+
+        curr_cell               = ws.cell(row_idx, 5, float(row_data["CurrentPrice"]) if pd.notna(row_data["CurrentPrice"]) else 0)
         curr_cell.number_format = curr_fmt
         curr_cell.font          = _INPUT_FONT
         curr_cell.fill          = _INPUT_FILL
-        # F: Target Price — blue input (pre-filled with current, user changes this)
-        tgt_cell = ws.cell(row_idx, 6, float(row_data["CurrentPrice"]) if pd.notna(row_data["CurrentPrice"]) else 0)
+
+        tgt_cell               = ws.cell(row_idx, 6, float(row_data["CurrentPrice"]) if pd.notna(row_data["CurrentPrice"]) else 0)
         tgt_cell.number_format = curr_fmt
         tgt_cell.font          = _INPUT_FONT
         tgt_cell.fill          = _INPUT_FILL
-        # G: Current Value — SUMIF formula
+
         ws.cell(row_idx, 7,
             f"=SUMIF(Positions!$A:$A,A{row_idx},Positions!$H:$H)"
         ).number_format = curr_fmt
-        # H: Projected Value = Total Shares * Target Price
+
         ws.cell(row_idx, 8, f"=C{row_idx}*F{row_idx}").number_format = curr_fmt
-        # I: Value Change = Projected - Current
-        change = ws.cell(row_idx, 9, f"=H{row_idx}-G{row_idx}")
+
+        change               = ws.cell(row_idx, 9, f"=H{row_idx}-G{row_idx}")
         change.number_format = curr_fmt
-        # J: Projected Return (%) = (Target - Avg Cost) / Avg Cost * 100
+
         ws.cell(row_idx, 10,
             f'=IF(D{row_idx}=0,"",((F{row_idx}-D{row_idx})/D{row_idx})*100)'
         ).number_format = '0.00"%"'
 
-    # Conditional formatting on Value Change (col I) and Projected Return (col J)
+        ws.row_dimensions[row_idx].height = 18
+
     for col_l in ("I", "J"):
         rng = f"{col_l}3:{col_l}{last_data}"
         ws.conditional_formatting.add(rng, CellIsRule(operator="greaterThan", formula=["0"], fill=_GREEN_FILL))
         ws.conditional_formatting.add(rng, CellIsRule(operator="lessThan",    formula=["0"], fill=_RED_FILL))
 
-    # Totals row
     totals_row = last_data + 2
     ws.cell(totals_row, 1, "TOTAL").font = _TOTAL_FONT
     for col_idx in range(1, len(headers) + 1):
-        ws.cell(totals_row, col_idx).fill   = _TOTAL_FILL
-        ws.cell(totals_row, col_idx).border = _TOP_BORDER
-        ws.cell(totals_row, col_idx).font   = _TOTAL_FONT
+        c        = ws.cell(totals_row, col_idx)
+        c.fill   = _TOTAL_FILL
+        c.border = _TOP_BORDER
+        c.font   = _TOTAL_FONT
     for col_l in ("G", "H", "I"):
         c               = ws.cell(totals_row, ord(col_l) - ord("A") + 1, f"=SUM({col_l}3:{col_l}{last_data})")
         c.number_format = curr_fmt
         c.font          = _TOTAL_FONT
+    ws.row_dimensions[totals_row].height = 22
 
     _autofit(ws)
     ws.freeze_panes = "A3"
@@ -886,17 +1148,17 @@ def build_excel_report(
     wb.remove(wb.active)
 
     builders = [
-        ("Net Worth",        lambda: _sheet_net_worth(wb, summary_kpis, currency)),
-        ("Summary",          lambda: _sheet_summary(wb, summary_kpis, currency)),
-        ("Positions",        lambda: _sheet_positions(wb, positions_df, name_map, currency)),
-        ("Scenario Analysis",lambda: _sheet_scenario(wb, positions_df, name_map, currency)),
-        ("Allocation",       lambda: _sheet_allocation(wb, positions_df, name_map, currency)),
-        ("Risk Metrics",     lambda: _sheet_risk(wb, analytics_df, name_map, positions_df)),
-        ("Fundamentals",     lambda: _sheet_fundamentals(wb, fund_rows, name_map)),
-        ("Correlation",      lambda: _sheet_correlation(wb, price_histories, positions_df)),
-        ("Price History",    lambda: _sheet_price_history(wb, price_histories)),
-        ("Daily Returns",    lambda: _sheet_daily_returns(wb, price_histories)),
-        ("Other Assets",     lambda: _sheet_other_assets(wb, currency)),
+        ("Net Worth",         lambda: _sheet_net_worth(wb, summary_kpis, currency)),
+        ("Summary",           lambda: _sheet_summary(wb, summary_kpis, currency, len(positions_df))),
+        ("Positions",         lambda: _sheet_positions(wb, positions_df, name_map, currency)),
+        ("Scenario Analysis", lambda: _sheet_scenario(wb, positions_df, name_map, currency)),
+        ("Allocation",        lambda: _sheet_allocation(wb, positions_df, name_map, currency)),
+        ("Risk Metrics",      lambda: _sheet_risk(wb, analytics_df, name_map, positions_df)),
+        ("Fundamentals",      lambda: _sheet_fundamentals(wb, fund_rows, name_map)),
+        ("Correlation",       lambda: _sheet_correlation(wb, price_histories, positions_df)),
+        ("Price History",     lambda: _sheet_price_history(wb, price_histories)),
+        ("Daily Returns",     lambda: _sheet_daily_returns(wb, price_histories)),
+        ("Other Assets",      lambda: _sheet_other_assets(wb, currency)),
     ]
 
     for sheet_name, builder in builders:
