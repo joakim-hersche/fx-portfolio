@@ -55,7 +55,7 @@ def fetch_fundamentals(ticker: str) -> dict:
 
         return {
             "P/E Ratio":      round(pe, 1)       if pe      else None,
-            "Div Yield (%)":  round(div * 100, 2) if div and div < 1 else (round(div, 2) if div else None),
+            "Div Yield (%)":  round(div * 100, 2) if div else None,
             "1-Year Low":     round(low_1y, 2)    if low_1y  else None,
             "1-Year High":    round(high_1y, 2)   if high_1y else None,
             "1-Year Position": position,
@@ -575,7 +575,7 @@ with _col_dl:
         },
     )
     st.download_button(
-        label="Download Report",
+        label="Download Excel Report",
         data=_excel_bytes,
         file_name=f"portfolio_{pd.Timestamp.today().strftime('%Y%m%d')}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
