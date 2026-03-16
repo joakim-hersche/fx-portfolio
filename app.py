@@ -13,9 +13,12 @@ from src.stocks import (
     get_ibex_stocks, get_etfs, get_crypto, get_commodities,
     get_reits, get_bonds, get_emerging_markets, TICKER_COLORS
 )
-from src.fx import get_ticker_currency, get_fx_rate, CURRENCY_SYMBOLS
+from src.fx import get_ticker_currency, get_fx_rate, get_historical_fx_rate, CURRENCY_SYMBOLS
 from src.portfolio import build_portfolio_df, fetch_buy_price, compute_analytics
-from src.monte_carlo import run_monte_carlo_backtest, run_monte_carlo_ticker
+from src.monte_carlo import (
+    run_monte_carlo_backtest, run_monte_carlo_portfolio,
+    run_monte_carlo_ticker, compute_var_cvar,
+)
 from src.excel_export import build_excel_report
 
 @st.cache_data(ttl=900)   # 15 minutes — current price data
@@ -54,16 +57,21 @@ def fetch_fundamentals(ticker: str) -> dict:
         # Prefer computing yield from dividendRate/price — more reliable than dividendYield
         # which yfinance returns inconsistently (sometimes decimal fraction, sometimes percent).
         if div_rate and current and current > 0:
-            div_pct = round(div_rate / current * 100, 4)
+            candidate = round(div_rate / current * 100, 4)
+            # Guard: yields above 20% almost certainly indicate a unit mismatch
+            # (e.g. dividendRate returned in cents instead of dollars). Fall through
+            # to the dividendYield fallback in that case.
+            div_pct = candidate if candidate <= 20.0 else None
         else:
+            div_pct = None
+
+        if div_pct is None:
             div = info.get("dividendYield")
             if div is not None:
-                # Fallback: dividendYield is normally a decimal fraction (0.0042 = 0.42%).
+                # dividendYield is normally a decimal fraction (0.0042 = 0.42%).
                 # If result > 20% after multiplying it was already in percent form.
                 candidate = div * 100
                 div_pct = candidate if candidate <= 20.0 else div
-            else:
-                div_pct = None
 
         # For London-listed tickers yfinance returns fiftyTwoWeekLow/High in GBX
         # (pence) but currentPrice in GBP, so divide by 100 to make units consistent.
@@ -244,6 +252,11 @@ with col_currency:
 
 currency_symbol = CURRENCY_SYMBOLS[base_currency]
 
+if st.session_state.get("portfolio") and any(
+    lot.get("buy_fx_rate") for lots in st.session_state.portfolio.values() for lot in lots
+):
+    st.caption("Changing currency does not update historical buy FX rates stored with each lot.")
+
 # ──────────────────────────────────────────────
 # Stock List
 # ──────────────────────────────────────────────
@@ -272,7 +285,7 @@ all_stock_options = load_stock_options()
 # ──────────────────────────────────────────────
 is_new_user = not bool(st.session_state.portfolio)
 
-with st.expander("➕ Add / Manage Positions", expanded=is_new_user):
+with st.expander("Add / Manage Positions", expanded=is_new_user):
     if is_new_user:
         st.markdown(
             '<p class="section-intro">'
@@ -406,21 +419,37 @@ with st.expander("➕ Add / Manage Positions", expanded=is_new_user):
             st.warning("Please enter a valid buy price.")
         else:
             ticker = stock_options[selected]
+            ticker_currency = get_ticker_currency(ticker)
             if not alt_asset and manual_price:
                 buy_price = buy_price_input
+                # Manual price is entered in base currency — store fx_rate=1 so
+                # build_portfolio_df does not double-convert.
+                buy_fx_rate = 1.0
             elif purchase_date is not None:
-                buy_price = fetch_buy_price(ticker, str(purchase_date))
-                if buy_price is None:
+                result = fetch_buy_price(ticker, str(purchase_date))
+                if result is None:
                     st.error("No price data found for that date. Try a different date.")
+                    buy_price = None
+                else:
+                    buy_price, actual_date = result
+                    if actual_date != str(purchase_date):
+                        st.info(
+                            f"{purchase_date} was not a trading day. "
+                            f"Using the closing price from {actual_date} instead."
+                        )
+                buy_fx_rate = get_historical_fx_rate(ticker_currency, base_currency, str(purchase_date))
             else:
-                buy_price = fetch_buy_price(ticker, str(pd.Timestamp.today().date()))
                 purchase_date = pd.Timestamp.today().date()
+                result = fetch_buy_price(ticker, str(purchase_date))
+                buy_price = result[0] if result else None
+                buy_fx_rate = get_fx_rate(ticker_currency, base_currency)
 
             if buy_price is not None:
                 shares = round(amount_input / buy_price, 6) if alt_asset else shares_input
                 lot = {
                     "shares": shares,
                     "buy_price": buy_price,
+                    "buy_fx_rate": buy_fx_rate,
                     "purchase_date": str(purchase_date) if purchase_date else None,
                     "manual_price": manual_price
                 }
@@ -497,19 +526,46 @@ name_map = {t: fetch_company_name(t) for t in st.session_state.portfolio}
 
 # ── Pre-compute analytics (cached 24h) ───────
 # Done here (outside expanders) so the export button always has data,
-# regardless of whether the user has opened the Risk & Analytics section.
+# regardless of which sections the user has opened.
 _tickers       = list(st.session_state.portfolio.keys())
 _price_data_1y = {t: fetch_analytics_history(t) for t in _tickers}
 _spy_data      = fetch_analytics_history("SPY")
 analytics_df   = compute_analytics(st.session_state.portfolio, _price_data_1y, _spy_data)
+
+# ── Pre-compute Monte Carlo (cached 24h via fetch_simulation_history) ────────
+# 5y fetches are cached; the simulations themselves are fast (~100ms for 1,000 paths).
+_price_data_5y = {t: fetch_simulation_history(t) for t in _tickers}
+_bt            = run_monte_carlo_backtest(st.session_state.portfolio, _price_data_5y)
+
+_start_prices_base = {}
+_ticker_mc_results = {}
+for _t in _tickers:
+    _hist_5y = _price_data_5y.get(_t, pd.DataFrame())
+    _fx_mc   = get_fx_rate(get_ticker_currency(_t), base_currency)
+    _close_mc = _hist_5y["Close"].dropna() if not _hist_5y.empty and "Close" in _hist_5y.columns else pd.Series(dtype=float)
+    if not _close_mc.empty:
+        _cur_mc = float(_close_mc.iloc[-1]) * _fx_mc
+        _start_prices_base[_t] = _cur_mc
+        _ticker_mc_results[_t] = run_monte_carlo_ticker(
+            hist=_hist_5y, current_price=_cur_mc, n_sims=1000, horizon_days=252
+        )
+
+_portfolio_mc = run_monte_carlo_portfolio(
+    portfolio=st.session_state.portfolio,
+    price_data=_price_data_5y,
+    start_prices_base=_start_prices_base,
+    n_sims=1000,
+    horizon_days=252,
+)
 fund_rows      = []
 for _t in _tickers:
     _f = fetch_fundamentals(_t)
     if _f:
         # Convert 1-year range to base currency so Fundamentals matches Positions pricing.
         _tc = get_ticker_currency(_t)
-        if _tc != base_currency:
-            _fx = get_fx_rate(_tc, base_currency)
+        _fx_ccy = "GBP" if _tc == "GBX" else _tc
+        if _fx_ccy != base_currency:
+            _fx = get_fx_rate(_fx_ccy, base_currency)
             if _f.get("1-Year Low"):  _f["1-Year Low"]  = round(_f["1-Year Low"]  * _fx, 2)
             if _f.get("1-Year High"): _f["1-Year High"] = round(_f["1-Year High"] * _fx, 2)
         fund_rows.append({"Ticker": _t, **_f})
@@ -611,6 +667,9 @@ with _col_dl:
             "total_ret_pct": total_ret_pct,
             "n_positions":   n_positions,
         },
+        bt_result=_bt,
+        ticker_mc_results=_ticker_mc_results,
+        portfolio_mc=_portfolio_mc,
     )
     st.download_button(
         label="Download Excel Report",
@@ -624,7 +683,7 @@ with _col_dl:
 # Positions Table
 # ──────────────────────────────────────────────
 st.divider()
-with st.expander("📋 Your Positions", expanded=True):
+with st.expander("Your Positions", expanded=True):
     st.markdown(
         '<p class="section-intro">Every stock you own, how much you paid, what it\'s worth now, '
         'and how much you\'ve gained or lost. <b>Today\'s Change</b> is how much your value moved since yesterday\'s market close. '
@@ -680,7 +739,7 @@ with st.expander("📋 Your Positions", expanded=True):
 # Portfolio Allocation
 # ──────────────────────────────────────────────
 st.divider()
-with st.expander("📊 Portfolio Allocation", expanded=True):
+with st.expander("Portfolio Allocation", expanded=True):
     st.markdown(
         '<p class="section-intro">How your money is spread across your positions. '
         'Larger bars mean a bigger share of your total investment in that stock.</p>',
@@ -721,7 +780,7 @@ with st.expander("📊 Portfolio Allocation", expanded=True):
 # Side-by-Side Comparison
 # ──────────────────────────────────────────────
 st.divider()
-with st.expander("📈 How My Stocks Compare", expanded=True):
+with st.expander("How My Stocks Compare", expanded=True):
     st.markdown(
         '<p class="section-intro">All your stocks shown on the same scale. '
         'Every stock starts at 100 on the left so you can fairly compare their growth — '
@@ -769,7 +828,8 @@ with st.expander("📈 How My Stocks Compare", expanded=True):
             comparison_data[t] = hist["Close"]
 
     comparison_df = pd.DataFrame(comparison_data).dropna()
-    comparison_df = comparison_df / comparison_df.iloc[0] * 100
+    if not comparison_df.empty:
+        comparison_df = comparison_df / comparison_df.iloc[0] * 100
 
     comp_name_map = {t: name_map.get(t, t) for t in comparison_df.columns}
     comp_color_map = {comp_name_map[t]: portfolio_color_map[t] for t in comparison_df.columns if t in portfolio_color_map}
@@ -796,7 +856,7 @@ with st.expander("📈 How My Stocks Compare", expanded=True):
 # Price History
 # ──────────────────────────────────────────────
 st.divider()
-st.markdown("### 🕐 Price History")
+st.markdown("### Price History")
 st.markdown(
     '<p class="section-intro">The full price history for each stock you own. '
     'The dashed line shows what you paid. The grey line marks when you bought it. '
@@ -910,7 +970,7 @@ for idx, (t, lots) in enumerate(st.session_state.portfolio.items()):
 # Risk & Analytics
 # ──────────────────────────────────────────────
 st.divider()
-with st.expander("🔬 Risk & Analytics", expanded=False):
+with st.expander("Risk & Analytics", expanded=False):
     st.markdown(
         '<p class="section-intro">A deeper look at how risky your positions are and how efficiently they\'ve rewarded that risk. '
         'All figures are based on the past 12 months of daily price data. '
@@ -923,10 +983,10 @@ with st.expander("🔬 Risk & Analytics", expanded=False):
         st.markdown("##### Risk Metrics")
         st.markdown(
             '<p class="section-intro">'
-            '📊 <b>Volatility</b> — how much the price typically swings in a year. 25% means it moves roughly ±25% over 12 months. Higher = more unpredictable.<br>'
-            '📉 <b>Worst Drop</b> — the biggest fall from a peak in the past year. −35% means it dropped 35% from its highest point before recovering.<br>'
-            '⚖️ <b>Return/Risk Score</b> — how much return you earned per unit of risk. Above 1 is good; above 2 is excellent; below 0 means the risk was not rewarded.<br>'
-            '📈 <b>Market Sensitivity</b> — how much this stock moves when the S&P 500 moves. 1.0 = moves exactly with the market; 1.5 = moves 50% more; 0.5 = half as much.'
+            '• <b>Volatility</b> — how much the price typically swings in a year. 25% means it moves roughly ±25% over 12 months. Higher = more unpredictable.<br>'
+            '• <b>Worst Drop</b> — the biggest fall from a peak in the past year. −35% means it dropped 35% from its highest point before recovering.<br>'
+            '• <b>Return/Risk Score</b> — how much return you earned per unit of risk. Above 1 is good; above 2 is excellent; below 0 means the risk was not rewarded.<br>'
+            '• <b>Market Sensitivity</b> — how much this stock moves when the S&P 500 moves. 1.0 = moves exactly with the market; 1.5 = moves 50% more; 0.5 = half as much.'
             '</p>',
             unsafe_allow_html=True
         )
@@ -981,6 +1041,7 @@ with st.expander("🔬 Risk & Analytics", expanded=False):
                 '<b>0</b> = no relationship at all. '
                 'Holding stocks that don\'t all move together reduces your overall risk — if one falls, the others may not. '
                 'If you see no blue cells, it means none of your stocks tend to move in opposite directions — this is normal for a typical portfolio.'
+                ' <i>Note: this uses 1-year daily returns; the Excel export uses a 6-month window.</i>'
                 '</p>',
                 unsafe_allow_html=True
             )
@@ -1010,10 +1071,10 @@ with st.expander("🔬 Risk & Analytics", expanded=False):
         st.markdown("##### Valuation & Price Range")
         st.markdown(
             '<p class="section-intro">'
-            '💰 <b>P/E Ratio</b> — how much investors pay relative to what the company earns. A P/E of 20 means you pay 20× the company\'s annual earnings per share. Lower can mean better value, but varies widely by industry.<br>'
-            '💵 <b>Dividend Yield</b> — the annual cash payment as a % of the current price. 3% means every $100 invested pays $3/year directly to you, regardless of whether the stock price moves.<br>'
-            '📏 <b>1-Year Low / High</b> — the cheapest and most expensive the stock has been over the past 12 months.<br>'
-            '📍 <b>1-Year Position</b> — where the current price sits in that range. 100% = at the yearly high; 0% = at the yearly low.'
+            '• <b>P/E Ratio</b> — how much investors pay relative to what the company earns. A P/E of 20 means you pay 20× the company\'s annual earnings per share. Lower can mean better value, but varies widely by industry.<br>'
+            '• <b>Dividend Yield</b> — the annual cash payment as a % of the current price. 3% means every $100 invested pays $3/year directly to you, regardless of whether the stock price moves.<br>'
+            '• <b>1-Year Low / High</b> — the cheapest and most expensive the stock has been over the past 12 months.<br>'
+            '• <b>1-Year Position</b> — where the current price sits in that range. 100% = at the yearly high; 0% = at the yearly low.'
             '</p>',
             unsafe_allow_html=True
         )
@@ -1041,14 +1102,19 @@ with st.expander("🔬 Risk & Analytics", expanded=False):
 # Monte Carlo Backtest
 # ──────────────────────────────────────────────
 st.divider()
-with st.expander("🎲 Monte Carlo Backtest", expanded=False):
+with st.expander("Monte Carlo Backtest", expanded=False):
     st.markdown(
         '<p class="section-intro">'
-        'Tests how well a Monte Carlo simulation would have tracked your actual portfolio over the past year. '
-        'The model is trained on up to 4 years of historical returns, then run forward 252 trading days from one year ago — '
-        'using only data that would have been available at that point. '
-        'The fan shows where simulated portfolios ended up; the black line is what actually happened. '
-        'A high hit rate means the model\'s confidence bands were well-calibrated for your specific holdings.'
+        '<b>What is a Monte Carlo simulation?</b> It runs thousands of possible futures by randomly sampling from the asset\'s historical daily return distribution. '
+        'Each simulated day draws a return that is plausible given how the stock has behaved in the past. '
+        'Run 1,000 times, this produces a fan of outcomes — wide when the asset is volatile, narrow when it is stable. '
+        'The edges of the fan are not predictions; they are a range of outcomes consistent with past behaviour.'
+        '<br><br>'
+        '<b>What the backtest does.</b> Rather than only showing a forward projection (which cannot be verified), this section first tests the model against history. '
+        'It takes data from up to 4 years ago, runs the simulation forward for one year using only that older data, '
+        'then compares the simulated fan to what your portfolio actually did. '
+        'If the model is well-calibrated, the actual value should fall inside the 80% band roughly 80% of the time. '
+        'A hit rate far below that means the model was overconfident — the real moves were more extreme than history suggested.'
         '</p>',
         unsafe_allow_html=True
     )
@@ -1056,11 +1122,6 @@ with st.expander("🎲 Monte Carlo Backtest", expanded=False):
     if not st.session_state.portfolio:
         st.info("Add positions to run the backtest.")
     else:
-        _price_data_5y = {t: fetch_simulation_history(t) for t in _tickers}
-
-        with st.spinner("Running backtest (1,000 simulations)…"):
-            _bt = run_monte_carlo_backtest(st.session_state.portfolio, _price_data_5y)
-
         if not _bt:
             st.warning(
                 "Not enough price history to run the backtest. "
@@ -1091,6 +1152,15 @@ with st.expander("🎲 Monte Carlo Backtest", expanded=False):
             )
 
             # ── Fan chart ────────────────────────────────────────────────
+            st.markdown(
+                '<p class="section-intro">'
+                '• <b>Dark band</b> — 50% of simulated portfolios ended up in this range. Think of it as the most likely zone.<br>'
+                '• <b>Light band</b> — 80% of simulations fell here. Outcomes outside this band were the rare, extreme scenarios.<br>'
+                '• <b>Dashed line</b> — the median simulation path (exactly half above, half below).<br>'
+                '• <b>Black line</b> — what your portfolio actually did. If it stayed mostly inside the fan, the model was a good fit for your holdings.'
+                '</p>',
+                unsafe_allow_html=True
+            )
             _dates  = list(_bt["sim_dates"])
             _pct    = _bt["percentiles"]
             _actual = _bt["actual"]
@@ -1153,10 +1223,18 @@ with st.expander("🎲 Monte Carlo Backtest", expanded=False):
             st.markdown("##### Model Reliability by Position")
             st.markdown(
                 '<p class="section-intro">'
-                'Shows how well the model performed for each position individually. '
-                'Stocks with <b>fat-tailed</b> return distributions — where extreme moves happen more often than a normal distribution predicts — '
-                'tend to produce lower hit rates. This is common in individual growth stocks, crypto, and commodities. '
-                'Broad ETFs and large-cap equities typically score higher.'
+                'Shows how well the model performed for each position individually over the past year. '
+                'The same simulation is run per stock and compared to its actual price path.'
+                '<br><br>'
+                '• <b>Hit Rate 80% CI</b> — the percentage of trading days over the past year where the actual price stayed inside the simulated 80% band. '
+                'A well-calibrated model scores close to 80%. Much lower means the real moves were more extreme than the model expected.<br>'
+                '• <b>Hit Rate 50% CI</b> — the same check for the tighter middle band. Should be close to 50% for a well-calibrated model.<br>'
+                '• <b>Kurtosis</b> — measures how "fat" the tails of the return distribution are compared to a normal distribution (which scores 0). '
+                'A score above 3 means unusually large moves happen more often than the model assumes — the model will understate risk for that stock. '
+                'Crypto, small caps, and individual growth stocks typically score high here.<br>'
+                '• <b>Skewness</b> — measures whether big moves tend to be up or down. Positive means the distribution has a longer right tail (large gains are more common than large losses). '
+                'Negative means the opposite — losses tend to be more extreme than gains.<br>'
+                '• <b>Fat-tailed</b> — a flag that fires when kurtosis exceeds 3. Treat confidence bands for these positions with extra scepticism.'
                 '</p>',
                 unsafe_allow_html=True
             )
@@ -1216,17 +1294,235 @@ with st.expander("🎲 Monte Carlo Backtest", expanded=False):
             )
 
 # ──────────────────────────────────────────────
+# Portfolio Outlook
+# ──────────────────────────────────────────────
+st.divider()
+with st.expander("Portfolio Outlook", expanded=False):
+    st.markdown(
+        '<p class="section-intro">'
+        'Projects your full portfolio value forward using correlated Monte Carlo simulation — '
+        'accounting for how your positions move together, not just individually. '
+        'The fan shows the range of outcomes; the metrics below it quantify the downside in standard risk terms.'
+        '<br><br>'
+        '• <b>Fan chart</b> — 1,000 simulated portfolio paths. The dark band covers the middle 50% of outcomes; '
+        'the light band covers 80%. The further out you look, the wider the fan grows.'
+        '<br>'
+        '• <b>Value at Risk (VaR 95%)</b> — the minimum loss you would face in the worst 5% of scenarios. '
+        'If VaR is 18%, there is a 5% chance your portfolio loses at least that much over the period.'
+        '<br>'
+        '• <b>Expected Shortfall (CVaR 95%)</b> — given that you are in the worst 5% of scenarios, '
+        'the average loss. Always worse than VaR; this is what tail risk actually costs on average.'
+        '<br>'
+        '• <b>Diversification effect</b> — compares two versions of the simulation: one using the historical '
+        'correlation between your positions (realistic), and one assuming they move completely independently. '
+        'The difference in the 10th-percentile outcome shows whether your portfolio is well-diversified '
+        'or whether your positions amplify each other\'s downside.'
+        '</p>',
+        unsafe_allow_html=True
+    )
+
+    if not st.session_state.portfolio:
+        st.info("Add positions to run the portfolio outlook.")
+    elif not _portfolio_mc:
+        st.warning(
+            "Not enough price history to run the portfolio outlook. "
+            "Each position needs at least 1 year of data."
+        )
+    else:
+        _po_horizon_label = st.radio(
+            "Horizon", ["3 months", "6 months", "1 year"],
+            index=2, horizontal=True, key="portfolio_outlook_horizon"
+        )
+        _po_day_idx = {"3 months": 62, "6 months": 125, "1 year": 251}[_po_horizon_label]
+
+        _po_pct        = _portfolio_mc["percentiles"]
+        _po_paths      = _portfolio_mc["portfolio_paths"]
+        _po_paths_i    = _portfolio_mc["portfolio_paths_i"]
+        _po_start      = _portfolio_mc["start_value"]
+        _po_dates_full = list(_portfolio_mc["dates"])
+        _po_dates      = _po_dates_full[:_po_day_idx + 1]
+
+        # Slice percentile bands to chosen horizon
+        _po_p10  = list(_po_pct["p10"].iloc[:_po_day_idx + 1])
+        _po_p25  = list(_po_pct["p25"].iloc[:_po_day_idx + 1])
+        _po_p50  = list(_po_pct["p50"].iloc[:_po_day_idx + 1])
+        _po_p75  = list(_po_pct["p75"].iloc[:_po_day_idx + 1])
+        _po_p90  = list(_po_pct["p90"].iloc[:_po_day_idx + 1])
+
+        # ── Fan chart ────────────────────────────────────────────────────────
+        _fig_po = go.Figure()
+
+        _fig_po.add_trace(go.Scatter(
+            x=_po_dates + list(reversed(_po_dates)),
+            y=_po_p90 + list(reversed(_po_p10)),
+            fill="toself", fillcolor="rgba(99,110,250,0.12)",
+            line=dict(width=0), name="80% of simulations", hoverinfo="skip",
+        ))
+        _fig_po.add_trace(go.Scatter(
+            x=_po_dates + list(reversed(_po_dates)),
+            y=_po_p75 + list(reversed(_po_p25)),
+            fill="toself", fillcolor="rgba(99,110,250,0.25)",
+            line=dict(width=0), name="50% of simulations", hoverinfo="skip",
+        ))
+        _fig_po.add_trace(go.Scatter(
+            x=_po_dates, y=_po_p50,
+            line=dict(color="rgba(99,110,250,0.7)", width=1.5, dash="dash"),
+            name="Median simulation",
+        ))
+
+        # Current value as starting reference line
+        _fig_po.add_hline(
+            y=_po_start,
+            line=dict(color="#9CA3AF", width=1, dash="dot"),
+            annotation_text=f"Current  {currency_symbol}{_po_start:,.0f}",
+            annotation_position="top left",
+            annotation_font_color="#9CA3AF",
+        )
+
+        _fig_po.update_layout(
+            template=_PLOT_TMPL,
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            margin=dict(t=20, b=40),
+            yaxis=dict(tickprefix=currency_symbol, title=f"Portfolio Value ({base_currency})"),
+            xaxis=dict(title="Date"),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+            hovermode="x unified",
+        )
+        st.plotly_chart(_fig_po, use_container_width=True)
+
+        # ── Risk metrics ─────────────────────────────────────────────────────
+        _po_end   = _po_paths[:, _po_day_idx]
+        _po_end_i = _po_paths_i[:, _po_day_idx]
+        _po_vc    = compute_var_cvar(_po_end, _po_start)
+
+        _corr_p10  = float(sorted(_po_end)[int(len(_po_end) * 0.10)])
+        _indep_p10 = float(sorted(_po_end_i)[int(len(_po_end_i) * 0.10)])
+        _div_diff  = _indep_p10 - _corr_p10   # positive = correlation widens downside
+
+        _rm1, _rm2, _rm3, _rm4 = st.columns(4)
+        _rm1.metric(
+            f"VaR 95% ({_po_horizon_label})",
+            f"{_po_vc['var'] * 100:.1f}%",
+            delta=f"{currency_symbol}{_po_vc['var_abs']:,.0f}",
+            delta_color="inverse",
+            help=f"In the worst 5% of simulations, the portfolio loses at least "
+                 f"{_po_vc['var'] * 100:.1f}% ({currency_symbol}{_po_vc['var_abs']:,.0f}) "
+                 f"over {_po_horizon_label}.",
+        )
+        _rm2.metric(
+            f"CVaR 95% ({_po_horizon_label})",
+            f"{_po_vc['cvar'] * 100:.1f}%",
+            delta=f"{currency_symbol}{_po_vc['cvar_abs']:,.0f}",
+            delta_color="inverse",
+            help=f"Given that you are in the worst 5% of scenarios, the average loss is "
+                 f"{_po_vc['cvar'] * 100:.1f}% ({currency_symbol}{_po_vc['cvar_abs']:,.0f}). "
+                 f"This is always at least as bad as VaR.",
+        )
+        _rm3.metric(
+            "p10 outcome",
+            f"{currency_symbol}{_corr_p10:,.0f}",
+            delta=f"{(_corr_p10 - _po_start) / _po_start * 100:+.1f}%",
+            delta_color="normal",
+            help="The 10th-percentile portfolio value at the chosen horizon — "
+                 "9 out of 10 simulations end above this level.",
+        )
+        _div_label = "narrows" if _div_diff < 0 else "widens"
+        _rm4.metric(
+            "Diversification effect",
+            f"{currency_symbol}{abs(_div_diff):,.0f}",
+            delta=f"Correlation {_div_label} p10",
+            delta_color="normal" if _div_diff < 0 else "inverse",
+            help=(
+                f"Correlated p10: {currency_symbol}{_corr_p10:,.0f}  |  "
+                f"Independent p10: {currency_symbol}{_indep_p10:,.0f}. "
+                + (
+                    f"Your positions tend to move together, which widens the downside tail by "
+                    f"{currency_symbol}{_div_diff:,.0f} compared to uncorrelated positions."
+                    if _div_diff > 0 else
+                    f"Your positions partially offset each other, tightening the downside tail by "
+                    f"{currency_symbol}{abs(_div_diff):,.0f} compared to uncorrelated positions."
+                )
+            ),
+        )
+
+        # ── Outcome distribution histogram ───────────────────────────────────
+        st.markdown("##### Distribution of Simulated Outcomes")
+        st.markdown(
+            '<p class="section-intro">'
+            'Each bar represents the number of simulated portfolios that ended within that value range. '
+            'A tall central peak means outcomes are tightly clustered; a wide spread means high uncertainty. '
+            'The dashed lines mark the 10th percentile (left tail), median, and 90th percentile.'
+            '</p>',
+            unsafe_allow_html=True
+        )
+
+        _fig_hist = go.Figure()
+        _fig_hist.add_trace(go.Histogram(
+            x=list(_po_end),
+            nbinsx=60,
+            marker_color="rgba(99,110,250,0.6)",
+            marker_line=dict(color="rgba(99,110,250,0.9)", width=0.5),
+            name="Simulated end values",
+            hovertemplate=f"{currency_symbol}%{{x:,.0f}}<br>Count: %{{y}}<extra></extra>",
+        ))
+
+        for _vline_val, _vline_label, _vline_color in [
+            (_corr_p10,                           "p10",    "#DC2626"),
+            (float(_po_pct["p50"].iloc[_po_day_idx]), "Median", "#2255A4"),
+            (float(_po_pct["p90"].iloc[_po_day_idx]), "p90",    "#16A34A"),
+            (_po_start,                           "Current", "#9CA3AF"),
+        ]:
+            _fig_hist.add_vline(
+                x=_vline_val,
+                line=dict(color=_vline_color, width=1.5, dash="dash"),
+                annotation_text=_vline_label,
+                annotation_position="top",
+                annotation_font_color=_vline_color,
+            )
+
+        _fig_hist.update_layout(
+            template=_PLOT_TMPL,
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            margin=dict(t=20, b=40),
+            xaxis=dict(tickprefix=currency_symbol, title=f"Portfolio Value ({base_currency})"),
+            yaxis=dict(title="Number of simulations"),
+            showlegend=False,
+            bargap=0.02,
+        )
+        st.plotly_chart(_fig_hist, use_container_width=True)
+
+        st.caption(
+            f"Based on {_portfolio_mc['train_days']} trading days of calibration data. "
+            f"Positions included: {', '.join(_portfolio_mc['tickers_used'])}. "
+            + (
+                f"Excluded (insufficient history): "
+                f"{', '.join(t for t in _tickers if t not in _portfolio_mc['tickers_used'])}. "
+                if any(t not in _portfolio_mc["tickers_used"] for t in _tickers) else ""
+            )
+            + "This is a statistical model, not financial advice."
+        )
+
+# ──────────────────────────────────────────────
 # Position Outlook
 # ──────────────────────────────────────────────
 st.divider()
-with st.expander("🔭 Position Outlook", expanded=False):
+with st.expander("Position Outlook", expanded=False):
     st.markdown(
         '<p class="section-intro">'
-        'Projects a single position forward using Monte Carlo simulation — '
-        'useful for thinking through whether to hold or sell. '
-        'The fan shows the range of simulated outcomes; the dashed lines mark your purchase price(s). '
-        'The probability figure answers: based on historical return patterns, '
-        'how often does this position end above breakeven at the chosen horizon?'
+        'Projects a single position forward using Monte Carlo simulation — useful for thinking through whether to hold or sell. '
+        'Pick a position, set a time horizon, and the model generates 1,000 possible price paths based on that stock\'s historical return distribution. '
+        'The fan shows the range of simulated outcomes; the dashed lines mark your purchase price(s).'
+        '<br><br>'
+        '• <b>Calibration window</b> — how far back the model looks to estimate the stock\'s typical daily return and volatility. '
+        'A shorter window (1 year) reflects recent behaviour only — useful if the stock has changed character recently (e.g. after a major product launch or market re-rating). '
+        'A longer window (5 years) smooths out short-term noise and captures multiple market regimes, including downturns. '
+        'If the two windows produce very different fans, the stock\'s behaviour has changed meaningfully and either estimate carries more uncertainty.'
+        '<br><br>'
+        '<b>Not financial advice.</b> The probabilities shown are model outputs based on historical patterns. '
+        'They do not account for news, earnings, macroeconomic changes, or any information not reflected in past prices. '
+        'Use this as one input among many, not as a decision rule.'
         '</p>',
         unsafe_allow_html=True
     )
@@ -1255,13 +1551,14 @@ with st.expander("🔭 Position Outlook", expanded=False):
         _ol_horizon_days  = {"3 months": 63, "6 months": 126, "1 year": 252}[_ol_horizon_label]
         _ol_lookback_days = {"1 year": 252, "2 years": 504, "5 years": None}[_ol_lookback_label]
 
-        _ol_hist = fetch_simulation_history(_ol_ticker)
+        _ol_hist = _price_data_5y.get(_ol_ticker, pd.DataFrame())
         _ol_fx   = get_fx_rate(get_ticker_currency(_ol_ticker), base_currency)
 
         # Current price in base currency (last available close, FX-adjusted)
         _ol_current_price = None
-        if not _ol_hist.empty and "Close" in _ol_hist.columns:
-            _ol_raw_price     = float(_ol_hist["Close"].dropna().iloc[-1])
+        _ol_close = _ol_hist["Close"].dropna() if not _ol_hist.empty and "Close" in _ol_hist.columns else pd.Series(dtype=float)
+        if not _ol_close.empty:
+            _ol_raw_price     = float(_ol_close.iloc[-1])
             _ol_current_price = _ol_raw_price * _ol_fx
 
         if _ol_current_price is None or _ol_current_price <= 0:
@@ -1385,6 +1682,17 @@ with st.expander("🔭 Position Outlook", expanded=False):
                     "Annualised volatility",
                     f"{_ol_result['sigma_annual']:.1f}%",
                     help="Annualised standard deviation of daily log-returns, used to calibrate the simulation width.",
+                )
+
+                st.markdown(
+                    '<p class="section-intro">'
+                    'A probability above 50% means the model\'s calibrated return rate is positive — based on historical patterns, '
+                    'the stock has tended to go up over the chosen horizon. Below 50% means the opposite: '
+                    'the historical drift was negative, and more simulated paths end lower than they started. '
+                    'The width of the fan matters as much as the median: a highly volatile stock may show 55% probability of being above breakeven, '
+                    'but the downside tail could be severe. Check the volatility figure alongside the probability.'
+                    '</p>',
+                    unsafe_allow_html=True
                 )
 
                 # ── Distribution flag ────────────────────────────────────

@@ -1,5 +1,9 @@
 import yfinance as yf
+import pandas as pd
 import streamlit as st
+import logging
+
+_log = logging.getLogger(__name__)
 
 CURRENCY_SYMBOLS = {"USD": "$", "CHF": "CHF ", "EUR": "€", "GBP": "£"}
 
@@ -27,4 +31,27 @@ def get_fx_rate(from_currency: str, to_currency: str) -> float:
         rate = yf.Ticker(pair).history(period="1d")["Close"].iloc[-1]
         return float(rate)
     except Exception:
+        _log.warning("FX lookup failed for %s→%s; falling back to 1.0", from_currency, to_currency)
         return 1.0
+
+
+@st.cache_data(ttl=86400)
+def get_historical_fx_rate(from_currency: str, to_currency: str, date_str: str) -> float:
+    """
+    Fetch the FX rate on or just after a given date (YYYY-MM-DD).
+    Falls back to the current live rate if historical data is unavailable.
+    GBX (pence) handled automatically.
+    """
+    if from_currency == to_currency:
+        return 1.0
+    if from_currency == "GBX":
+        return get_historical_fx_rate("GBP", to_currency, date_str) / 100
+    try:
+        end = str((pd.Timestamp(date_str) + pd.DateOffset(days=7)).date())
+        pair = f"{from_currency}{to_currency}=X"
+        hist = yf.Ticker(pair).history(start=date_str, end=end)
+        if not hist.empty:
+            return float(hist["Close"].iloc[0])
+    except Exception:
+        _log.warning("Historical FX lookup failed for %s→%s on %s; falling back to live rate", from_currency, to_currency, date_str)
+    return get_fx_rate(from_currency, to_currency)
