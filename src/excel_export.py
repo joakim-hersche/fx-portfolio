@@ -178,10 +178,10 @@ def _sheet_summary(wb: Workbook, kpis: dict, currency: str) -> None:
     # Row 4+: live formulas referencing tblPositions
     formula_rows = [
         # (label, formula_or_value, number_format, is_formula)
-        ("Total Portfolio Value", "=SUM(tblPositions[Total Value])",                      curr_fmt, True),
-        ("Today's Change",        kpis["daily_pnl"],                                      curr_fmt, False),  # needs yesterday's close — hardcoded
-        ("Cost Basis",            "=SUMPRODUCT(tblPositions[Shares],tblPositions[Buy Price])", curr_fmt, True),
-        ("Dividends Received",    "=SUM(tblPositions[Dividends])",                        curr_fmt, True),
+        ("Total Portfolio Value", "=SUM(Positions!$H:$H)",                                  curr_fmt, True),
+        ("Today's Change",        kpis["daily_pnl"],                                        curr_fmt, False),  # needs yesterday's close — hardcoded
+        ("Cost Basis",            "=SUMPRODUCT(Positions!$D$2:$D$10000,Positions!$E$2:$E$10000)", curr_fmt, True),
+        ("Dividends Received",    "=SUM(Positions!$I:$I)",                                  curr_fmt, True),
         ("Total Return",          "=B4+B7-B6",                                            curr_fmt, True),
         ("Total Return (%)",      '=IF(B6=0,"",B8/B6*100)',                               '0.00"%"', True),
         ("Number of Positions",   kpis["n_positions"],                                    "0",      False),
@@ -308,7 +308,7 @@ def _sheet_positions(wb: Workbook, df: pd.DataFrame, name_map: dict, currency: s
     wt_cell.font          = _TOTAL_FONT
 
     _autofit(ws)
-    _freeze_and_filter(ws)
+    ws.freeze_panes = "A2"
     _add_table(ws, "tblPositions", f"A1:{get_column_letter(len(export_df.columns))}{last_data}")
     _set_print(ws, f"A1:{get_column_letter(len(export_df.columns))}{totals_row}")
 
@@ -327,9 +327,9 @@ def _sheet_allocation(wb: Workbook, df: pd.DataFrame, name_map: dict, currency: 
         ws.cell(row_idx, 1, ticker)
         ws.cell(row_idx, 2, name_map.get(ticker, ticker))
 
-        # SUMIF referencing tblPositions — live: updates when user edits Current Price
+        # SUMIF referencing Positions sheet — live: updates when user edits Current Price
         val_cell               = ws.cell(row_idx, 3,
-            f"=SUMIF(tblPositions[Ticker],A{row_idx},tblPositions[Total Value])")
+            f"=SUMIF(Positions!$A:$A,A{row_idx},Positions!$H:$H)")
         val_cell.number_format = curr_fmt
 
         wt_cell               = ws.cell(row_idx, 4,
@@ -421,7 +421,7 @@ def _sheet_risk(wb: Workbook, analytics_df: pd.DataFrame, name_map: dict, positi
         ws.conditional_formatting.add(data_range, CellIsRule(operator="lessThan",           formula=["0"],      fill=_RED_FILL))
 
     _autofit(ws)
-    _freeze_and_filter(ws)
+    ws.freeze_panes = "A2"
     _add_table(ws, "tblRisk", f"A1:{get_column_letter(len(headers))}{len(export_df) + 1}")
 
 
@@ -449,7 +449,7 @@ def _sheet_fundamentals(wb: Workbook, fund_rows: list[dict], name_map: dict) -> 
                 cell.number_format = "#,##0.00"
 
     _autofit(ws)
-    _freeze_and_filter(ws)
+    ws.freeze_panes = "A2"
     _add_table(ws, "tblFund", f"A1:{get_column_letter(len(fund_df.columns))}{len(fund_df) + 1}")
 
 
@@ -813,12 +813,12 @@ def _sheet_scenario(wb: Workbook, positions_df: pd.DataFrame, name_map: dict, cu
         # B: Company
         ws.cell(row_idx, 2, name_map.get(ticker, ticker))
         # C: Total Shares — SUMIF formula (live)
-        ws.cell(row_idx, 3, f"=SUMIF(tblPositions[Ticker],A{row_idx},tblPositions[Shares])").number_format = "#,##0.######"
+        ws.cell(row_idx, 3, f"=SUMIF(Positions!$A:$A,A{row_idx},Positions!$D:$D)").number_format = "#,##0.######"
         # D: Avg Buy Price — SUMPRODUCT weighted average
         ws.cell(row_idx, 4,
-            f"=IFERROR(SUMPRODUCT((tblPositions[Ticker]=A{row_idx})"
-            f"*tblPositions[Shares]*tblPositions[Buy Price])"
-            f"/SUMIF(tblPositions[Ticker],A{row_idx},tblPositions[Shares]),\"\")"
+            f"=IFERROR(SUMPRODUCT((Positions!$A$2:$A$10000=A{row_idx})"
+            f"*Positions!$D$2:$D$10000*Positions!$E$2:$E$10000)"
+            f"/SUMIF(Positions!$A:$A,A{row_idx},Positions!$D:$D),\"\")"
         ).number_format = curr_fmt
         # E: Current Price — blue input (pre-filled, user can override for scenario)
         curr_cell = ws.cell(row_idx, 5, float(row_data["CurrentPrice"]) if pd.notna(row_data["CurrentPrice"]) else 0)
@@ -832,7 +832,7 @@ def _sheet_scenario(wb: Workbook, positions_df: pd.DataFrame, name_map: dict, cu
         tgt_cell.fill          = _INPUT_FILL
         # G: Current Value — SUMIF formula
         ws.cell(row_idx, 7,
-            f"=SUMIF(tblPositions[Ticker],A{row_idx},tblPositions[Total Value])"
+            f"=SUMIF(Positions!$A:$A,A{row_idx},Positions!$H:$H)"
         ).number_format = curr_fmt
         # H: Projected Value = Total Shares * Target Price
         ws.cell(row_idx, 8, f"=C{row_idx}*F{row_idx}").number_format = curr_fmt
