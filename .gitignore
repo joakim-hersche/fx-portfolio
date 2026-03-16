@@ -11,5 +11,10 @@ data/*.csv
 data/*.xlsx
 .portfolio_state.json
 
+# Scratch / working files
+*.xlsx
+*_PROMPT.md
+*_audit_report.md
+
 # macOS
 .DS_Store
