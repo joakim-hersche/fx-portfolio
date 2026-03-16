@@ -1215,3 +1215,190 @@ with st.expander("🎲 Monte Carlo Backtest", expanded=False):
                 f"This is a statistical model, not financial advice."
             )
 
+# ──────────────────────────────────────────────
+# Position Outlook
+# ──────────────────────────────────────────────
+st.divider()
+with st.expander("🔭 Position Outlook", expanded=False):
+    st.markdown(
+        '<p class="section-intro">'
+        'Projects a single position forward using Monte Carlo simulation — '
+        'useful for thinking through whether to hold or sell. '
+        'The fan shows the range of simulated outcomes; the dashed lines mark your purchase price(s). '
+        'The probability figure answers: based on historical return patterns, '
+        'how often does this position end above breakeven at the chosen horizon?'
+        '</p>',
+        unsafe_allow_html=True
+    )
+
+    if not st.session_state.portfolio:
+        st.info("Add positions to run the outlook.")
+    else:
+        _ol_col1, _ol_col2, _ol_col3 = st.columns([2, 1, 1])
+
+        with _ol_col1:
+            _ol_ticker = st.selectbox(
+                "Position",
+                options=_tickers,
+                format_func=lambda t: f"{t} — {fetch_company_name(t)}",
+                key="outlook_ticker",
+            )
+        with _ol_col2:
+            _ol_horizon_label = st.radio(
+                "Horizon", ["3 months", "6 months", "1 year"], index=2, key="outlook_horizon"
+            )
+        with _ol_col3:
+            _ol_lookback_label = st.radio(
+                "Calibration window", ["1 year", "2 years", "5 years"], index=2, key="outlook_lookback"
+            )
+
+        _ol_horizon_days  = {"3 months": 63, "6 months": 126, "1 year": 252}[_ol_horizon_label]
+        _ol_lookback_days = {"1 year": 252, "2 years": 504, "5 years": None}[_ol_lookback_label]
+
+        _ol_hist = fetch_simulation_history(_ol_ticker)
+        _ol_fx   = get_fx_rate(get_ticker_currency(_ol_ticker), base_currency)
+
+        # Current price in base currency (last available close, FX-adjusted)
+        _ol_current_price = None
+        if not _ol_hist.empty and "Close" in _ol_hist.columns:
+            _ol_raw_price     = float(_ol_hist["Close"].dropna().iloc[-1])
+            _ol_current_price = _ol_raw_price * _ol_fx
+
+        if _ol_current_price is None or _ol_current_price <= 0:
+            st.warning(f"Could not fetch a current price for {_ol_ticker}.")
+        else:
+            with st.spinner(f"Simulating {_ol_ticker}…"):
+                _ol_result = run_monte_carlo_ticker(
+                    hist=_ol_hist,
+                    current_price=_ol_current_price,
+                    n_sims=1000,
+                    horizon_days=_ol_horizon_days,
+                    lookback_days=_ol_lookback_days,
+                )
+
+            if not _ol_result:
+                st.warning(
+                    f"{_ol_ticker} does not have enough price history for the selected calibration window. "
+                    f"Try a shorter calibration window."
+                )
+            else:
+                # ── Buy price lines for this ticker (base currency) ──────
+                _ol_lots = df[df["Ticker"] == _ol_ticker][["Purchase", "Buy Price", "Shares"]].copy()
+                _ol_wavg = None
+                if not _ol_lots.empty:
+                    _ol_wavg = float(
+                        (_ol_lots["Buy Price"] * _ol_lots["Shares"]).sum()
+                        / _ol_lots["Shares"].sum()
+                    )
+
+                # ── Fan chart ────────────────────────────────────────────
+                _ol_dates = list(_ol_result["dates"])
+                _ol_pct   = _ol_result["percentiles"]
+
+                _fig_ol = go.Figure()
+
+                # 80% band
+                _fig_ol.add_trace(go.Scatter(
+                    x=_ol_dates + list(reversed(_ol_dates)),
+                    y=list(_ol_pct["p90"]) + list(reversed(_ol_pct["p10"])),
+                    fill="toself",
+                    fillcolor="rgba(99,110,250,0.12)",
+                    line=dict(width=0),
+                    name="80% of simulations",
+                    hoverinfo="skip",
+                ))
+
+                # 50% band
+                _fig_ol.add_trace(go.Scatter(
+                    x=_ol_dates + list(reversed(_ol_dates)),
+                    y=list(_ol_pct["p75"]) + list(reversed(_ol_pct["p25"])),
+                    fill="toself",
+                    fillcolor="rgba(99,110,250,0.25)",
+                    line=dict(width=0),
+                    name="50% of simulations",
+                    hoverinfo="skip",
+                ))
+
+                # Median
+                _fig_ol.add_trace(go.Scatter(
+                    x=_ol_dates,
+                    y=_ol_pct["p50"],
+                    line=dict(color="rgba(99,110,250,0.7)", width=1.5, dash="dash"),
+                    name="Median simulation",
+                ))
+
+                # Weighted average buy price line
+                if _ol_wavg is not None:
+                    _fig_ol.add_hline(
+                        y=_ol_wavg,
+                        line=dict(color="#D97706", width=1.5, dash="dot"),
+                        annotation_text=f"Avg buy {currency_symbol}{_ol_wavg:,.2f}",
+                        annotation_position="top left",
+                        annotation_font_color="#D97706",
+                    )
+
+                # Individual lot lines (only if multiple lots)
+                if len(_ol_lots) > 1:
+                    for _, _lot_row in _ol_lots.iterrows():
+                        _fig_ol.add_hline(
+                            y=_lot_row["Buy Price"],
+                            line=dict(color="#9CA3AF", width=1, dash="dot"),
+                            annotation_text=f"Lot {int(_lot_row['Purchase'])}  {currency_symbol}{_lot_row['Buy Price']:,.2f}",
+                            annotation_position="top right",
+                            annotation_font_color="#9CA3AF",
+                        )
+
+                _fig_ol.update_layout(
+                    template=_PLOT_TMPL,
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    margin=dict(t=20, b=40),
+                    yaxis=dict(tickprefix=currency_symbol, title=f"Price ({base_currency})"),
+                    xaxis=dict(title="Date"),
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+                    hovermode="x unified",
+                )
+                st.plotly_chart(_fig_ol, use_container_width=True)
+
+                # ── Probability metrics ──────────────────────────────────
+                _ol_end = _ol_result["end_paths"]
+                _m1, _m2, _m3 = st.columns(3)
+
+                if _ol_wavg is not None:
+                    _prob_above = float((_ol_end >= _ol_wavg).mean() * 100)
+                    _m1.metric(
+                        f"Prob. above avg buy price",
+                        f"{_prob_above:.0f}%",
+                        help=f"Fraction of simulations ending above your average buy price of "
+                             f"{currency_symbol}{_ol_wavg:,.2f} after {_ol_horizon_label}.",
+                    )
+
+                _prob_above_current = float((_ol_end >= _ol_current_price).mean() * 100)
+                _m2.metric(
+                    "Prob. above today's price",
+                    f"{_prob_above_current:.0f}%",
+                    help=f"Fraction of simulations ending above the current price of "
+                         f"{currency_symbol}{_ol_current_price:,.2f} — i.e. probability of a positive return.",
+                )
+
+                _m3.metric(
+                    "Annualised volatility",
+                    f"{_ol_result['sigma_annual']:.1f}%",
+                    help="Annualised standard deviation of daily log-returns, used to calibrate the simulation width.",
+                )
+
+                # ── Distribution flag ────────────────────────────────────
+                _ol_flag = _ol_result["flag"]
+                if _ol_flag.get("fat_tailed"):
+                    st.warning(
+                        f"**{_ol_ticker} has fat-tailed returns** (excess kurtosis: {_ol_flag['kurtosis']:.1f}). "
+                        f"Extreme price moves occur more often than a normal distribution predicts. "
+                        f"The confidence bands above will understate the real tail risk for this position."
+                    )
+
+                st.caption(
+                    f"Calibrated on {_ol_result['train_days']} trading days of {_ol_ticker} history "
+                    f"({_ol_lookback_label} window). Assumes log-normally distributed daily returns with "
+                    f"μ = {_ol_result['mu_annual']:+.1f}%/yr, σ = {_ol_result['sigma_annual']:.1f}%/yr. "
+                    f"This is a statistical model, not financial advice."
+                )
