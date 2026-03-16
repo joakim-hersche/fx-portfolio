@@ -110,6 +110,53 @@ def get_etfs():
     }
 
 
+def get_reits():
+    return {
+        "Vanguard Real Estate ETF (VNQ)":   "VNQ",
+        "Real Estate Select Sector (XLRE)": "XLRE",
+        "Prologis (PLD)":                   "PLD",
+        "American Tower (AMT)":             "AMT",
+        "Equinix (EQIX)":                   "EQIX",
+        "Simon Property Group (SPG)":       "SPG",
+        "Realty Income (O)":                "O",
+        "Welltower (WELL)":                 "WELL",
+        "Public Storage (PSA)":             "PSA",
+        "Digital Realty (DLR)":             "DLR",
+        "CBRE Group (CBRE)":                "CBRE",
+        "AvalonBay Communities (AVB)":      "AVB",
+    }
+
+
+def get_bonds():
+    return {
+        "iShares Core US Aggregate Bond (AGG)":  "AGG",
+        "Vanguard Total Bond Market (BND)":      "BND",
+        "iShares 20+ Year Treasury (TLT)":       "TLT",
+        "iShares 1-3 Year Treasury (SHY)":       "SHY",
+        "iShares 7-10 Year Treasury (IEF)":      "IEF",
+        "iShares Invest. Grade Corp (LQD)":      "LQD",
+        "iShares High Yield Corp (HYG)":         "HYG",
+        "Vanguard Interm. Treasury (VGIT)":      "VGIT",
+        "Vanguard Long-Term Treasury (VGLT)":    "VGLT",
+        "iShares TIPS Bond (TIP)":               "TIP",
+    }
+
+
+def get_emerging_markets():
+    return {
+        "iShares MSCI Emerging Markets (EEM)":   "EEM",
+        "Vanguard FTSE Emerging Markets (VWO)":  "VWO",
+        "iShares MSCI Japan (EWJ)":              "EWJ",
+        "iShares MSCI Brazil (EWZ)":             "EWZ",
+        "iShares China Large-Cap (FXI)":         "FXI",
+        "iShares MSCI India (INDA)":             "INDA",
+        "iShares MSCI China (MCHI)":             "MCHI",
+        "iShares MSCI Taiwan (EWT)":             "EWT",
+        "iShares MSCI South Korea (EWY)":        "EWY",
+        "Vanguard FTSE Developed ex-US (VEA)":   "VEA",
+    }
+
+
 # All colors are chosen to be legible on both light and dark backgrounds.
 # Avoid luminance extremes: nothing too dark (<20% luminance) or too light (>80%).
 TICKER_COLORS = {
@@ -179,4 +226,39 @@ TICKER_COLORS = {
     "GLD":      "#c8a200",  # Gold ETF
     "SLV":      "#808080",  # Silver ETF
     "CL=F":     "#6b7280",  # Crude Oil (lightened from near-black for dark-mode visibility)
+    # REITs & Real Estate
+    "VNQ":   "#c17d3c",  # Vanguard warm orange
+    "XLRE":  "#b85c2c",  # dark copper
+    "PLD":   "#0055a5",  # Prologis blue
+    "AMT":   "#d4860b",  # American Tower amber
+    "EQIX":  "#e31937",  # Equinix red
+    "SPG":   "#5b4fcf",  # Simon Property purple
+    "O":     "#2e7d32",  # Realty Income green
+    "WELL":  "#0288d1",  # Welltower blue
+    "PSA":   "#f57c00",  # Public Storage orange
+    "DLR":   "#1565c0",  # Digital Realty blue
+    "CBRE":  "#006747",  # CBRE green
+    "AVB":   "#7b1fa2",  # AvalonBay purple
+    # Bonds & Fixed Income
+    "AGG":   "#546e7a",  # blue-grey
+    "BND":   "#607d8b",  # steel blue
+    "TLT":   "#78909c",  # slate
+    "SHY":   "#4fc3f7",  # light blue
+    "IEF":   "#039be5",  # medium blue
+    "LQD":   "#1976d2",  # investment grade blue
+    "HYG":   "#d84315",  # high yield orange-red (higher risk signal)
+    "VGIT":  "#0288d1",  # Vanguard intermediate treasury
+    "VGLT":  "#01579b",  # Vanguard long treasury deep blue
+    "TIP":   "#00796b",  # TIPS teal
+    # Emerging Markets
+    "EEM":   "#e65100",  # iShares EM orange
+    "VWO":   "#c8960a",  # Vanguard EM amber
+    "EWJ":   "#bc002d",  # Japan red (flag)
+    "EWZ":   "#009c3b",  # Brazil green (flag)
+    "FXI":   "#de2910",  # China red (flag)
+    "INDA":  "#ff9933",  # India saffron (flag)
+    "MCHI":  "#c0392b",  # MSCI China red
+    "EWT":   "#1c4da0",  # Taiwan blue
+    "EWY":   "#003478",  # South Korea navy
+    "VEA":   "#4e6b8c",  # Developed ex-US slate
 }

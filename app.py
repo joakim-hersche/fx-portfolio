@@ -9,10 +9,12 @@ from src.localstorage_component import ls_get, ls_set
 from src.stocks import (
     get_sp500_stocks, get_ftse100_stocks, get_dax_stocks,
     get_cac40_stocks, get_smi_stocks, get_aex_stocks,
-    get_ibex_stocks, get_etfs, get_crypto, get_commodities, TICKER_COLORS
+    get_ibex_stocks, get_etfs, get_crypto, get_commodities,
+    get_reits, get_bonds, get_emerging_markets, TICKER_COLORS
 )
 from src.fx import get_ticker_currency, get_fx_rate, CURRENCY_SYMBOLS
 from src.portfolio import build_portfolio_df, fetch_buy_price, compute_analytics
+from src.excel_export import build_excel_report
 
 @st.cache_data(ttl=900)   # 15 minutes — current price data
 def fetch_price_history_short(ticker: str) -> pd.DataFrame:
@@ -223,9 +225,12 @@ def load_stock_options() -> dict:
         "SMI":         get_smi_stocks(),
         "AEX":         get_aex_stocks(),
         "IBEX 35":     get_ibex_stocks(),
-        "ETFs":        get_etfs(),
-        "Crypto":      get_crypto(),
-        "Commodities": get_commodities(),
+        "ETFs":             get_etfs(),
+        "Crypto":           get_crypto(),
+        "Commodities":      get_commodities(),
+        "REITs":            get_reits(),
+        "Bonds":            get_bonds(),
+        "Emerging Markets": get_emerging_markets(),
     }
 
 all_stock_options = load_stock_options()
@@ -458,6 +463,19 @@ portfolio_color_map = {
 # Company names — falls back to ticker if fetch fails.
 name_map = {t: fetch_company_name(t) for t in st.session_state.portfolio}
 
+# ── Pre-compute analytics (cached 24h) ───────
+# Done here (outside expanders) so the export button always has data,
+# regardless of whether the user has opened the Risk & Analytics section.
+_tickers       = list(st.session_state.portfolio.keys())
+_price_data_1y = {t: fetch_analytics_history(t) for t in _tickers}
+_spy_data      = fetch_analytics_history("SPY")
+analytics_df   = compute_analytics(st.session_state.portfolio, _price_data_1y, _spy_data)
+fund_rows      = []
+for _t in _tickers:
+    _f = fetch_fundamentals(_t)
+    if _f:
+        fund_rows.append({"Ticker": _t, **_f})
+
 # ── KPI Cards ────────────────────────────────
 total_value   = df["Total Value"].sum()
 daily_pnl     = df["Daily P&L"].sum()
@@ -535,6 +553,34 @@ st.markdown(
     unsafe_allow_html=True
 )
 st.markdown("<div style='margin-bottom: 16px;'></div>", unsafe_allow_html=True)
+
+# ── Download Report ───────────────────────────
+_, _col_dl = st.columns([5, 1])
+with _col_dl:
+    _excel_bytes = build_excel_report(
+        positions_df=df,
+        analytics_df=analytics_df,
+        fund_rows=fund_rows,
+        price_histories={t: fetch_price_history_short(t) for t in st.session_state.portfolio},
+        name_map=name_map,
+        currency=base_currency,
+        summary_kpis={
+            "total_value":   total_value,
+            "daily_pnl":     daily_pnl,
+            "cost_basis":    cost_basis,
+            "total_divs":    total_divs,
+            "total_return":  total_return,
+            "total_ret_pct": total_ret_pct,
+            "n_positions":   n_positions,
+        },
+    )
+    st.download_button(
+        label="Download Report",
+        data=_excel_bytes,
+        file_name=f"portfolio_{pd.Timestamp.today().strftime('%Y%m%d')}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        use_container_width=True,
+    )
 
 # ──────────────────────────────────────────────
 # Positions Table
@@ -834,12 +880,6 @@ with st.expander("🔬 Risk & Analytics", expanded=False):
         unsafe_allow_html=True
     )
 
-    _tickers = list(st.session_state.portfolio.keys())
-    _price_data_1y = {t: fetch_analytics_history(t) for t in _tickers}
-    _spy_data = fetch_analytics_history("SPY")
-
-    analytics_df = compute_analytics(st.session_state.portfolio, _price_data_1y, _spy_data)
-
     if not analytics_df.empty:
         # ── Risk Metrics ──
         st.markdown("##### Risk Metrics")
@@ -939,12 +979,6 @@ with st.expander("🔬 Risk & Analytics", expanded=False):
             '</p>',
             unsafe_allow_html=True
         )
-
-        fund_rows = []
-        for t in _tickers:
-            f = fetch_fundamentals(t)
-            if f:
-                fund_rows.append({"Ticker": t, **f})
 
         if fund_rows:
             fund_df = pd.DataFrame(fund_rows).set_index("Ticker")

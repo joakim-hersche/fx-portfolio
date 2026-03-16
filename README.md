@@ -14,7 +14,8 @@ A real-time stock portfolio tracker built with Streamlit. Add positions across m
 - **Performance metrics** — current value, daily P&L, return %, and portfolio weight per position; colour-coded green/red in the positions table
 - **Dividend tracking** — dividends fetched from purchase date with historical FX conversion, factored into total return
 - **Interactive charts** — portfolio allocation bar chart, normalised performance comparison with configurable time range (3M / 6M / 1Y / All time), and individual price history with buy price and purchase date overlays; click legend items to show/hide individual lines
-- **Global stock coverage** — S&P 500, FTSE 100, DAX, CAC 40, SMI, AEX, IBEX 35, ETFs, crypto, and commodities; searchable via index-filtered dropdown
+- **Global stock coverage** — S&P 500, FTSE 100, DAX, CAC 40, SMI, AEX, IBEX 35, ETFs, crypto, commodities, REITs, bonds, and emerging markets; searchable via index-filtered dropdown
+- **Excel report export** — download a formatted multi-sheet `.xlsx` report with embedded charts, live formulas, and a pre-built template for manually adding other assets (real estate, private equity, etc.) to calculate total net worth
 - **Import / export** — save and load your portfolio as JSON, with validated parsing on import
 - **Performance** — all price data and stock lists are cached; price history charts lazy-load on demand
 
@@ -66,7 +67,8 @@ market-dashboard/
 ├── src/
 │   ├── portfolio.py      # Portfolio construction and P&L calculations
 │   ├── stocks.py         # Stock list fetching (Wikipedia scraper)
-│   └── fx.py             # FX rate fetching and currency detection
+│   ├── fx.py             # FX rate fetching and currency detection
+│   └── excel_export.py   # Multi-sheet Excel report generation
 ├── data/
 │   └── sample_portfolio.json
 ├── Screenshots/
@@ -81,6 +83,7 @@ market-dashboard/
 - [yfinance](https://github.com/ranaroussi/yfinance) — real-time stock, FX, and dividend data
 - [pandas](https://pandas.pydata.org) — data processing
 - [Plotly](https://plotly.com/python/) — interactive charts
+- [openpyxl](https://openpyxl.readthedocs.io) — Excel report generation
 
 ## Technical Notes
 
