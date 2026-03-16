@@ -3,6 +3,7 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import os
 from src.localstorage_component import ls_get, ls_set
 
@@ -14,6 +15,7 @@ from src.stocks import (
 )
 from src.fx import get_ticker_currency, get_fx_rate, CURRENCY_SYMBOLS
 from src.portfolio import build_portfolio_df, fetch_buy_price, compute_analytics
+from src.monte_carlo import run_monte_carlo_backtest, run_monte_carlo_ticker
 from src.excel_export import build_excel_report
 
 @st.cache_data(ttl=900)   # 15 minutes — current price data
@@ -47,16 +49,21 @@ def fetch_fundamentals(ticker: str) -> dict:
         low_1y   = info.get("fiftyTwoWeekLow")
         high_1y  = info.get("fiftyTwoWeekHigh")
         pe       = info.get("trailingPE")
-        div      = info.get("dividendYield")
+        div_rate = info.get("dividendRate")  # annual dividend per share, native currency
 
-        # yfinance returns dividendYield as a decimal fraction (0.0042 = 0.42%).
-        # Some versions return values already as percent form (0.42 = 0.42%).
-        # Use threshold of 0.20: values below that are decimal fractions → multiply by 100.
-        # Values ≥ 0.20 are already in percent form (e.g. 0.92 = 0.92%).
-        if div is not None:
-            div_pct = div * 100 if div < 0.20 else div
+        # Prefer computing yield from dividendRate/price — more reliable than dividendYield
+        # which yfinance returns inconsistently (sometimes decimal fraction, sometimes percent).
+        if div_rate and current and current > 0:
+            div_pct = round(div_rate / current * 100, 4)
         else:
-            div_pct = None
+            div = info.get("dividendYield")
+            if div is not None:
+                # Fallback: dividendYield is normally a decimal fraction (0.0042 = 0.42%).
+                # If result > 20% after multiplying it was already in percent form.
+                candidate = div * 100
+                div_pct = candidate if candidate <= 20.0 else div
+            else:
+                div_pct = None
 
         # For London-listed tickers yfinance returns fiftyTwoWeekLow/High in GBX
         # (pence) but currentPrice in GBP, so divide by 100 to make units consistent.
@@ -88,6 +95,17 @@ def fetch_company_name(ticker: str) -> str:
         return info.get("shortName") or info.get("longName") or ticker
     except Exception:
         return ticker
+
+
+@st.cache_data(ttl=86400)  # 24 hours — 5-year history for Monte Carlo
+def fetch_simulation_history(ticker: str) -> pd.DataFrame:
+    """Fetch up to 5-year price history for Monte Carlo simulation. Cached for 24 hours."""
+    try:
+        hist = yf.Ticker(ticker).history(period="5y")
+        hist.index = hist.index.tz_localize(None)
+        return hist
+    except Exception:
+        return pd.DataFrame()
 
 
 @st.cache_data(ttl=86400)  # 24 hours — analytics price data
@@ -488,6 +506,12 @@ fund_rows      = []
 for _t in _tickers:
     _f = fetch_fundamentals(_t)
     if _f:
+        # Convert 1-year range to base currency so Fundamentals matches Positions pricing.
+        _tc = get_ticker_currency(_t)
+        if _tc != base_currency:
+            _fx = get_fx_rate(_tc, base_currency)
+            if _f.get("1-Year Low"):  _f["1-Year Low"]  = round(_f["1-Year Low"]  * _fx, 2)
+            if _f.get("1-Year High"): _f["1-Year High"] = round(_f["1-Year High"] * _fx, 2)
         fund_rows.append({"Ticker": _t, **_f})
 
 # ── KPI Cards ────────────────────────────────
@@ -1011,5 +1035,183 @@ with st.expander("🔬 Risk & Analytics", expanded=False):
                         format="%.0f%%",
                     ),
                 },
+            )
+
+# ──────────────────────────────────────────────
+# Monte Carlo Backtest
+# ──────────────────────────────────────────────
+st.divider()
+with st.expander("🎲 Monte Carlo Backtest", expanded=False):
+    st.markdown(
+        '<p class="section-intro">'
+        'Tests how well a Monte Carlo simulation would have tracked your actual portfolio over the past year. '
+        'The model is trained on up to 4 years of historical returns, then run forward 252 trading days from one year ago — '
+        'using only data that would have been available at that point. '
+        'The fan shows where simulated portfolios ended up; the black line is what actually happened. '
+        'A high hit rate means the model\'s confidence bands were well-calibrated for your specific holdings.'
+        '</p>',
+        unsafe_allow_html=True
+    )
+
+    if not st.session_state.portfolio:
+        st.info("Add positions to run the backtest.")
+    else:
+        _price_data_5y = {t: fetch_simulation_history(t) for t in _tickers}
+
+        with st.spinner("Running backtest (1,000 simulations)…"):
+            _bt = run_monte_carlo_backtest(st.session_state.portfolio, _price_data_5y)
+
+        if not _bt:
+            st.warning(
+                "Not enough price history to run the backtest. "
+                "Each position needs at least 2 years of trading data. "
+                f"Tickers excluded due to short history: "
+                f"{', '.join(t for t in _tickers if t not in _bt.get('tickers_used', []))}"
+                if _bt else
+                "Not enough price history to run the backtest. "
+                "Each position needs at least 2 years of trading data."
+            )
+        else:
+            # ── KPI row ──────────────────────────────────────────────────
+            _col1, _col2, _col3 = st.columns(3)
+            _col1.metric(
+                "Hit Rate — 80% band",
+                f"{_bt['hit_rate_80']}%",
+                help="Percentage of trading days over the past year where the actual portfolio value fell within the simulated 80% confidence interval (p10–p90).",
+            )
+            _col2.metric(
+                "Hit Rate — 50% band",
+                f"{_bt['hit_rate_50']}%",
+                help="Same check for the tighter 50% band (p25–p75). A well-calibrated model should be close to 50%.",
+            )
+            _col3.metric(
+                "Training window",
+                f"{_bt['train_days']} days",
+                help=f"Number of trading days used to calibrate the model (data before {_bt['split_date']}).",
+            )
+
+            # ── Fan chart ────────────────────────────────────────────────
+            _dates  = list(_bt["sim_dates"])
+            _pct    = _bt["percentiles"]
+            _actual = _bt["actual"]
+            _sym    = currency_symbol
+
+            _fig_bt = go.Figure()
+
+            # 80% band (p10–p90)
+            _fig_bt.add_trace(go.Scatter(
+                x=_dates + list(reversed(_dates)),
+                y=list(_pct["p90"]) + list(reversed(_pct["p10"])),
+                fill="toself",
+                fillcolor="rgba(99,110,250,0.12)",
+                line=dict(width=0),
+                name="80% of simulations",
+                hoverinfo="skip",
+            ))
+
+            # 50% band (p25–p75)
+            _fig_bt.add_trace(go.Scatter(
+                x=_dates + list(reversed(_dates)),
+                y=list(_pct["p75"]) + list(reversed(_pct["p25"])),
+                fill="toself",
+                fillcolor="rgba(99,110,250,0.25)",
+                line=dict(width=0),
+                name="50% of simulations",
+                hoverinfo="skip",
+            ))
+
+            # Median simulation
+            _fig_bt.add_trace(go.Scatter(
+                x=_dates,
+                y=_pct["p50"],
+                line=dict(color="rgba(99,110,250,0.7)", width=1.5, dash="dash"),
+                name="Median simulation",
+            ))
+
+            # Actual portfolio value
+            _fig_bt.add_trace(go.Scatter(
+                x=list(_actual.index),
+                y=list(_actual.values),
+                line=dict(color="#222222", width=2),
+                name="Actual portfolio value",
+            ))
+
+            _fig_bt.update_layout(
+                template=_PLOT_TMPL,
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                margin=dict(t=20, b=40),
+                yaxis=dict(tickprefix=_sym, title=f"Portfolio Value ({base_currency})"),
+                xaxis=dict(title="Date"),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+                hovermode="x unified",
+            )
+
+            st.plotly_chart(_fig_bt, use_container_width=True)
+
+            # ── Per-ticker reliability table ─────────────────────────────
+            st.markdown("##### Model Reliability by Position")
+            st.markdown(
+                '<p class="section-intro">'
+                'Shows how well the model performed for each position individually. '
+                'Stocks with <b>fat-tailed</b> return distributions — where extreme moves happen more often than a normal distribution predicts — '
+                'tend to produce lower hit rates. This is common in individual growth stocks, crypto, and commodities. '
+                'Broad ETFs and large-cap equities typically score higher.'
+                '</p>',
+                unsafe_allow_html=True
+            )
+
+            def _reliability_label(hit_rate_80: float) -> str:
+                if hit_rate_80 >= 80:  return "Good"
+                if hit_rate_80 >= 65:  return "Moderate"
+                return "Low"
+
+            def _color_reliability(val: str) -> str:
+                if val == "Good":     return f"color: {_C_POSITIVE}; font-weight: 500"
+                if val == "Moderate": return f"color: {_C_AMBER}; font-weight: 500"
+                return f"color: {_C_NEGATIVE}; font-weight: 500"
+
+            def _color_kurtosis(val) -> str:
+                if not isinstance(val, (int, float)): return ""
+                if val <= 1:  return f"color: {_C_POSITIVE}"
+                if val <= 3:  return f"color: {_C_AMBER}"
+                return f"color: {_C_NEGATIVE}"
+
+            _rel_rows = []
+            for _t in _bt["tickers_used"]:
+                _hr   = _bt["ticker_hit_rates"].get(_t, {})
+                _flag = _bt["ticker_flags"].get(_t, {})
+                _rel_rows.append({
+                    "Ticker":          _t,
+                    "Hit Rate 80% CI": _hr.get("hit_rate_80"),
+                    "Hit Rate 50% CI": _hr.get("hit_rate_50"),
+                    "Kurtosis":        _flag.get("kurtosis"),
+                    "Skewness":        _flag.get("skewness"),
+                    "Fat-tailed":      "Yes" if _flag.get("fat_tailed") else "No",
+                    "Reliability":     _reliability_label(_hr.get("hit_rate_80", 0)),
+                })
+
+            _rel_df = pd.DataFrame(_rel_rows).set_index("Ticker")
+
+            _styled_rel = (
+                _rel_df.style
+                .format({
+                    "Hit Rate 80% CI": "{:.1f}%",
+                    "Hit Rate 50% CI": "{:.1f}%",
+                    "Kurtosis":        "{:.2f}",
+                    "Skewness":        "{:.2f}",
+                }, na_rep="—")
+                .map(_color_reliability, subset=["Reliability"])
+                .map(_color_kurtosis,    subset=["Kurtosis"])
+            )
+            st.dataframe(_styled_rel, use_container_width=True)
+
+            # ── Caveat ───────────────────────────────────────────────────
+            st.caption(
+                f"Simulated using up to {_bt['train_days']} days of historical log-returns calibrated before "
+                f"{_bt['split_date']}. The model assumes returns are normally distributed and that historical "
+                f"correlations are stable — both simplifications. Positions flagged as fat-tailed violate the "
+                f"normality assumption; their confidence bands will understate tail risk. "
+                f"This is a statistical model, not financial advice."
             )
 

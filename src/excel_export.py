@@ -329,7 +329,7 @@ def _sheet_summary(wb: Workbook, kpis: dict, currency: str, n_rows: int) -> None
         ("Dividends Received",     f"=SUM(Positions!$I$2:$I${n_rows + 1})",                      curr_fmt,    True),
         ("Total Return",           "=B5+B8-B7",                                                  curr_fmt,    True),
         ("Total Return (%)",       '=IF(B7=0,"",B9/B7*100)',                                     '0.00"%"',  True),
-        ("Number of Positions",    f"=COUNTA(Positions!$A$2:$A${n_rows + 1})",                   "0",         True),
+        ("Number of Lots",          f"=COUNTA(Positions!$A$2:$A${n_rows + 1})",                   "0",         True),
     ]
 
     for idx, (label, value, fmt, is_formula) in enumerate(formula_rows, 5):
@@ -454,7 +454,7 @@ def _sheet_positions(wb: Workbook, df: pd.DataFrame, name_map: dict, currency: s
                 if col_name in {"Buy Price", "Dividends", "Daily P&L"}:
                     cell.number_format = curr_fmt
                 elif col_name == "Shares":
-                    cell.number_format = "#,##0.######"
+                    cell.number_format = "#,##0"
 
             if col_name in input_cols:
                 cell.font = _INPUT_FONT
@@ -597,34 +597,34 @@ def _sheet_risk(wb: Workbook, analytics_df: pd.DataFrame, name_map: dict, positi
                 cell.number_format = "0.00"
         ws.row_dimensions[row_idx].height = 18
 
-    # Portfolio weighted-average row
+    # Portfolio weighted-average row — uses SUMPRODUCT formulas linked to Allocation weights
     if not positions_df.empty and len(export_df) > 1:
-        total_val     = positions_df.groupby("Ticker")["Total Value"].sum()
-        portfolio_val = total_val.sum()
-        if portfolio_val > 0:
-            weights = (total_val / portfolio_val).reindex(export_df["Ticker"].values, fill_value=0)
+        last_row   = len(export_df) + 1
+        totals_row = last_row + 2
+        alloc_last = len(export_df) + 1  # Allocation data rows mirror Risk Metrics rows
 
-            def _wavg(col):
-                vals = export_df[col].fillna(0).values
-                return round(float((weights.values * vals).sum()), 2)
+        ws.cell(totals_row, 1, "Portfolio (weighted avg)").font = _TOTAL_FONT
+        for col_idx in range(1, len(headers) + 1):
+            c        = ws.cell(totals_row, col_idx)
+            c.fill   = _TOTAL_FILL
+            c.border = _TOP_BORDER
+            c.font   = _TOTAL_FONT
+        ws.row_dimensions[totals_row].height = 22
 
-            last_row   = len(export_df) + 1
-            totals_row = last_row + 2
-            ws.cell(totals_row, 1, "Portfolio (weighted avg)").font = _TOTAL_FONT
-            for col_idx in range(1, len(headers) + 1):
-                c        = ws.cell(totals_row, col_idx)
-                c.fill   = _TOTAL_FILL
-                c.border = _TOP_BORDER
-                c.font   = _TOTAL_FONT
-            ws.row_dimensions[totals_row].height = 22
-
-            for col_name in ("Volatility (%)", "Max Drawdown (%)", "Sharpe Ratio", "Beta"):
-                if col_name not in export_df.columns:
-                    continue
-                col_idx = headers.index(col_name) + 1
-                cell = ws.cell(totals_row, col_idx, _wavg(col_name))
-                cell.font          = _TOTAL_FONT
-                cell.number_format = '0.0"%"' if col_name in ("Volatility (%)", "Max Drawdown (%)") else "0.00"
+        for col_name in ("Volatility (%)", "Max Drawdown (%)", "Sharpe Ratio", "Beta"):
+            if col_name not in export_df.columns:
+                continue
+            col_idx  = headers.index(col_name) + 1
+            col_l    = get_column_letter(col_idx)
+            # SUMPRODUCT(allocation_weights%, risk_values) / 100
+            # Allocation!D holds Weight(%) values (e.g. 30.5), divide by 100 to get proper weight
+            formula  = (
+                f"=IFERROR(SUMPRODUCT(Allocation!$D$2:$D${alloc_last},"
+                f"{col_l}2:{col_l}{last_row})/100,\"\")"
+            )
+            cell               = ws.cell(totals_row, col_idx, formula)
+            cell.font          = _TOTAL_FONT
+            cell.number_format = '0.0"%"' if col_name in ("Volatility (%)", "Max Drawdown (%)") else "0.00"
 
     if sharpe_col:
         n_rows     = len(export_df) + 1
@@ -1107,7 +1107,7 @@ def _sheet_scenario(wb: Workbook, positions_df: pd.DataFrame, name_map: dict, cu
         ws.cell(row_idx, 2, name_map.get(ticker, ticker))
 
         ws.cell(row_idx, 3,
-            f"=SUMIF(Positions!$A:$A,A{row_idx},Positions!$D:$D)").number_format = "#,##0.######"
+            f"=SUMIF(Positions!$A:$A,A{row_idx},Positions!$D:$D)").number_format = "#,##0"
 
         ws.cell(row_idx, 4,
             f"=IFERROR(SUMPRODUCT((Positions!$A$2:$A$10000=A{row_idx})"
