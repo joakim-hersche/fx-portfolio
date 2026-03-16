@@ -608,7 +608,10 @@ def _sheet_daily_returns(wb: Workbook, price_histories: dict) -> None:
             cell               = ws.cell(row_idx, col_idx, safe)
             cell.number_format = '0.00"%"'
             if safe is not None:
-                cell.fill = _GREEN_FILL if safe > 0 else (_RED_FILL if safe < 0 else None)
+                if safe > 0:
+                    cell.fill = _GREEN_FILL
+                elif safe < 0:
+                    cell.fill = _RED_FILL
 
     _autofit(ws)
     ws.freeze_panes = "B2"
