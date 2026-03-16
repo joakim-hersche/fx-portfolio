@@ -8,49 +8,30 @@ A prioritised roadmap of improvements, fixes, and stretch goals. Updated March 2
 
 > High-visibility polish items a recruiter will notice in the first 30 seconds.
 
-### Embed Screenshot or GIF in README
+### ~~Embed Screenshot or GIF in README~~ ✅
 
-- **What:** Add an embedded screenshot or animated GIF showing the live dashboard
-- **Why:** Recruiters spend 5–10 seconds on the README before deciding whether to click the live demo — a visual is the highest-ROI change possible
-- **How:** QuickTime screen recording → convert to GIF with ezgif.com → embed with `![Dashboard](screenshots/demo.gif)`
-- **Status:** PDF exists in `screenshots/` but doesn't render inline on GitHub — replace with PNG or GIF
+- Replaced PDF with inline PNG screenshots in README (overview, KPI cards, positions table, allocation chart, normalised performance, price history)
 
-### Dark Mode Charts
 
-- **What:** Apply `template="plotly_dark"` to all Plotly charts
-- **Why:** Charts currently have a light background that clashes visibly with Streamlit's dark theme — noticeable on the live dashboard
-- **How:** Add `.update_layout(template="plotly_dark")` to every `px.line()`, `px.pie()`, and `px.imshow()` call
-- **Files:** `app.py`
+### ~~Clean Up requirements.txt~~ ✅
 
-### Clean Up requirements.txt
+- Trimmed to 7 direct dependencies: `streamlit`, `yfinance`, `pandas`, `plotly`, `requests`, `lxml`, `openpyxl`
 
-- **What:** Trim requirements.txt to only direct dependencies
-- **Why:** Current file is a full pip freeze (~130 packages) including FastAPI, uvicorn, Jupyter, pytest — none of which are used by this app; a recruiter will wonder why a Streamlit dashboard needs FastAPI
-- **How:** Replace with a minimal list: `streamlit`, `yfinance`, `pandas`, `plotly`, `requests`, `lxml`; keep full freeze as `requirements-lock.txt` if needed
+### ~~Remove .DS_Store and Add to .gitignore~~ ✅
 
-### Remove .DS_Store and Add to .gitignore
+- `.DS_Store` removed from git tracking and added to `.gitignore`
 
-- **What:** Delete the committed `.DS_Store` file and prevent future commits
-- **Why:** macOS metadata file has no place in a repo — small thing but engineers notice it
-- **How:** `git rm --cached .DS_Store`, add `.DS_Store` to `.gitignore`
+### ~~Add Repo Description and Topics on GitHub~~ ✅
 
-### Add Repo Description and Topics on GitHub
+- Description and topic tags added to GitHub repo About section
 
-- **What:** Add a one-line description, live app URL, and topic tags to the GitHub repo's About section
-- **Why:** Currently shows "No description, website, or topics provided" — this is the first thing a recruiter sees on the repo page
-- **How:** GitHub repo → About (gear icon) → add description, website URL, and tags: `python`, `streamlit`, `finance`, `portfolio-tracker`, `yfinance`, `plotly`
+### ~~Add Total Return KPI Cards~~ ✅
 
-### Add Total Return KPI Cards
+- Total Return KPI card added showing absolute amount and % alongside Total Value, Today's Change, and Positions
 
-- **What:** Add total portfolio return ($ and %) as additional KPI cards alongside the existing three
-- **Why:** Total Value, Daily P&L, and Positions count is sparse — total return is the most important metric and it's already computed in the DataFrame
-- **How:** Sum `(Total Value - Cost Basis + Dividends)` across all rows; display as two additional KPI cards
+### ~~Add Development Notes to README~~ ✅
 
-### Add Development Notes to README
-
-- **What:** Add a brief section explaining key technical decisions (GBX handling, historical FX dividends, tiered caching, etc.)
-- **Why:** With all 26 commits from a two-day burst, a recruiter may wonder about AI involvement — explaining your decisions demonstrates genuine understanding
-- **How:** 3–5 bullet points under a "Technical notes" section in the README
+- Technical Notes section added to README covering GBX handling, dividend adjustment, tiered caching, multi-lot support, and error handling
 
 -----
 
@@ -58,47 +39,29 @@ A prioritised roadmap of improvements, fixes, and stretch goals. Updated March 2
 
 > Risk and fundamental metrics that add serious analytical depth.
 
-### Sharpe Ratio
+### ~~Sharpe Ratio~~ ✅
 
-- **What:** Risk-adjusted return for each position and the overall portfolio
-- **Why:** The single most recognised metric for comparing returns on a risk-adjusted basis — any quant or portfolio manager will look for this
-- **How:** Use daily returns history (already fetched) — `(mean_daily_return / std_daily_return) * sqrt(252)` with a risk-free rate assumption (e.g. 4%)
-- **Files:** `src/portfolio.py`, `app.py` — summary metrics section
+- Implemented in `src/portfolio.py`; displayed in risk analytics table with colour coding
 
-### Volatility (Annualised)
+### ~~Volatility (Annualised)~~ ✅
 
-- **What:** Annualised standard deviation of daily returns per position
-- **Why:** Core risk metric — shows how much a stock swings relative to its return
-- **How:** `daily_returns.std() * sqrt(252)` from price history
-- **Files:** `src/portfolio.py`, `app.py` — positions table or risk panel
+- `daily_returns.std() * sqrt(252)` per ticker; shown in risk analytics table
 
-### Beta vs S&P 500
+### ~~Beta vs S&P 500~~ ✅
 
-- **What:** Sensitivity of each position to S&P 500 moves
-- **Why:** Standard risk measure — beta > 1 means more volatile than the market, < 1 means defensive
-- **How:** Regress stock daily returns against SPY daily returns over the same period; slope = beta
-- **Files:** `src/portfolio.py`, `app.py` — positions table
+- SPY fetched via `fetch_analytics_history`; regression slope computed in `compute_analytics` and shown as "Market Sensitivity" in the risk table
 
-### Max Drawdown
+### ~~Max Drawdown~~ ✅
 
-- **What:** Largest peak-to-trough decline for each position over the holding period
-- **Why:** Key downside risk metric used by fund managers — shows worst-case loss from a peak
-- **How:** `(rolling_max - price) / rolling_max` — take the minimum over the period
-- **Files:** `src/portfolio.py`, `app.py` — risk panel or positions table
+- Worst peak-to-trough drop per ticker; shown in risk analytics table as "Worst Drop (%)"
 
-### Correlation Matrix
+### ~~Correlation Matrix~~ ✅
 
-- **What:** Heatmap showing how positions move relative to each other
-- **Why:** Demonstrates diversification quality — low correlation between positions reduces portfolio risk
-- **How:** Compute pairwise correlation of daily returns across all tickers; display as `px.imshow` heatmap
-- **Files:** `app.py` — new analytics section
+- Pairwise correlation heatmap using `px.imshow` in `app.py`, with "Correlation" legend label
 
-### Fundamental Snapshot (P/E, Div Yield, 52-week range)
+### ~~Fundamental Snapshot (P/E, Div Yield, 52-week range)~~ ✅
 
-- **What:** Per-stock panel showing P/E ratio, dividend yield, and 52-week high/low with current price position
-- **Why:** Valuation context alongside price performance — rounds out the picture for any fundamental investor
-- **How:** Pull from `ticker.info` — keys: `trailingPE`, `dividendYield`, `fiftyTwoWeekHigh`, `fiftyTwoWeekLow`
-- **Files:** `app.py` — per-stock expander or new fundamentals table
+- `fetch_fundamentals()` pulls `trailingPE`, `dividendYield`, `fiftyTwoWeekHigh/Low` from `ticker.info`; displayed in a fundamentals table per position
 
 ### Monte Carlo Simulation
 
@@ -120,11 +83,9 @@ A prioritised roadmap of improvements, fixes, and stretch goals. Updated March 2
 - **How:** Calculate `sum(shares * buy_price) / sum(shares)` across all lots per ticker and display as a summary row
 - **Files:** `app.py` — portfolio table
 
-### Total Return in Currency Terms
+### ~~Total Return in Currency Terms~~ ✅
 
-- **What:** Show absolute P&L in currency (e.g. +$1,240) alongside the percentage return
-- **Why:** Both are expected in any professional portfolio view — % alone doesn’t convey scale
-- **Files:** `app.py` — portfolio table and summary metrics
+- Total Return KPI card shows absolute amount in base currency alongside the percentage
 
 ### Portfolio Benchmark Comparison
 
@@ -205,12 +166,6 @@ A prioritised roadmap of improvements, fixes, and stretch goals. Updated March 2
 ## P3 — Polish & Stretch Goals
 
 > Final layer of quality and presentation.
-
-### Dark Mode Chart Theming
-
-- **What:** Set `template="plotly_dark"` on all Plotly charts
-- **Why:** Plotly charts use a light background by default which clashes with Streamlit’s dark mode
-- **Files:** `app.py` — all `px.line()` and `px.pie()` calls
 
 ### CSV Export
 
@@ -308,3 +263,11 @@ A prioritised roadmap of improvements, fixes, and stretch goals. Updated March 2
 - Correlation heatmap "Correlation" legend label added
 - Stock Market field — tooltip replaced with always-visible caption
 - Scratch notebooks removed from repo
+- README inline screenshots (PNG) replacing PDF
+- requirements.txt trimmed to 7 direct dependencies
+- .DS_Store removed from git tracking and added to .gitignore
+- Technical Notes section added to README (GBX handling, dividend FX, caching, multi-lot, error handling)
+- Total Return KPI card — absolute amount and % in base currency
+- Sharpe Ratio, Volatility, Beta, Max Drawdown — computed in `src/portfolio.py`, displayed in risk analytics table
+- Correlation heatmap — pairwise daily returns heatmap via `px.imshow`
+- Fundamental Snapshot — P/E, dividend yield, 52-week range fetched from `ticker.info`
