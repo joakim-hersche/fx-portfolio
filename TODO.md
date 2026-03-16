@@ -33,6 +33,12 @@ A prioritised roadmap of improvements, fixes, and stretch goals. Updated March 2
 
 - Technical Notes section added to README covering GBX handling, dividend adjustment, tiered caching, multi-lot support, and error handling
 
+### README GIF
+
+- **What:** Replace static PNG screenshots with an animated GIF or short screen recording showing the dashboard in action
+- **Why:** A GIF shows interactivity — hovering, toggling, expanding charts — in a way static screenshots can't; highest-ROI visual change remaining
+- **How:** QuickTime screen recording → convert to GIF with ezgif.com → replace hero image in README
+
 -----
 
 ## P1 — Investment Analytics
@@ -63,6 +69,13 @@ A prioritised roadmap of improvements, fixes, and stretch goals. Updated March 2
 
 - `fetch_fundamentals()` pulls `trailingPE`, `dividendYield`, `fiftyTwoWeekHigh/Low` from `ticker.info`; displayed in a fundamentals table per position
 
+### Performance Attribution
+
+- **What:** Table showing each position's contribution to total portfolio return (`weight × return` per ticker)
+- **Why:** Standard in any professional portfolio view — immediately shows which positions drove or dragged performance; analytically strong and straightforward to implement
+- **How:** For each ticker: `contribution = (position_value / total_value) * return_pct`; display sorted by contribution
+- **Files:** `app.py` — summary or analytics section
+
 ### Monte Carlo Simulation
 
 - **What:** Project portfolio value forward (e.g. 1 year) with confidence intervals using simulated return paths
@@ -75,6 +88,34 @@ A prioritised roadmap of improvements, fixes, and stretch goals. Updated March 2
 ## P2 — Medium Priority
 
 > Meaningful improvements to analytical depth and UX.
+
+### Split app.py into Modules
+
+- **What:** Extract chart rendering, KPI cards, and portfolio display into separate modules
+- **Why:** At 1013 lines `app.py` is a monolith — a recruiter targeting engineering roles will notice; the `src/` pattern is already established
+- **How:** `src/charts.py` for Plotly figure builders, `src/ui.py` for KPI cards and styled table
+- **Files:** `app.py`, new `src/` modules
+
+### Analyst Target Price
+
+- **What:** Add a column showing the analyst consensus target price and implied upside/downside % from current price
+- **Why:** Valuation context beyond P/E — shows where the street thinks the stock is going; finance audiences expect this
+- **How:** `ticker.info["targetMeanPrice"]`; upside = `(target - current) / current * 100`
+- **Files:** `app.py` — fundamentals table
+
+### Rebalancing Calculator
+
+- **What:** Let the user set a target % per position; show deviation from target and how much to buy/sell to rebalance
+- **Why:** Practical tool for real investors — differentiates from basic dashboards that only show current state
+- **How:** Input target weights per ticker; compare to current weights; output required trades in shares and currency
+- **Files:** `app.py` — new rebalancing section
+
+### Dividend Income Chart
+
+- **What:** Monthly bar chart of dividend income received across all positions
+- **Why:** The dividend data is already fetched per lot — aggregating it by month adds a genuinely useful view for income investors and is visually distinct from everything else in the dashboard
+- **How:** Group dividend records by ex-dividend month, sum in base currency, plot as `px.bar`
+- **Files:** `app.py` — dividends section
 
 ### Weighted Average Cost Basis
 
@@ -112,13 +153,6 @@ A prioritised roadmap of improvements, fixes, and stretch goals. Updated March 2
 
 - Added to both price history (3M / 6M / 1Y / 2Y / Since purchase / Custom) and normalised comparison chart (3M / 6M / 1Y / All time)
 
-### Volume Chart
-
-- **What:** Add trading volume as a bar chart below each price history chart
-- **Why:** Standard in financial charting — volume confirms price moves and signals conviction
-- **How:** Use Plotly’s secondary y-axis (`make_subplots`) to add volume bars below the price line
-- **Files:** `app.py` — price history section
-
 ### Portfolio Table Summary View
 
 - **What:** Group multiple lots per ticker into a single summary row with total shares, weighted average cost, combined value, and expandable lot detail
@@ -142,13 +176,6 @@ A prioritised roadmap of improvements, fixes, and stretch goals. Updated March 2
 - **Why:** `portfolio.py` has non-trivial logic (dividend FX conversion, return %, cost basis) — tests show correctness and engineering discipline
 - **How:** pytest test cases for: dividend calculation, GBX conversion, return formula with dividends, multiple lots, empty portfolio
 - **Files:** `tests/test_portfolio.py` (new)
-
-### Split app.py into Modules
-
-- **What:** Extract form logic, chart rendering, and portfolio display into separate modules or helper functions
-- **Why:** At ~400 lines `app.py` handles page config, CSS, session state, import/export, form, KPI cards, table, three chart sections — a recruiter targeting FinTech roles will notice the monolith
-- **How:** Extend `src/` pattern: `src/charts.py` for Plotly figure builders, `src/ui.py` for KPI cards and styled table
-- **Files:** `app.py`, new `src/` modules
 
 ### ~~Remove scratch notebooks~~ ✅
 
@@ -187,18 +214,9 @@ A prioritised roadmap of improvements, fixes, and stretch goals. Updated March 2
 - **How:** Check if `data.empty` after fetching and display a warning row in the table instead of crashing
 - **Files:** `app.py` — portfolio display loop
 
-### Custom Streamlit Subdomain
+### ~~Custom Streamlit Subdomain~~ ✅
 
-- **What:** Change the deployed URL to something clean (e.g. `market-dashboard.streamlit.app`)
-- **Why:** The current auto-generated URL is ugly and hard to share
-- **How:** Streamlit app settings → Custom subdomain — takes 2 minutes
-- **Status:** Do this before sharing with recruiters
-
-### README Screenshot / GIF
-
-- **What:** Add a GIF or short screen recording showing the dashboard in action
-- **Why:** A GIF is far more compelling than a static screenshot for a portfolio piece — shows the interactivity
-- **How:** Use a screen recorder (QuickTime on Mac), convert to GIF with ezgif.com, add to `screenshots/` folder and README
+- Live at `market-dashboard-open-source-project.streamlit.app`
 
 ### LinkedIn Post
 
