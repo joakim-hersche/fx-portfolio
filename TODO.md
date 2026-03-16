@@ -6,7 +6,7 @@ A prioritised roadmap of improvements, fixes, and stretch goals. Updated March 2
 
 ## P0 — Quick Wins (Do Before Sharing)
 
-> High-visibility polish items a recruiter will notice in the first 30 seconds.
+> High-visibility polish items that matter for first impressions.
 
 ### ~~Embed Screenshot or GIF in README~~ ✅
 
@@ -92,7 +92,7 @@ A prioritised roadmap of improvements, fixes, and stretch goals. Updated March 2
 ### Split app.py into Modules
 
 - **What:** Extract chart rendering, KPI cards, and portfolio display into separate modules
-- **Why:** At 1013 lines `app.py` is a monolith — a recruiter targeting engineering roles will notice; the `src/` pattern is already established
+- **Why:** At 1013 lines `app.py` is doing too much — the `src/` pattern is already established and the split is overdue
 - **How:** `src/charts.py` for Plotly figure builders, `src/ui.py` for KPI cards and styled table
 - **Files:** `app.py`, new `src/` modules
 
@@ -173,7 +173,7 @@ A prioritised roadmap of improvements, fixes, and stretch goals. Updated March 2
 ### Unit Tests
 
 - **What:** Add `tests/test_portfolio.py` with unit tests for core calculation logic
-- **Why:** `portfolio.py` has non-trivial logic (dividend FX conversion, return %, cost basis) — tests show correctness and engineering discipline
+- **Why:** `portfolio.py` has non-trivial logic (dividend FX conversion, return %, cost basis) — tests catch regressions and verify edge cases
 - **How:** pytest test cases for: dividend calculation, GBX conversion, return formula with dividends, multiple lots, empty portfolio
 - **Files:** `tests/test_portfolio.py` (new)
 
@@ -221,7 +221,7 @@ A prioritised roadmap of improvements, fixes, and stretch goals. Updated March 2
 ### LinkedIn Post
 
 - **What:** Write and publish a LinkedIn post about the project
-- **Why:** Highest-ROI action for recruiter visibility — a post with a live demo link will outperform a static profile update
+- **Why:** A post with a live demo link gets more reach than a static profile update
 - **Content:** What you built, what problem it solves, tech stack, link to live app and GitHub
 
 -----
