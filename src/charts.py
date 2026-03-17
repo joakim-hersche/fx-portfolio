@@ -216,9 +216,9 @@ def build_comparison_chart(
         yaxis_title=f"Indexed (100 = start){fx_note}",
         legend_title="",
         legend=dict(
-            orientation="v",
-            yanchor="top", y=1,
-            xanchor="left", x=1.01,
+            orientation="h",
+            yanchor="bottom", y=1.02,
+            xanchor="left", x=0,
             font=dict(size=11),
         ),
     )
