@@ -7,6 +7,15 @@ _log = logging.getLogger(__name__)
 
 CURRENCY_SYMBOLS = {"USD": "$", "CHF": "CHF ", "EUR": "€", "GBP": "£"}
 
+TRADING_DAYS = 252  # Approximate trading days per year
+
+
+def normalize_gbx(value, currency: str):
+    """Convert GBX (pence) to GBP by dividing by 100. Pass-through for other currencies."""
+    if currency == "GBX":
+        return value / 100
+    return value
+
 def get_ticker_currency(ticker: str) -> str:
     """Return the native currency code for a given ticker symbol."""
     if ticker.endswith(".L"):

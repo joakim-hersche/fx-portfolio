@@ -89,12 +89,9 @@ A prioritised roadmap of improvements, fixes, and stretch goals. Updated March 2
 
 > Meaningful improvements to analytical depth and UX.
 
-### Split app.py into Modules
+### ~~Split app.py into Modules~~ ✅
 
-- **What:** Extract chart rendering, KPI cards, and portfolio display into separate modules
-- **Why:** At 1013 lines `app.py` is doing too much — the `src/` pattern is already established and the split is overdue
-- **How:** `src/charts.py` for Plotly figure builders, `src/ui.py` for KPI cards and styled table
-- **Files:** `app.py`, new `src/` modules
+- Extracted chart rendering, data fetching, and section rendering into `src/charts.py`, `src/data_fetch.py`, `src/state.py`, and `src/sections/`
 
 ### Analyst Target Price
 

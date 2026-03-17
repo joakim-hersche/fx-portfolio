@@ -6,3 +6,5 @@ plotly
 requests
 lxml
 openpyxl
+scipy
+statsmodels
