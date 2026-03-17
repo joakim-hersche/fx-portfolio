@@ -1,3 +1,5 @@
+import io
+
 import pandas as pd
 import requests
 
@@ -6,7 +8,7 @@ HEADERS = {"User-Agent": "Mozilla/5.0"}
 def fetch_wikipedia_table(url, ticker_col, name_col, suffix=""):
     try:
         response = requests.get(url, headers=HEADERS)
-        tables = pd.read_html(response.text)
+        tables = pd.read_html(io.StringIO(response.text))
         for table in tables:
             if ticker_col in table.columns and name_col in table.columns:
                 stocks = {}

@@ -1,5 +1,6 @@
 import yfinance as yf
 import pandas as pd
+import streamlit as st
 from src.fx import get_ticker_currency, get_fx_rate
 
 
@@ -58,8 +59,9 @@ def compute_analytics(portfolio: dict, price_data: dict, spy_data: pd.DataFrame)
 
     return pd.DataFrame(rows) if rows else pd.DataFrame()
 
+@st.cache_data(ttl=86400)
 def _dividends_in_base_currency(
-    ticker_obj: yf.Ticker,
+    ticker: str,
     purchase_date: str,
     from_currency: str,
     base_currency: str,
@@ -67,6 +69,7 @@ def _dividends_in_base_currency(
     """Sum dividends per share from purchase_date to today, converted at historical FX rates."""
     try:
         today = str(pd.Timestamp.today().date())
+        ticker_obj = yf.Ticker(ticker)
         hist = ticker_obj.history(start=purchase_date, end=today)
         if hist.empty or "Dividends" not in hist.columns:
             return 0.0
@@ -100,6 +103,7 @@ def _dividends_in_base_currency(
     except Exception:
         return 0.0
 
+@st.cache_data(ttl=900)
 def build_portfolio_df(portfolio: dict, base_currency: str) -> pd.DataFrame:
     """
     Convert raw portfolio session state into a display-ready DataFrame.
@@ -126,7 +130,7 @@ def build_portfolio_df(portfolio: dict, base_currency: str) -> pd.DataFrame:
             purchase_date = lot["purchase_date"]
 
             dividends_per_share = (
-                _dividends_in_base_currency(t, purchase_date, get_ticker_currency(ticker), base_currency)
+                _dividends_in_base_currency(ticker, purchase_date, get_ticker_currency(ticker), base_currency)
                 if purchase_date and purchase_date != "Manual"
                 else 0.0
             )

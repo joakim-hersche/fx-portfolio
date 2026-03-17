@@ -655,6 +655,73 @@ def _sheet_risk(wb: Workbook, analytics_df: pd.DataFrame, name_map: dict, positi
     _add_table(ws, "tblRisk", f"A1:{get_column_letter(len(headers))}{len(export_df) + 1}")
 
 
+def _sheet_attribution(wb: Workbook, positions_df: pd.DataFrame, name_map: dict) -> None:
+    ws = wb.create_sheet("Attribution")
+
+    _no_gridlines(ws)
+
+    if positions_df.empty:
+        ws["A1"] = "No positions available."
+        return
+
+    # Aggregate to ticker level
+    grouped = positions_df.groupby("Ticker", sort=False).agg(
+        total_value=("Total Value", "sum"),
+        cost_basis_sum=pd.NamedAgg(column="Buy Price", aggfunc=lambda x: (x * positions_df.loc[x.index, "Shares"]).sum()),
+        dividends=("Dividends", "sum"),
+    )
+    total_portfolio = grouped["total_value"].sum()
+    if total_portfolio == 0:
+        ws["A1"] = "No portfolio value to attribute."
+        return
+
+    grouped["weight"] = grouped["total_value"] / total_portfolio * 100
+    grouped["return_pct"] = (
+        (grouped["total_value"] + grouped["dividends"] - grouped["cost_basis_sum"])
+        / grouped["cost_basis_sum"] * 100
+    )
+    grouped["contribution"] = grouped["weight"] / 100 * grouped["return_pct"]
+    grouped = grouped.sort_values("contribution", ascending=False)
+
+    headers = ["Ticker", "Company", "Weight (%)", "Return (%)", "Contribution (%)"]
+    _write_headers(ws, headers)
+
+    for row_idx, (ticker, row) in enumerate(grouped.iterrows(), 2):
+        alt = _row_fill(row_idx)
+        values = [ticker, name_map.get(ticker, ""), row["weight"], row["return_pct"], row["contribution"]]
+        for col_idx, (col_name, value) in enumerate(zip(headers, values), 1):
+            cell        = ws.cell(row_idx, col_idx, round(value, 2) if isinstance(value, float) else value)
+            cell.border = _CELL_BORDER
+            cell.font   = Font(size=10)
+            if alt:
+                cell.fill = alt
+            if col_name in ("Weight (%)", "Return (%)", "Contribution (%)") and isinstance(value, (int, float)):
+                cell.number_format = '0.00"%"'
+
+    # Total row
+    last_data  = len(grouped) + 1
+    totals_row = last_data + 1
+    ws.cell(totals_row, 1, "Total").font = _TOTAL_FONT
+    for col_idx in range(1, len(headers) + 1):
+        c        = ws.cell(totals_row, col_idx)
+        c.fill   = _TOTAL_FILL
+        c.border = _TOP_BORDER
+        c.font   = _TOTAL_FONT
+    # Sum contribution column
+    contrib_col = get_column_letter(5)
+    ws.cell(totals_row, 5, f"=SUM({contrib_col}2:{contrib_col}{last_data})").font = _TOTAL_FONT
+    ws.cell(totals_row, 5).number_format = '0.00"%"'
+
+    # Conditional formatting on contribution column
+    data_range = f"{contrib_col}2:{contrib_col}{last_data}"
+    ws.conditional_formatting.add(data_range, CellIsRule(operator="greaterThan", formula=["0"], fill=_GREEN_FILL))
+    ws.conditional_formatting.add(data_range, CellIsRule(operator="lessThan",    formula=["0"], fill=_RED_FILL))
+
+    _autofit(ws)
+    ws.freeze_panes = "A2"
+    _add_table(ws, "tblAttribution", f"A1:{get_column_letter(len(headers))}{last_data}")
+
+
 def _sheet_fundamentals(wb: Workbook, fund_rows: list[dict], name_map: dict) -> None:
     ws = wb.create_sheet("Fundamentals")
 
@@ -879,7 +946,7 @@ def _sheet_daily_returns(wb: Workbook, price_histories: dict) -> None:
     # Do NOT ffill before pct_change: carrying a stale price forward produces a
     # spurious 0% return on non-trading days and understates daily volatility.
     # dropna(how="all") removes only rows where every ticker has no data.
-    returns = pivot.pct_change().dropna(how="all")
+    returns = pivot.pct_change(fill_method=None).dropna(how="all")
 
     ws.cell(1, 1, "Date").fill      = _HEADER_FILL
     ws.cell(1, 1).font              = _HEADER_FONT
@@ -1556,6 +1623,7 @@ def build_excel_report(
         ("Scenario Analysis", lambda: _sheet_scenario(wb, positions_df, name_map, currency)),
         ("Allocation",        lambda: _sheet_allocation(wb, positions_df, name_map, currency)),
         ("Risk Metrics",      lambda: _sheet_risk(wb, analytics_df, name_map, positions_df)),
+        ("Attribution",       lambda: _sheet_attribution(wb, positions_df, name_map)),
         ("Fundamentals",      lambda: _sheet_fundamentals(wb, fund_rows, name_map)),
         ("Monte Carlo",       lambda: _sheet_monte_carlo(wb, _bt, _tmc, _pmc, name_map, currency)),
         ("Correlation",       lambda: _sheet_correlation(wb, price_histories, positions_df)),
