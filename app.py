@@ -38,8 +38,10 @@ st.set_page_config(page_title="Market Dashboard", layout="wide")
 # ──────────────────────────────────────────────
 st.markdown("""
 <link rel="manifest" href="app/static/manifest.json">
-<link rel="apple-touch-icon" href="app/static/icon-192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="app/static/icon-180.png">
+<link rel="apple-touch-icon" sizes="192x192" href="app/static/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Market-Dashboard">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#3B82F6">
 <script>
