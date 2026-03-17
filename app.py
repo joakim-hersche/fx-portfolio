@@ -48,10 +48,13 @@ _PWA_TAGS = """
 """
 
 _index_html = Path(st.__file__).parent / "static" / "index.html"
-_html = _index_html.read_text()
-if "apple-mobile-web-app-capable" not in _html:
-    _html = _html.replace("<title>", _PWA_TAGS + "\n    <title>", 1)
-    _index_html.write_text(_html)
+try:
+    _html = _index_html.read_text()
+    if "apple-mobile-web-app-capable" not in _html:
+        _html = _html.replace("<title>", _PWA_TAGS + "\n    <title>", 1)
+        _index_html.write_text(_html)
+except PermissionError:
+    pass  # Read-only filesystem (e.g. Streamlit Cloud) — skip patching
 
 # ──────────────────────────────────────────────
 # CSS — design-token variables, dark + light
