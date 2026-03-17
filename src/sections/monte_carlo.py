@@ -10,7 +10,7 @@ from src.charts import (
 from src.data_fetch import cached_run_monte_carlo_ticker, fetch_company_name
 from src.fx import get_ticker_currency, get_fx_rate
 from src.monte_carlo import compute_var_cvar, compute_model_diagnostics
-from src.ui import section_header
+from src.ui import section_header, render_styled_table
 
 
 # ── Backtest ─────────────────────────────────────────────────────────────────
@@ -159,7 +159,7 @@ def render_backtest(
             .map(_color_reliability, subset=["Reliability"])
             .map(_color_kurtosis,    subset=["Kurtosis"])
         )
-        st.dataframe(_styled_rel, width="stretch")
+        render_styled_table(_styled_rel)
 
         st.caption(
             f"Simulated using up to {bt['train_days']} days of historical log-returns calibrated before "
@@ -277,7 +277,7 @@ def render_model_diagnostics(
             '</p>',
             unsafe_allow_html=True
         )
-        st.dataframe(styled, width="stretch")
+        render_styled_table(styled)
 
 
 # ── Portfolio Outlook ────────────────────────────────────────────────────────

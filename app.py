@@ -147,6 +147,33 @@ st.markdown(f"""
     font-size: 12px;
 }}
 
+/* ── HTML styled tables (replaces st.dataframe for small tables) ── */
+.styled-table {{
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    color: var(--text-color);
+}}
+.styled-table th {{
+    text-align: left;
+    padding: 8px 12px;
+    font-weight: 600;
+    font-size: 12px;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border-subtle);
+}}
+.styled-table td {{
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border-subtle);
+}}
+.styled-table th.blank,
+.styled-table th.index_name {{
+    border-bottom: 1px solid var(--border-subtle);
+}}
+.styled-table tbody tr:hover {{
+    background-color: color-mix(in srgb, var(--text-color) 5%, transparent);
+}}
+
 /* ── KPI grid ───────────────────────────── */
 .kpi-grid {{
     display: grid;

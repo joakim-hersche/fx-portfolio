@@ -4,7 +4,7 @@ import pandas as pd
 import streamlit as st
 
 from src.charts import C_POSITIVE, C_NEGATIVE, C_AMBER, build_correlation_heatmap
-from src.ui import section_header
+from src.ui import section_header, render_styled_table
 
 
 def _build_attribution(positions_df: pd.DataFrame) -> pd.DataFrame:
@@ -100,7 +100,7 @@ def render_risk_analytics(
                 .map(_color_return, subset=["Return (%)"])
                 .map(_color_contribution, subset=["Contribution (%)"])
             )
-            st.dataframe(styled_attr, width="stretch")
+            render_styled_table(styled_attr)
 
     if not analytics_df.empty:
         # ── Risk Metrics + Heatmap side-by-side ──
@@ -159,7 +159,7 @@ def render_risk_analytics(
                 .map(_color_drawdown,   subset=["Worst Drop (%)"])
                 .map(_color_sharpe,     subset=["Return/Risk Score"])
             )
-            st.dataframe(styled_risk, width="stretch")
+            render_styled_table(styled_risk)
 
         # ── Correlation Heatmap (side-by-side with risk metrics) ──
         if _has_corr:
