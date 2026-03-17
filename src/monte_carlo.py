@@ -15,6 +15,8 @@ data before the 1-year test window. Fetch with a separate cached function in app
 
 import numpy as np
 import pandas as pd
+from scipy import stats
+from statsmodels.stats.diagnostic import acorr_ljungbox
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -118,6 +120,88 @@ def compute_distribution_flags(price_data: dict) -> dict:
             "fat_tailed": kurt > 1,
         }
     return flags
+
+
+# ── Model diagnostics ────────────────────────────────────────────────────────
+
+def compute_model_diagnostics(price_data: dict) -> dict:
+    """
+    Run statistical tests on each ticker's log-returns to check whether
+    the Monte Carlo model's assumptions hold.
+
+    Tests:
+      1. Jarque-Bera  — are returns normally distributed?
+      2. Ljung-Box    — are returns independent (no autocorrelation)?
+
+    Also returns QQ-plot data (theoretical vs observed quantiles) for
+    visual inspection.
+
+    Returns
+    -------
+    {ticker: {
+        jb_stat, jb_pvalue, jb_normal,
+        lb_stat, lb_pvalue, lb_independent,
+        qq_theoretical, qq_observed,
+        verdict,
+    }}
+    """
+    results = {}
+    for ticker, hist in price_data.items():
+        if hist is None or hist.empty or "Close" not in hist.columns:
+            continue
+        log_r = np.log(hist["Close"].dropna() / hist["Close"].dropna().shift(1)).dropna()
+        if len(log_r) < 60:
+            continue
+
+        vals = log_r.values
+
+        # Jarque-Bera: H0 = returns are normally distributed
+        jb_stat, jb_p = stats.jarque_bera(vals)
+        jb_normal = jb_p >= 0.05
+
+        # Ljung-Box: H0 = no autocorrelation up to lag 10
+        lb_result = acorr_ljungbox(vals, lags=[10], return_df=True)
+        lb_stat = float(lb_result["lb_stat"].iloc[0])
+        lb_p = float(lb_result["lb_pvalue"].iloc[0])
+        lb_independent = lb_p >= 0.01  # lenient threshold — most equities show mild autocorrelation
+
+        # QQ data for plotting
+        (qq_theoretical, qq_observed), _ = stats.probplot(vals, dist="norm")
+
+        # Plain-English verdict
+        if jb_normal and lb_independent:
+            verdict = (
+                "Returns look approximately normal with no significant autocorrelation. "
+                "Model assumptions are reasonable for this position."
+            )
+        elif not jb_normal and lb_independent:
+            verdict = (
+                "Returns deviate significantly from normality (fat tails or skew). "
+                "Confidence bands may understate tail risk."
+            )
+        elif jb_normal and not lb_independent:
+            verdict = (
+                "Returns show significant autocorrelation. The model treats each day as "
+                "independent, which may miss momentum or mean-reversion patterns."
+            )
+        else:
+            verdict = (
+                "Returns are non-normal and autocorrelated. "
+                "Treat the simulation output with extra caution."
+            )
+
+        results[ticker] = {
+            "jb_stat": round(float(jb_stat), 2),
+            "jb_pvalue": round(float(jb_p), 4),
+            "jb_normal": jb_normal,
+            "lb_stat": round(lb_stat, 2),
+            "lb_pvalue": round(lb_p, 4),
+            "lb_independent": lb_independent,
+            "qq_theoretical": qq_theoretical,
+            "qq_observed": qq_observed,
+            "verdict": verdict,
+        }
+    return results
 
 
 # ── Backtest ──────────────────────────────────────────────────────────────────
