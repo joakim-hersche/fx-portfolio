@@ -157,18 +157,22 @@ async def run():
         await page.wait_for_timeout(18000)
 
         # ── NAVIGATE TABS to show charts ──────────────────────────────────────
-        # Overview tab: KPI cards + allocation + comparison
+        # Overview tab: KPI cards — pause, then scroll to show allocation + comparison charts
         await page.get_by_role("tab", name="Overview").click()
-        await page.wait_for_timeout(2500)
-
-        # Positions tab: positions table + price history
-        await page.get_by_role("tab", name="Positions").click()
-        await page.wait_for_timeout(1500)
-        await page.evaluate("window.scrollTo({top: 800, behavior: 'smooth'})")
         await page.wait_for_timeout(2000)
+        await page.evaluate("window.scrollTo({top: 420, behavior: 'smooth'})")
+        await page.wait_for_timeout(2500)   # hold on the charts
+
+        # Positions tab: wait for price history chart to render, then show it
+        await page.get_by_role("tab", name="Positions").click()
+        await page.evaluate("window.scrollTo({top: 0, behavior: 'instant'})")
+        await page.wait_for_timeout(3000)   # let the chart render
+        await page.evaluate("window.scrollTo({top: 600, behavior: 'smooth'})")
+        await page.wait_for_timeout(2000)   # hold on the chart
 
         # Risk & Analytics tab
         await page.get_by_role("tab", name="Risk & Analytics").click()
+        await page.evaluate("window.scrollTo({top: 0, behavior: 'instant'})")
         await page.wait_for_timeout(2500)
 
         # ── TOGGLE CURRENCY in sidebar ────────────────────────────────────────
@@ -178,8 +182,10 @@ async def run():
         print("Switched currency to CHF, waiting for refresh")
         await page.wait_for_timeout(4000)
 
-        # Back to Overview to show updated CHF numbers
+        # Back to Overview — scroll to show CHF numbers + allocation chart
         await page.get_by_role("tab", name="Overview").click()
+        await page.wait_for_timeout(1500)
+        await page.evaluate("window.scrollTo({top: 420, behavior: 'smooth'})")
         await page.wait_for_timeout(2000)
 
         # ── done ─────────────────────────────────────────────────────────────
