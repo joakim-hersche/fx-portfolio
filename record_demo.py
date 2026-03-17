@@ -221,10 +221,24 @@ try:
     dur = source_duration if source_duration else total_frames / source_fps
     print(f"Source: {total_frames} frames @ {source_fps:.1f}fps = {dur:.1f}s")
 
-    out_frame_count = int(TARGET_DURATION * TARGET_FPS)
-    indices = np.linspace(0, total_frames - 1, out_frame_count, dtype=int)
+    # Non-uniform sampling: loading waits get few frames, chart sections get many.
+    # Timeline (approx): 0-25s form fill, 25-60s waits, 60s+ charts/tabs/currency
+    t_form_end  = min(int(total_frames * 25  / dur), total_frames - 1)
+    t_wait_end  = min(int(total_frames * 60  / dur), total_frames - 1)
+    t_total_end = total_frames - 1
+
+    segments = [
+        (0,           t_form_end,  8),   # form interactions — 8 frames
+        (t_form_end,  t_wait_end,  4),   # loading waits     — 4 frames
+        (t_wait_end,  t_total_end, 48),  # charts + currency — 48 frames
+    ]
+    indices = []
+    for start, end, n in segments:
+        if end > start and n > 0:
+            indices.extend(np.linspace(start, end - 1, n, dtype=int).tolist())
+
     frame_ms = int(1000 / TARGET_FPS)
-    print(f"Output: {out_frame_count} frames @ {TARGET_FPS}fps")
+    print(f"Output: {len(indices)} frames @ {TARGET_FPS}fps = {len(indices)/TARGET_FPS:.1f}s")
 
     frames_out = []
     for idx in indices:

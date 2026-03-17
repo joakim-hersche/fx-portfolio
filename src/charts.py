@@ -201,7 +201,8 @@ def build_comparison_chart(
     # Use "TICKER — Short Name" labels that fit in the legend without overflow
     def _legend_label(t: str) -> str:
         name = name_map.get(t, t)
-        # Truncate long names so the legend stays compact
+        if name == t:
+            return t
         short = name[:15] + "…" if len(name) > 15 else name
         return f"{t} — {short}"
 
