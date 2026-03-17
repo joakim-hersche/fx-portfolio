@@ -4,10 +4,10 @@ Thin orchestrator that delegates to focused modules under src/.
 """
 
 from datetime import datetime
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st
-import streamlit.components.v1 as components
 
 from src.charts import C_CARD_BRD, C_METRIC_BRD, C_POSITIVE, C_NEGATIVE, CHART_COLORS
 from src.data_fetch import (
@@ -35,35 +35,23 @@ from src.ui import section_header
 st.set_page_config(page_title="Market Dashboard", layout="wide")
 
 # ──────────────────────────────────────────────
-# PWA — manifest, icons, service worker
+# PWA — patch Streamlit's index.html with meta tags
 # ──────────────────────────────────────────────
-components.html("""
-<script>
-(function() {
-    var doc = window.parent.document;
-    var head = doc.head;
-    // Avoid duplicates on Streamlit re-runs
-    if (head.querySelector('link[rel="manifest"]')) return;
-    var tags = [
-        {tag: 'link', attrs: {rel: 'manifest', href: '/app/static/manifest.json'}},
-        {tag: 'link', attrs: {rel: 'apple-touch-icon', sizes: '180x180', href: '/app/static/icon-180.png'}},
-        {tag: 'link', attrs: {rel: 'apple-touch-icon', sizes: '192x192', href: '/app/static/icon-192.png'}},
-        {tag: 'meta', attrs: {name: 'apple-mobile-web-app-capable', content: 'yes'}},
-        {tag: 'meta', attrs: {name: 'apple-mobile-web-app-title', content: 'Market-Dashboard'}},
-        {tag: 'meta', attrs: {name: 'apple-mobile-web-app-status-bar-style', content: 'black-translucent'}},
-        {tag: 'meta', attrs: {name: 'theme-color', content: '#3B82F6'}},
-    ];
-    tags.forEach(function(t) {
-        var el = doc.createElement(t.tag);
-        for (var k in t.attrs) el.setAttribute(k, t.attrs[k]);
-        head.appendChild(el);
-    });
-    if ('serviceWorker' in window.parent.navigator) {
-        window.parent.navigator.serviceWorker.register('/app/static/sw.js');
-    }
-})();
-</script>
-""", height=0)
+_PWA_TAGS = """
+    <link rel="manifest" href="./app/static/manifest.json">
+    <link rel="apple-touch-icon" sizes="180x180" href="./app/static/icon-180.png">
+    <link rel="apple-touch-icon" sizes="192x192" href="./app/static/icon-192.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Market-Dashboard">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#3B82F6">
+"""
+
+_index_html = Path(st.__file__).parent / "static" / "index.html"
+_html = _index_html.read_text()
+if "apple-mobile-web-app-capable" not in _html:
+    _html = _html.replace("<title>", _PWA_TAGS + "\n    <title>", 1)
+    _index_html.write_text(_html)
 
 # ──────────────────────────────────────────────
 # CSS — design-token variables, dark + light
