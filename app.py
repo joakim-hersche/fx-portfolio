@@ -37,17 +37,27 @@ st.set_page_config(page_title="Market Dashboard", layout="wide")
 # PWA — manifest, icons, service worker
 # ──────────────────────────────────────────────
 st.markdown("""
-<link rel="manifest" href="app/static/manifest.json">
-<link rel="apple-touch-icon" sizes="180x180" href="app/static/icon-180.png">
-<link rel="apple-touch-icon" sizes="192x192" href="app/static/icon-192.png">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Market-Dashboard">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="theme-color" content="#3B82F6">
 <script>
-if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('app/static/sw.js');
-}
+(function() {
+    var head = document.head;
+    var tags = [
+        {tag: 'link', attrs: {rel: 'manifest', href: 'app/static/manifest.json'}},
+        {tag: 'link', attrs: {rel: 'apple-touch-icon', sizes: '180x180', href: 'app/static/icon-180.png'}},
+        {tag: 'link', attrs: {rel: 'apple-touch-icon', sizes: '192x192', href: 'app/static/icon-192.png'}},
+        {tag: 'meta', attrs: {name: 'apple-mobile-web-app-capable', content: 'yes'}},
+        {tag: 'meta', attrs: {name: 'apple-mobile-web-app-title', content: 'Market-Dashboard'}},
+        {tag: 'meta', attrs: {name: 'apple-mobile-web-app-status-bar-style', content: 'black-translucent'}},
+        {tag: 'meta', attrs: {name: 'theme-color', content: '#3B82F6'}},
+    ];
+    tags.forEach(function(t) {
+        var el = document.createElement(t.tag);
+        for (var k in t.attrs) el.setAttribute(k, t.attrs[k]);
+        head.appendChild(el);
+    });
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('app/static/sw.js');
+    }
+})();
 </script>
 """, unsafe_allow_html=True)
 
