@@ -14,6 +14,8 @@ from src.charts import (
     CHART_COLORS, C_CARD_BRD, C_NEGATIVE, C_POSITIVE,
     build_allocation_chart, build_comparison_chart,
 )
+from src.nicegui_positions import build_positions_tab
+from src.nicegui_risk import build_risk_tab
 from src.data_fetch import (
     fetch_company_name, fetch_price_history_range, load_stock_options,
 )
@@ -145,10 +147,10 @@ def index():
                 _build_overview(portfolio, currency)
 
             with ui.tab_panel(positions_tab):
-                _build_tab_placeholder("Positions", "Positions table and price history will render here.")
+                build_positions_tab(portfolio, currency)
 
             with ui.tab_panel(risk_tab):
-                _build_tab_placeholder("Risk & Analytics", "Attribution, risk metrics, correlation heatmap, and fundamentals.")
+                build_risk_tab(portfolio, currency)
 
             with ui.tab_panel(forecast_tab):
                 _build_tab_placeholder("Forecast", "Portfolio & position Monte Carlo outlook, fan charts, VaR/CVaR.")
