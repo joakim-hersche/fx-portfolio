@@ -16,5 +16,8 @@ data/*.xlsx
 *_PROMPT.md
 *_audit_report.md
 
+# Claude Code
+.claude/
+
 # macOS
 .DS_Store
