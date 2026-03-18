@@ -14,6 +14,7 @@ from src.charts import (
     CHART_COLORS, C_CARD_BRD, C_NEGATIVE, C_POSITIVE,
     build_allocation_chart, build_comparison_chart,
 )
+from src.nicegui_forecast import build_diagnostics_tab, build_forecast_tab
 from src.nicegui_positions import build_positions_tab
 from src.nicegui_risk import build_risk_tab
 from src.data_fetch import (
@@ -153,10 +154,10 @@ def index():
                 build_risk_tab(portfolio, currency)
 
             with ui.tab_panel(forecast_tab):
-                _build_tab_placeholder("Forecast", "Portfolio & position Monte Carlo outlook, fan charts, VaR/CVaR.")
+                build_forecast_tab(portfolio, currency)
 
             with ui.tab_panel(diagnostics_tab):
-                _build_tab_placeholder("Diagnostics", "Monte Carlo backtest, model diagnostics, QQ plots.")
+                build_diagnostics_tab(portfolio, currency)
 
     # ── Callbacks ──────────────────────────────────────────
     def _on_currency_change(new_currency: str):
@@ -826,21 +827,6 @@ async def _export_excel(portfolio: dict, currency: str) -> None:
 
     filename = f"portfolio_{pd.Timestamp.today().strftime('%Y%m%d')}.xlsx"
     ui.download(excel_bytes, filename)
-
-
-def _build_tab_placeholder(title: str, description: str) -> None:
-    """Render a placeholder card for tabs not yet ported."""
-    ui.html(f"""
-        <div class="chart-card" style="max-width:600px;">
-            <div class="chart-header">
-                <div class="chart-title">{title}</div>
-            </div>
-            <div style="color:#475569;font-size:12px;line-height:1.6;">
-                {description}<br>
-                <span style="color:#374151;font-size:11px;">Will be ported in later phases.</span>
-            </div>
-        </div>
-    """)
 
 
 # ── Run ────────────────────────────────────────────────────

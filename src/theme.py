@@ -124,6 +124,7 @@ body, .q-page, .nicegui-content {
 .kpi-value { font-size: 22px; font-weight: 700; color: %(TEXT_PRIMARY)s; line-height: 1.15; }
 .kpi-card.hero .kpi-value { font-size: 26px; }
 .kpi-sub { font-size: 11px; color: %(TEXT_DIM)s; margin-top: 4px; }
+.kpi-sub.sm { font-size: 10px; margin-top: 2px; }
 .kpi-badge {
   display: inline-flex; align-items: center; gap: 3px;
   font-size: 12px; font-weight: 600; padding: 2px 7px;
@@ -168,6 +169,7 @@ body, .q-page, .nicegui-content {
 .table-wrap tbody td { padding: 9px 12px; color: %(TEXT_SECONDARY)s; }
 .td-pos { color: %(GREEN)s; font-weight: 600; }
 .td-neg { color: %(RED)s; font-weight: 600; }
+.td-amb { color: %(AMBER)s; font-weight: 600; }
 
 /* ── Metric cards (forecast) ───────────────────────────── */
 .metric-card {
@@ -195,6 +197,75 @@ body, .q-page, .nicegui-content {
   background: %(BG_INPUT)s; border: 1px solid rgba(255,255,255,0.1);
   border-radius: 6px; color: %(TEXT_MUTED)s; font-family: inherit;
   font-size: 12px; padding: 4px 8px; cursor: pointer;
+}
+
+/* ── Responsive: Tablet (< 1024px) ────────────────────── */
+@media (max-width: 1023px) {
+  .kpi-row { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .charts-row { grid-template-columns: 1fr; gap: 12px; }
+}
+
+/* ── Responsive: Mobile (< 768px) ─────────────────────── */
+@media (max-width: 767px) {
+  /* Sidebar: collapse via NiceGUI drawer breakpoint; reduce width when open */
+  .q-drawer { width: 260px !important; max-width: 80vw !important; }
+
+  /* KPI cards: single column */
+  .kpi-row { grid-template-columns: 1fr; gap: 8px; }
+  .kpi-card, .kpi-card.hero { padding: 14px 16px; }
+  .kpi-value { font-size: 20px; }
+  .kpi-card.hero .kpi-value { font-size: 22px; }
+  .kpi-label { font-size: 9px; letter-spacing: 0.1em; }
+
+  /* Charts: full width, stack vertically */
+  .charts-row { grid-template-columns: 1fr; gap: 10px; }
+  .chart-card { padding: 12px; }
+
+  /* Tables: horizontal scroll */
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .table-wrap table { min-width: 600px; }
+
+  /* Tab panels: reduce padding */
+  .q-tab-panels, .q-tab-panel { padding: 12px !important; }
+
+  /* Tabs: scroll horizontally if many tabs */
+  .q-tabs { overflow-x: auto; }
+  .q-tab { font-size: 11px !important; min-width: auto !important; padding: 0 10px !important; }
+
+  /* Topbar: tighten */
+  .q-header { padding-left: 8px !important; padding-right: 8px !important; }
+
+  /* Metric cards: stack */
+  .metric-card { padding: 10px 12px; }
+  .metric-value { font-size: 18px; }
+
+  /* Sidebar section headers */
+  .sidebar-section-header { font-size: 9px; }
+}
+
+/* ── Responsive: Small mobile (< 480px) ───────────────── */
+@media (max-width: 479px) {
+  .kpi-value { font-size: 18px; }
+  .kpi-card.hero .kpi-value { font-size: 20px; }
+  .kpi-sub { font-size: 10px; }
+  .chart-title { font-size: 9px; }
+  .table-wrap table { font-size: 11px; }
+  .table-wrap thead th { padding: 8px 8px; font-size: 8.5px; }
+  .table-wrap tbody td { padding: 7px 8px; }
+}
+
+/* ── Touch-friendly targets ───────────────────────────── */
+@media (pointer: coarse) {
+  .pill { padding: 6px 12px; font-size: 11px; }
+  .add-btn { padding: 10px 0; font-size: 12px; }
+  .sidebar-btn { padding: 10px 0; font-size: 12px; }
+  .position-row { padding: 8px 6px; }
+}
+
+/* ── PWA standalone mode: hide browser chrome padding ─── */
+@media (display-mode: standalone) {
+  body { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
+  .q-header { padding-top: env(safe-area-inset-top); }
 }
 </style>
 """ % {
