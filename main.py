@@ -8,7 +8,7 @@ import json
 import os
 
 import pandas as pd
-from nicegui import app, ui
+from nicegui import app, run, ui
 
 from src.data_fetch import load_stock_options
 from src.fx import (
@@ -239,7 +239,7 @@ def _build_sidebar(portfolio: dict, stock_options: dict, currency: str) -> None:
     manual_checkbox.on_value_change(on_manual_change)
 
     # ── Add Position button ──────────────────────────────
-    def on_add_position():
+    async def on_add_position():
         market = market_select.value
         is_alt = market in _ALT_ASSETS
         ticker = ticker_select.value
@@ -262,7 +262,7 @@ def _build_sidebar(portfolio: dict, stock_options: dict, currency: str) -> None:
             ui.notify("Please enter a valid buy price.", type="warning")
             return
 
-        # Determine buy price and FX rate
+        # Determine buy price and FX rate (use run.io_bound for blocking I/O)
         ticker_currency = get_ticker_currency(ticker)
         base_currency = currency
         purchase_date = date_input.value
@@ -271,7 +271,9 @@ def _build_sidebar(portfolio: dict, stock_options: dict, currency: str) -> None:
             buy_price = price_input.value
             buy_fx_rate = 1.0
         elif purchase_date:
-            result = fetch_buy_price(ticker, str(purchase_date))
+            notification = ui.notification("Fetching price data...", spinner=True, timeout=None)
+            result = await run.io_bound(fetch_buy_price, ticker, str(purchase_date))
+            notification.dismiss()
             if result is None:
                 ui.notify("No price data found for that date. Try a different date.", type="negative")
                 return
@@ -281,16 +283,18 @@ def _build_sidebar(portfolio: dict, stock_options: dict, currency: str) -> None:
                     f"{purchase_date} was not a trading day. Using price from {actual_date}.",
                     type="info",
                 )
-            buy_fx_rate = get_historical_fx_rate(ticker_currency, base_currency, str(purchase_date))
+            buy_fx_rate = await run.io_bound(get_historical_fx_rate, ticker_currency, base_currency, str(purchase_date))
         else:
             # Alt asset without date — use today
             purchase_date = str(pd.Timestamp.today().date())
-            result = fetch_buy_price(ticker, purchase_date)
+            notification = ui.notification("Fetching price data...", spinner=True, timeout=None)
+            result = await run.io_bound(fetch_buy_price, ticker, purchase_date)
+            notification.dismiss()
             buy_price = result[0] if result else None
             if buy_price is None:
                 ui.notify("Could not fetch current price.", type="negative")
                 return
-            buy_fx_rate = get_fx_rate(ticker_currency, base_currency)
+            buy_fx_rate = await run.io_bound(get_fx_rate, ticker_currency, base_currency)
 
         # Compute shares for alt assets
         if is_alt:
