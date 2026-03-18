@@ -161,6 +161,23 @@ Standard pattern: `ui.row`/`ui.column` for layout, `ui.plotly` for charts, `ui.t
 
 ---
 
+## Server & Deployment
+
+Currently the app runs on **Streamlit's built-in Tornado server** (`streamlit run app.py`). Each framework has a different server model:
+
+| Framework | Server | Run command | Deployment impact |
+|-----------|--------|-------------|-------------------|
+| **NiceGUI** | FastAPI/Uvicorn (ASGI) | `python main.py` | Must move off Streamlit Cloud → any Python host (Render, Railway, Fly.io, VPS) |
+| **Dash** | Flask (WSGI) | `python app.py` | Same as above — not Streamlit Cloud compatible |
+| **Reflex** | Uvicorn + Next.js | `reflex run` | Needs Node.js runtime in addition to Python |
+| **FastAPI+React** | Uvicorn (API) + Node/Vercel (frontend) | Two processes | Two deployment targets |
+
+**Key consideration**: If currently deployed on Streamlit Community Cloud, migration to any alternative requires switching hosting. If already self-hosted, the change is just the run command.
+
+NiceGUI's Uvicorn base gives you production-ready options: multiple workers, HTTPS, reverse proxy behind nginx, etc. — more control than Streamlit's server.
+
+---
+
 ## Parallelization
 
 - **Phase 0** is independent of all other phases
