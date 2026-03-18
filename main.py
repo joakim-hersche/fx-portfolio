@@ -10,11 +10,18 @@ import os
 import pandas as pd
 from nicegui import app, run, ui
 
-from src.data_fetch import load_stock_options
+from src.charts import (
+    CHART_COLORS, C_CARD_BRD, C_NEGATIVE, C_POSITIVE,
+    build_allocation_chart, build_comparison_chart,
+)
+from src.data_fetch import (
+    fetch_company_name, fetch_price_history_range, load_stock_options,
+)
 from src.fx import (
     CURRENCY_SYMBOLS, get_fx_rate, get_historical_fx_rate, get_ticker_currency,
 )
-from src.portfolio import fetch_buy_price
+from src.portfolio import build_portfolio_df, fetch_buy_price
+from src.stocks import TICKER_COLORS
 from src.theme import (
     ACCENT, ACCENT_DARK, BG_MAIN, BG_SIDEBAR, BG_TOPBAR,
     BORDER, BORDER_INPUT, BORDER_SUBTLE, GLOBAL_CSS,
@@ -108,7 +115,7 @@ def index():
             ).props('dense borderless').style(
                 f"background:{BG_TOPBAR}; color:{TEXT_MUTED}; font-size:12px; min-width:70px;"
             )
-            ui.button("Export", icon="download", on_click=lambda: ui.notify("Export coming in Phase 3")).props(
+            ui.button("Export", icon="download", on_click=lambda: _export_excel(portfolio, currency)).props(
                 "flat dense size=sm"
             ).style(
                 f"border:1px solid {BORDER_INPUT}; border-radius:6px; color:{TEXT_MUTED}; font-size:12px; text-transform:none;"
@@ -135,7 +142,7 @@ def index():
         with ui.tab_panels(tabs, value=overview_tab).classes("w-full flex-grow"):
 
             with ui.tab_panel(overview_tab):
-                _build_overview_placeholder()
+                _build_overview(portfolio, currency)
 
             with ui.tab_panel(positions_tab):
                 _build_tab_placeholder("Positions", "Positions table and price history will render here.")
@@ -509,58 +516,314 @@ def _build_sidebar(portfolio: dict, stock_options: dict, currency: str) -> None:
     )
 
 
-def _build_overview_placeholder() -> None:
-    """Overview tab — KPI cards placeholder + chart area placeholders."""
+def _build_overview(portfolio: dict, currency: str) -> None:
+    """Overview tab — KPI cards + allocation chart + comparison chart."""
+    currency_symbol = CURRENCY_SYMBOLS.get(currency, "$")
 
-    # KPI row (4 cards)
-    ui.html("""
-        <div class="kpi-row">
-            <div class="kpi-card hero">
-                <div class="kpi-label">Portfolio Value</div>
-                <div class="kpi-value">—</div>
-                <div class="kpi-sub">Add positions to get started</div>
+    if not portfolio:
+        ui.html("""
+            <div class="kpi-row">
+                <div class="kpi-card hero">
+                    <div class="kpi-label">Portfolio Value</div>
+                    <div class="kpi-value">—</div>
+                    <div class="kpi-sub">Add positions to get started</div>
+                </div>
+                <div class="kpi-card hero">
+                    <div class="kpi-label">Total Return</div>
+                    <div class="kpi-value">—</div>
+                    <div class="kpi-sub">vs. total cost basis</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Today's Change</div>
+                    <div class="kpi-value" style="font-size:20px;">—</div>
+                    <div class="kpi-sub">Since market open</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Positions</div>
+                    <div style="font-size:28px;font-weight:700;color:#F1F5F9;line-height:1.1;">0</div>
+                    <div class="kpi-sub">Add positions in the sidebar</div>
+                </div>
             </div>
-            <div class="kpi-card hero">
-                <div class="kpi-label">Total Return</div>
-                <div class="kpi-value">—</div>
-                <div class="kpi-sub">vs. total cost basis</div>
-            </div>
-            <div class="kpi-card">
-                <div class="kpi-label">Today's Change</div>
-                <div class="kpi-value" style="font-size:20px;">—</div>
-                <div class="kpi-sub">Since market open</div>
-            </div>
-            <div class="kpi-card">
-                <div class="kpi-label">Positions</div>
-                <div style="font-size:28px;font-weight:700;color:#F1F5F9;line-height:1.1;">0</div>
-                <div class="kpi-sub">Add positions in the sidebar</div>
-            </div>
-        </div>
-    """)
+        """)
+        return
+
+    # ── Build portfolio DataFrame (cached 15 min) ─────────
+    df = build_portfolio_df(portfolio, currency)
+    if df.empty:
+        ui.html(
+            '<div style="color:#94A3B8;font-size:13px;padding:24px;">'
+            'Could not retrieve price data for any positions.</div>'
+        )
+        return
+
+    # ── Shared helpers ─────────────────────────────────────
+    portfolio_color_map = {
+        t: TICKER_COLORS.get(t, CHART_COLORS[i % len(CHART_COLORS)])
+        for i, t in enumerate(portfolio.keys())
+    }
+    name_map = {t: fetch_company_name(t) for t in portfolio}
+
+    # ── KPI values ─────────────────────────────────────────
+    total_value = df["Total Value"].sum()
+    daily_pnl = df["Daily P&L"].sum()
+    n_positions = len(portfolio)
+    cost_basis = (df["Buy Price"] * df["Shares"]).sum()
+    total_divs = df["Dividends"].sum()
+    total_return = total_value + total_divs - cost_basis
+    total_ret_pct = (total_return / cost_basis * 100) if cost_basis else 0.0
+
+    pnl_color = C_POSITIVE if daily_pnl >= 0 else C_NEGATIVE
+    ret_color = C_POSITIVE if total_return >= 0 else C_NEGATIVE
+
+    n_purchases = sum(len(lots) for lots in portfolio.values())
+    purchases_sub = (
+        f'<div class="kpi-sub sm" style="color:{TEXT_MUTED};">{n_purchases} purchases</div>'
+        if n_purchases != n_positions else ""
+    )
+
+    all_dates = [
+        lot["purchase_date"]
+        for lots in portfolio.values() for lot in lots
+        if lot.get("purchase_date")
+    ]
+    first_purchase = min(all_dates) if all_dates else None
+    return_sub = (
+        f'<div class="kpi-sub sm" style="color:{TEXT_MUTED};">Since {first_purchase}</div>'
+        if first_purchase else ""
+    )
+
+    spacer_md = '<div class="kpi-sub" style="visibility:hidden;">.</div>'
+    spacer_sm = '<div class="kpi-sub sm" style="visibility:hidden;">.</div>'
+
+    def _kpi_card(label, value, border_color, line1="", line2="", hero=False):
+        is_neutral = border_color == C_CARD_BRD
+        value_color = TEXT_PRIMARY if is_neutral else border_color
+        actual_border = "rgba(148,163,184,0.3)" if is_neutral else border_color
+        font = "30px" if hero else "26px"
+        return (
+            f'<div style="background:#1E293B;border-radius:10px;'
+            f'padding:22px 26px;text-align:center;border:1px solid {actual_border};'
+            f'display:flex;flex-direction:column;justify-content:center;align-items:center;'
+            f'box-shadow:0 1px 4px rgba(0,0,0,0.12);">'
+            f'<div class="kpi-label">{label}</div>'
+            f'<div style="font-size:{font};font-weight:600;line-height:1.2;color:{value_color};">{value}</div>'
+            f'{line1 or spacer_md}'
+            f'{line2 or spacer_sm}'
+            f'</div>'
+        )
+
+    sign_ret = "+" if total_return >= 0 else ""
+    sign_pnl = "+" if daily_pnl >= 0 else ""
+
+    card_1 = _kpi_card("Total Portfolio Value", f"{currency_symbol}{total_value:,.2f}", C_CARD_BRD, hero=True)
+    card_2 = _kpi_card(
+        "Total Return",
+        f"{sign_ret}{currency_symbol}{total_return:,.2f}",
+        ret_color,
+        line1=f'<div class="kpi-sub" style="color:{ret_color};">{sign_ret}{total_ret_pct:,.2f}%</div>',
+        line2=return_sub or spacer_sm,
+        hero=True,
+    )
+    card_3 = _kpi_card(
+        "Today's Change",
+        f"{sign_pnl}{currency_symbol}{daily_pnl:,.2f}",
+        pnl_color,
+        line1=f'<div class="kpi-sub sm" style="color:{TEXT_MUTED};">Since yesterday\'s close</div>',
+    )
+    card_4 = _kpi_card(
+        "Positions",
+        str(n_positions),
+        C_CARD_BRD,
+        line1=purchases_sub or spacer_md,
+    )
+
+    ui.html(f'<div class="kpi-row">{card_1}{card_2}{card_3}{card_4}</div>')
 
     ui.html('<hr class="content-divider">')
 
-    # Chart placeholders
-    ui.html("""
-        <div class="charts-row">
-            <div class="chart-card">
-                <div class="chart-header">
-                    <div class="chart-title">Portfolio Allocation</div>
-                </div>
-                <div style="height:180px;display:flex;align-items:center;justify-content:center;color:#475569;font-size:12px;">
-                    Allocation chart — Phase 3
-                </div>
-            </div>
-            <div class="chart-card">
-                <div class="chart-header">
-                    <div class="chart-title">Portfolio Comparison</div>
-                </div>
-                <div style="height:180px;display:flex;align-items:center;justify-content:center;color:#475569;font-size:12px;">
-                    Comparison chart — Phase 3
-                </div>
-            </div>
-        </div>
-    """)
+    # ── Allocation + Comparison side by side ───────────────
+    with ui.row().classes("w-full gap-4"):
+        # Allocation chart
+        with ui.column().classes("flex-grow").style("min-width:0; flex:1;"):
+            ui.html('<div class="chart-title" style="margin-bottom:8px;">Portfolio Allocation</div>')
+            alloc_df = (
+                df.groupby("Ticker")["Total Value"]
+                .sum()
+                .reset_index()
+                .assign(**{"Portfolio Share (%)": lambda x: (x["Total Value"] / x["Total Value"].sum() * 100).round(2)})
+                .sort_values("Portfolio Share (%)", ascending=True)
+            )
+            fig_alloc = build_allocation_chart(alloc_df, name_map, portfolio_color_map)
+            ui.plotly(fig_alloc).classes("w-full")
+
+        # Comparison chart
+        with ui.column().classes("flex-grow").style("min-width:0; flex:1;"):
+            ui.html('<div class="chart-title" style="margin-bottom:8px;">Portfolio Comparison</div>')
+            _build_comparison(portfolio, name_map, portfolio_color_map, currency)
+
+
+def _build_comparison(
+    portfolio: dict, name_map: dict, portfolio_color_map: dict, base_currency: str,
+) -> None:
+    """Comparison chart with time-range toggle and FX adjustment."""
+    range_options = {"3M": "3mo", "6M": "6mo", "1Y": "1y", "Max": "max"}
+
+    with ui.row().classes("items-center gap-2"):
+        range_toggle = ui.toggle(
+            list(range_options.keys()), value="6M",
+        ).props("dense size=sm no-caps").style("font-size:11px;")
+        fx_switch = ui.switch("FX-adjusted", value=False).style("font-size:11px;")
+
+    chart_container = ui.column().classes("w-full")
+
+    def update_chart():
+        chart_container.clear()
+        range_label = range_toggle.value
+        selected_range = range_options[range_label]
+        fx_adjust = fx_switch.value
+
+        comparison_data = {}
+        for t in portfolio:
+            hist = fetch_price_history_range(t, selected_range)
+            if hist.empty:
+                continue
+            ticker_currency = get_ticker_currency(t)
+            if fx_adjust and ticker_currency != base_currency:
+                fx_pair = "GBP" if ticker_currency == "GBX" else ticker_currency
+                fx_hist = fetch_price_history_range(f"{fx_pair}{base_currency}=X", selected_range)
+                if fx_hist.empty:
+                    comparison_data[t] = hist["Close"]
+                    continue
+                fx_series = fx_hist["Close"].reindex(hist.index, method="ffill")
+                if ticker_currency == "GBX":
+                    fx_series = fx_series / 100
+                comparison_data[t] = hist["Close"] * fx_series
+            else:
+                comparison_data[t] = hist["Close"]
+
+        comparison_df = pd.DataFrame(comparison_data).dropna()
+        if not comparison_df.empty:
+            comparison_df = comparison_df / comparison_df.iloc[0] * 100
+
+        fig = build_comparison_chart(
+            comparison_df, name_map, portfolio_color_map,
+            range_label, fx_adjust, base_currency,
+        )
+        with chart_container:
+            ui.plotly(fig).classes("w-full")
+
+    range_toggle.on_value_change(lambda _: update_chart())
+    fx_switch.on_value_change(lambda _: update_chart())
+
+    # Initial render
+    update_chart()
+
+
+async def _export_excel(portfolio: dict, currency: str) -> None:
+    """Build and download the Excel report."""
+    if not portfolio:
+        ui.notify("No positions to export.", type="warning")
+        return
+
+    from src.data_fetch import (
+        fetch_analytics_history, fetch_fundamentals, fetch_price_history_short,
+        cached_run_monte_carlo_backtest, cached_run_monte_carlo_portfolio,
+        cached_run_monte_carlo_ticker, fetch_simulation_history,
+    )
+    from src.excel_export import build_excel_report
+    from src.portfolio import compute_analytics
+
+    notification = ui.notification("Building Excel report...", spinner=True, timeout=None)
+
+    def _build():
+        base_currency = currency
+        df = build_portfolio_df(portfolio, base_currency)
+        if df.empty:
+            return None
+
+        name_map = {t: fetch_company_name(t) for t in portfolio}
+        tickers = list(portfolio.keys())
+
+        # Analytics
+        price_data_1y = {t: fetch_analytics_history(t) for t in tickers}
+        spy_data = fetch_analytics_history("SPY")
+        analytics_df = compute_analytics(portfolio, price_data_1y, spy_data)
+
+        # Monte Carlo
+        price_data_5y = {t: fetch_simulation_history(t) for t in tickers}
+        bt = cached_run_monte_carlo_backtest(portfolio, price_data_5y)
+
+        start_prices_base = {}
+        ticker_mc_results = {}
+        for t in tickers:
+            hist_5y = price_data_5y.get(t, pd.DataFrame())
+            fx_mc = get_fx_rate(get_ticker_currency(t), base_currency)
+            close_mc = hist_5y["Close"].dropna() if not hist_5y.empty and "Close" in hist_5y.columns else pd.Series(dtype=float)
+            if not close_mc.empty:
+                cur_mc = float(close_mc.iloc[-1]) * fx_mc
+                start_prices_base[t] = cur_mc
+                ticker_mc_results[t] = cached_run_monte_carlo_ticker(
+                    ticker=t, hist=hist_5y, current_price=cur_mc, horizon_days=252,
+                )
+
+        portfolio_mc = cached_run_monte_carlo_portfolio(
+            portfolio=portfolio, price_data=price_data_5y,
+            start_prices_base=start_prices_base, horizon_days=252,
+        )
+
+        # Fundamentals
+        fund_rows = []
+        for t in tickers:
+            f = fetch_fundamentals(t)
+            if f:
+                tc = get_ticker_currency(t)
+                fx_ccy = "GBP" if tc == "GBX" else tc
+                if fx_ccy != base_currency:
+                    fx = get_fx_rate(fx_ccy, base_currency)
+                    if f.get("1-Year Low"):
+                        f["1-Year Low"] = round(f["1-Year Low"] * fx, 2)
+                    if f.get("1-Year High"):
+                        f["1-Year High"] = round(f["1-Year High"] * fx, 2)
+                fund_rows.append({"Ticker": t, **f})
+
+        # KPIs
+        total_value = df["Total Value"].sum()
+        daily_pnl = df["Daily P&L"].sum()
+        cost_basis = (df["Buy Price"] * df["Shares"]).sum()
+        total_divs = df["Dividends"].sum()
+        total_return = total_value + total_divs - cost_basis
+        total_ret_pct = (total_return / cost_basis * 100) if cost_basis else 0.0
+
+        return build_excel_report(
+            positions_df=df,
+            analytics_df=analytics_df,
+            fund_rows=fund_rows,
+            price_histories={t: fetch_price_history_short(t) for t in portfolio},
+            name_map=name_map,
+            currency=base_currency,
+            summary_kpis={
+                "total_value": total_value,
+                "daily_pnl": daily_pnl,
+                "cost_basis": cost_basis,
+                "total_divs": total_divs,
+                "total_return": total_return,
+                "total_ret_pct": total_ret_pct,
+                "n_positions": len(portfolio),
+            },
+            bt_result=bt,
+            ticker_mc_results=ticker_mc_results,
+            portfolio_mc=portfolio_mc,
+        )
+
+    excel_bytes = await run.io_bound(_build)
+    notification.dismiss()
+
+    if excel_bytes is None:
+        ui.notify("Could not build report — no price data.", type="negative")
+        return
+
+    filename = f"portfolio_{pd.Timestamp.today().strftime('%Y%m%d')}.xlsx"
+    ui.download(excel_bytes, filename)
 
 
 def _build_tab_placeholder(title: str, description: str) -> None:
