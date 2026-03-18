@@ -1,7 +1,9 @@
 import yfinance as yf
 import pandas as pd
-import streamlit as st
 import logging
+from cachetools import cached
+
+from src.cache import short_cache, long_cache
 
 _log = logging.getLogger(__name__)
 
@@ -28,7 +30,7 @@ def get_ticker_currency(ticker: str) -> str:
         return "SEK"
     return "USD"
 
-@st.cache_data(ttl=900)
+@cached(short_cache)
 def get_fx_rate(from_currency: str, to_currency: str) -> float:
     """Fetch live FX rate between two currencies. GBX (pence) handled automatically."""
     if from_currency == to_currency:
@@ -44,7 +46,7 @@ def get_fx_rate(from_currency: str, to_currency: str) -> float:
         return 1.0
 
 
-@st.cache_data(ttl=86400)
+@cached(long_cache)
 def get_historical_fx_rate(from_currency: str, to_currency: str, date_str: str) -> float:
     """
     Fetch the FX rate on or just after a given date (YYYY-MM-DD).

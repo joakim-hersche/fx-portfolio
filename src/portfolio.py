@@ -1,6 +1,8 @@
 import yfinance as yf
 import pandas as pd
-import streamlit as st
+from cachetools import cached
+
+from src.cache import short_cache, long_cache, lenient_key
 from src.fx import get_ticker_currency, get_fx_rate
 
 
@@ -59,7 +61,7 @@ def compute_analytics(portfolio: dict, price_data: dict, spy_data: pd.DataFrame)
 
     return pd.DataFrame(rows) if rows else pd.DataFrame()
 
-@st.cache_data(ttl=86400)
+@cached(long_cache)
 def _dividends_in_base_currency(
     ticker: str,
     purchase_date: str,
@@ -103,7 +105,7 @@ def _dividends_in_base_currency(
     except Exception:
         return 0.0
 
-@st.cache_data(ttl=900)
+@cached(short_cache, key=lenient_key)
 def build_portfolio_df(portfolio: dict, base_currency: str) -> pd.DataFrame:
     """
     Convert raw portfolio session state into a display-ready DataFrame.
