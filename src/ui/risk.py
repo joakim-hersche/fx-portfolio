@@ -24,7 +24,6 @@ from src.theme import (
     TEXT_DIM,
     TEXT_FAINT,
     TEXT_SECONDARY,
-    BG_CARD,
     BG_PILL,
     BORDER,
     BORDER_SUBTLE,
@@ -730,18 +729,12 @@ def _render_sector_breakdown(
     fund_rows: list[dict],
     portfolio_df: pd.DataFrame,
 ) -> None:
-    """Sector exposure as a Plotly treemap."""
-    import plotly.graph_objects as go
-
+    """Sector exposure as grouped horizontal bars."""
     with ui.column().classes("chart-card w-full"):
         ui.html(
             f'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">'
-            f'<div style="display:flex;align-items:center;gap:8px;">'
             f'<span style="font-size:10px;font-weight:700;letter-spacing:0.12em;'
             f'text-transform:uppercase;color:{TEXT_MUTED};">Sector Exposure</span>'
-            f'<span style="font-size:8px;font-weight:600;color:{AMBER};background:rgba(217,119,6,0.15);'
-            f'padding:2px 6px;border-radius:4px;letter-spacing:0.05em;text-transform:uppercase;">WIP</span>'
-            f'</div>'
             f'<div style="font-size:10px;color:{TEXT_DIM};">by portfolio weight</div>'
             f'</div>'
         )
@@ -760,13 +753,8 @@ def _render_sector_breakdown(
         }
         ticker_weights = portfolio_df.groupby("Ticker")["Weight (%)"].sum().to_dict()
 
-        # Build treemap data
-        labels = []
-        parents = []
-        values = []
-        colors = []
+        # Build sector ordering and color mapping
         sector_order: list[str] = []
-
         for ticker, weight in sorted(ticker_weights.items(), key=lambda x: x[1], reverse=True):
             sector = ticker_sector.get(ticker, "Unknown")
             if sector not in sector_order:
@@ -774,53 +762,74 @@ def _render_sector_breakdown(
 
         sector_color_map = {s: _SECTOR_COLORS[i % len(_SECTOR_COLORS)] for i, s in enumerate(sector_order)}
 
-        for sector in sector_order:
-            labels.append(sector)
-            parents.append("")
-            values.append(0)
-            colors.append(sector_color_map[sector])
-
+        # Aggregate sector totals
+        sector_totals: dict[str, float] = {}
+        sector_tickers: dict[str, list[tuple[str, float]]] = {}
         for ticker, weight in ticker_weights.items():
             sector = ticker_sector.get(ticker, "Unknown")
-            labels.append(ticker)
-            parents.append(sector)
-            values.append(round(weight, 2))
-            colors.append(sector_color_map[sector])
+            sector_totals[sector] = sector_totals.get(sector, 0) + weight
+            sector_tickers.setdefault(sector, []).append((ticker, round(weight, 2)))
 
-        fig = go.Figure(go.Treemap(
-            labels=labels,
-            parents=parents,
-            values=values,
-            marker=dict(
-                colors=colors,
-                line=dict(width=4, color=BG_CARD),
-                cornerradius=6,
-            ),
-            textinfo="label+percent parent",
-            textfont=dict(size=13, color="rgba(255,255,255,0.85)", family="Inter, sans-serif"),
-            hovertemplate="<b>%{label}</b><br>Weight: %{value:.1f}%<extra></extra>",
-            hoverlabel=dict(
-                bgcolor="#1C1D26",
-                bordercolor="#1E293B",
-                font=dict(color="#F1F5F9", size=11, family="Inter, sans-serif"),
-            ),
-            branchvalues="remainder",
-            tiling=dict(pad=4),
-            pathbar=dict(visible=False),
-        ))
+        # Sort tickers within each sector by weight descending
+        for sector in sector_tickers:
+            sector_tickers[sector].sort(key=lambda x: x[1], reverse=True)
 
-        fig.update_layout(
-            margin=dict(t=0, l=0, r=0, b=0),
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            modebar=dict(
-                bgcolor="rgba(0,0,0,0)",
-                color="#64748B",
-                activecolor="#3B82F6",
-            ),
+        # Re-sort sectors by total weight descending
+        sector_order.sort(key=lambda s: sector_totals.get(s, 0), reverse=True)
+
+        max_weight = max(ticker_weights.values()) if ticker_weights else 1
+
+        # Build HTML
+        rows_html = ""
+        for sector in sector_order:
+            color = sector_color_map[sector]
+            total = sector_totals.get(sector, 0)
+            rows_html += (
+                f'<div style="display:flex;align-items:center;gap:6px;padding:6px 0 2px 0;">'
+                f'<div style="width:6px;height:6px;border-radius:2px;background:{color};flex-shrink:0;"></div>'
+                f'<span style="font-size:10px;font-weight:700;color:{TEXT_MUTED};text-transform:uppercase;'
+                f'letter-spacing:0.08em;">{sector}</span>'
+                f'<span style="margin-left:auto;font-size:10px;color:{TEXT_DIM};">{total:.1f}%</span>'
+                f'</div>'
+            )
+            for ticker, weight in sector_tickers.get(sector, []):
+                bar_width = (weight / max_weight * 100) if max_weight > 0 else 0
+                rows_html += (
+                    f'<div class="alloc-bar" style="display:flex;align-items:center;gap:8px;'
+                    f'padding:2px 0 2px 12px;position:relative;">'
+                    f'<div style="width:48px;font-size:11px;font-weight:600;color:{TEXT_SECONDARY};'
+                    f'flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{ticker}</div>'
+                    f'<div style="flex:1;height:6px;background:rgba(255,255,255,0.04);border-radius:4px;overflow:hidden;">'
+                    f'<div style="width:{bar_width:.1f}%;height:100%;background:{color};opacity:0.7;border-radius:4px;"></div>'
+                    f'</div>'
+                    f'<div style="width:36px;font-size:11px;color:{TEXT_DIM};text-align:right;flex-shrink:0;">{weight:.1f}%</div>'
+                    f'<div class="alloc-tip">'
+                    f'<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">'
+                    f'<div style="width:8px;height:8px;border-radius:2px;background:{color};flex-shrink:0;"></div>'
+                    f'<span style="font-weight:600;color:{TEXT_PRIMARY};font-size:11px;">{ticker}</span>'
+                    f'<span style="color:{TEXT_DIM};font-size:10px;">{sector}</span>'
+                    f'</div>'
+                    f'<div style="font-size:11px;">'
+                    f'<span style="color:{TEXT_PRIMARY};font-weight:600;">{weight:.1f}%</span>'
+                    f'<span style="color:{TEXT_MUTED};"> of portfolio</span>'
+                    f'</div>'
+                    f'</div>'
+                    f'</div>'
+                )
+
+        # Footer summary
+        top_sector = sector_order[0] if sector_order else "—"
+        top_pct = sector_totals.get(top_sector, 0)
+        n_sectors = len(sector_order)
+        rows_html += (
+            f'<div style="font-size:11px;color:{TEXT_DIM};margin-top:8px;">'
+            f'Top sector: {top_sector} ({top_pct:.1f}%) &middot; {n_sectors} sector{"s" if n_sectors != 1 else ""} total'
+            f'</div>'
         )
 
-        ui.plotly(fig).classes("w-full")
+        ui.html(
+            f'<div style="display:flex;flex-direction:column;gap:2px;">{rows_html}</div>'
+        ).classes("w-full")
 
 
 # ── Rebalancing Calculator (drift bars) ──────────────────────────────────────
