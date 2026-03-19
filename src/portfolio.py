@@ -1,6 +1,9 @@
+import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import yfinance as yf
+
+_log = logging.getLogger(__name__)
 import pandas as pd
 from cachetools import cached
 
@@ -104,7 +107,8 @@ def _dividends_in_base_currency(
             fx_series = fx_series / 100
 
         return float((dividends * fx_series).sum())
-    except Exception:
+    except Exception as exc:
+        _log.warning("Dividend fetch failed for %s (from %s): %s", ticker, purchase_date, exc)
         return 0.0
 
 @cached(short_cache, key=lenient_key)

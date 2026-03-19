@@ -549,11 +549,10 @@ async def build_positions_tab(portfolio: dict, currency: str) -> None:
             continue
         tp = f.get("Target Price")
         if tp is not None:
-            # Convert target price to base currency
+            # Convert target price to base currency (GBX /100 handled by get_fx_rate)
             tc = _get_ticker_ccy(t)
-            fx_ccy = "GBP" if tc == "GBX" else tc
-            if fx_ccy != currency:
-                fx, _ = _get_fx_rate(fx_ccy, currency)
+            if tc != currency:
+                fx, _ = _get_fx_rate(tc, currency)
                 tp = round(tp * fx, 2)
             target_prices[t] = tp
         else:

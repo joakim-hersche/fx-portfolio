@@ -1,13 +1,16 @@
 import yfinance as yf
 import pandas as pd
 import logging
-from cachetools import cached
+from cachetools import cached, TTLCache
 
 from src.cache import short_cache, long_cache
 
 _log = logging.getLogger(__name__)
 
 CURRENCY_SYMBOLS = {"USD": "$", "EUR": "€", "GBP": "£", "CHF": "CHF ", "SEK": "kr "}
+
+# Dedicated cache for ticker currency lookups (24h, same as fundamentals)
+_currency_cache = TTLCache(maxsize=512, ttl=86400)
 
 
 def normalize_gbx(value, currency: str):
@@ -16,8 +19,9 @@ def normalize_gbx(value, currency: str):
         return value / 100
     return value
 
-def get_ticker_currency(ticker: str) -> str:
-    """Return the native currency code for a given ticker symbol."""
+
+def _suffix_heuristic(ticker: str) -> str:
+    """Infer currency from ticker suffix. Used as fallback when API lookup fails."""
     if ticker.endswith(".L"):
         return "GBX"
     elif ticker.endswith((".DE", ".PA", ".AS", ".MC")):
@@ -27,6 +31,25 @@ def get_ticker_currency(ticker: str) -> str:
     elif ticker.endswith(".ST"):
         return "SEK"
     return "USD"
+
+
+@cached(_currency_cache)
+def get_ticker_currency(ticker: str) -> str:
+    """Return the native trading currency for a ticker.
+
+    Tries yfinance metadata first, falls back to suffix heuristic.
+    Results are cached for 24 hours.
+    """
+    try:
+        ccy = yf.Ticker(ticker).info.get("currency")
+        if ccy:
+            # Normalize yfinance quirks: "GBp" -> "GBX"
+            if ccy in ("GBp", "GBX"):
+                return "GBX"
+            return ccy
+    except Exception:
+        _log.debug("Currency lookup failed for %s, using suffix heuristic", ticker)
+    return _suffix_heuristic(ticker)
 
 @cached(short_cache)
 def get_fx_rate(from_currency: str, to_currency: str) -> tuple[float, bool]:
