@@ -195,7 +195,7 @@ body, .q-page, .nicegui-content {
 .chart-header {
   display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;
 }
-.chart-card .nicegui-column { padding-top: 0 !important; margin-top: 0 !important; }
+.chart-card .nicegui-column { padding-top: 0 !important; margin-top: 0 !important; gap: 8px !important; }
 .chart-card .nicegui-column > :first-child { margin-top: 0 !important; }
 .chart-card .nicegui-column > .nicegui-row { margin: 0 !important; padding: 0 !important; }
 .chart-card .row { margin-left: 0 !important; margin-right: 0 !important; }
@@ -212,7 +212,7 @@ body, .q-page, .nicegui-content {
 
 /* ── Content divider ───────────────────────────────────── */
 .content-divider {
-  border: none; border-top: 1px solid %(BORDER_SUBTLE)s; margin: 16px 0;
+  border: none; border-top: 1px solid %(BORDER_SUBTLE)s; margin: 0;
 }
 
 /* ── Table styling ─────────────────────────────────────── */

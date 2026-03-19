@@ -501,7 +501,7 @@ async def build_positions_tab(portfolio: dict, currency: str) -> None:
     )
 
     # ── Divider ───────────────────────────────────────────
-    ui.html('<hr class="content-divider" style="margin:8px 0;">')
+    ui.html('<hr class="content-divider">')
 
     # ── Section 2: Price history chart ────────────────────
     ticker_select = _build_price_history(
