@@ -41,7 +41,7 @@ from src.portfolio import build_contribution_timeline
 
 
 @patch("src.portfolio.yf.Ticker")
-@patch("src.portfolio.get_fx_rate", return_value=1.0)
+@patch("src.portfolio.get_fx_rate", return_value=(1.0, True))
 def test_contribution_timeline_shape(mock_fx, mock_ticker):
     # Mock price history
     dates = pd.date_range("2025-01-01", "2025-03-01", freq="B")
@@ -89,14 +89,16 @@ def build_contribution_timeline(portfolio: dict, base_currency: str) -> pd.DataF
     for ticker, lots in portfolio.items():
         for lot in lots:
             pd_date = lot.get("purchase_date")
-            if pd_date and pd_date != "Manual":
-                cost_basis = lot["shares"] * lot.get("buy_price", 0) * lot.get("buy_fx_rate", 1.0)
-                lots_with_dates.append({
-                    "ticker": ticker,
-                    "shares": lot["shares"],
-                    "cost_basis": cost_basis,
-                    "purchase_date": pd.Timestamp(pd_date),
-                })
+            # Manual-price lots without a date use today (per spec edge case)
+            if not pd_date or pd_date == "Manual":
+                pd_date = pd.Timestamp.now().strftime("%Y-%m-%d")
+            cost_basis = lot["shares"] * lot.get("buy_price", 0) * lot.get("buy_fx_rate", 1.0)
+            lots_with_dates.append({
+                "ticker": ticker,
+                "shares": lot["shares"],
+                "cost_basis": cost_basis,
+                "purchase_date": pd.Timestamp(pd_date),
+            })
 
     if not lots_with_dates:
         return pd.DataFrame(columns=["date", "contributed", "value"])
@@ -146,12 +148,12 @@ def build_contribution_timeline(portfolio: dict, base_currency: str) -> pd.DataF
             if valid.empty:
                 continue
             price = valid["Close"].iloc[-1]
-            from_ccy = detect_currency(lot["ticker"])
+            from_ccy = get_ticker_currency(lot["ticker"])
             if from_ccy == "GBX":
                 price /= 100
                 from_ccy = "GBP"
             if from_ccy != base_currency:
-                fx = get_fx_rate(from_ccy, base_currency)
+                fx, _ = get_fx_rate(from_ccy, base_currency)
                 price *= fx
             port_val += lot["shares"] * price
 
@@ -546,7 +548,7 @@ async def _export_csv():
             row.get("Dividends", ""),
             row.get("Day P&L", ""),
             row.get("Return (%)", ""),
-            row.get("Share (%)", ""),
+            row.get("Weight (%)", ""),
         ])
 
     ui.download(output.getvalue().encode(), "portfolio.csv")
