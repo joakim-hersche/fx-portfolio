@@ -66,35 +66,44 @@ Professional-grade analytics (Monte Carlo, risk, diagnostics) + true multi-curre
 ### Pricing Rationale
 
 - 10 positions / 1 portfolio is enough to evaluate the product but insufficient for a real investor
-- Monte Carlo and Excel export are highest-perceived-value features — gating them creates a clear upgrade trigger
+- Starter gets 3 Monte Carlo runs/month — enough to experience the value proposition before paying, not enough for regular use
+- Monte Carlo and Excel export are highest-perceived-value features — full gating creates a clear upgrade trigger
 - Yearly discount (~17% off) rewards commitment and reduces churn
 - 8 EUR/month undercuts Sharesight (19 USD) and Portseido (10 USD) while positioning as a serious product
-- **Lifetime tier at 49 EUR** captures users who would never subscribe but will make a one-time "support the project" purchase — common in open-source (Obsidian, Sublime Text model). Equivalent to ~6 months of Pro; breaks even quickly. Higher conversion rate offsets lower LTV. No email support keeps the support burden manageable.
+- **Lifetime tier at 149 EUR** (~19 months of Pro) captures users who prefer one-time purchases. Priced high enough to avoid cannibalizing Pro subscriptions. Scoped down (3 portfolios vs. 5, no email support, no future premium-only features) to preserve Pro value. GitHub-issues-only support keeps burden manageable.
 
 ### Revenue Projections — Base Case
 
 | | Year 1 | Year 2 | Year 3 |
 |---|---|---|---|
-| Total users | 1,000 | 4,000 | 12,000 |
-| Paying users (5-8%) | 60 | 280 | 800 |
-| Monthly revenue | ~480 EUR | ~2,240 EUR | ~6,400 EUR |
-| Annual revenue | ~5,760 EUR | ~26,880 EUR | ~76,800 EUR |
+| Total users | 1,000 | 3,500 | 8,000 |
+| New paying users (gross) | 50 | 180 | 350 |
+| Churned users (~31%/yr of prior base) | 0 | 16 | 67 |
+| Net paying users (end of year) | 50 | 214 | 497 |
+| — of which subscribers (~70%) | 35 | 150 | 348 |
+| — of which lifetime (~30%) | 15 | 64 | 149 |
+| Subscriber MRR (end of year) | ~245 EUR | ~1,050 EUR | ~2,440 EUR |
+| Lifetime one-time revenue (annual) | ~2,235 EUR | ~7,300 EUR | ~12,700 EUR |
+| **Total annual revenue** | **~5,175 EUR** | **~19,900 EUR** | **~42,000 EUR** |
 
 ### Revenue Projections — Pessimistic Case
 
 | | Year 1 | Year 2 | Year 3 |
 |---|---|---|---|
-| Total users | 400 | 1,500 | 4,000 |
-| Paying users (3-5%) | 15 | 60 | 200 |
-| Monthly revenue | ~120 EUR | ~480 EUR | ~1,600 EUR |
-| Annual revenue | ~1,440 EUR | ~5,760 EUR | ~19,200 EUR |
+| Total users | 400 | 1,200 | 3,000 |
+| Net paying users (end of year, 3%) | 12 | 30 | 75 |
+| **Total annual revenue** | **~1,000 EUR** | **~3,500 EUR** | **~9,000 EUR** |
 
 ### Assumptions
 
-- Conversion rate: 5% Year 1 (early adopters), growing to 7% by Year 3
-- Average revenue per user: 8 EUR/month (some on annual discount)
-- Monthly churn: ~3% (portfolio trackers are sticky)
-- Growth driven by GitHub, finance subreddits, EU investing communities, SEO
+- Conversion rate: 5% Year 1 (early adopters), growing to ~6% by Year 3
+- Payment mix: ~70% choose subscription (monthly or annual), ~30% choose Lifetime
+- Blended subscriber ARPU: ~7 EUR/month (mix of monthly at 8 EUR and annual at 6.58 EUR effective)
+- Monthly churn on subscribers: ~3% (~31% annual)
+- Lifetime users: no churn (they paid once; hosting cost is negligible)
+- Pessimistic case uses 3% conversion consistently
+- Growth driven by GitHub, finance communities, SEO (SEO treated as long-term bet, not primary driver)
+- Paying user counts are net of churn
 
 ### Cost Structure (estimated annual)
 
@@ -107,8 +116,8 @@ Professional-grade analytics (Monte Carlo, risk, diagnostics) + true multi-curre
 | Paid data API fallback (if yfinance breaks) | 0 EUR | ~360 EUR |
 | Founder time | Nights & weekends (unpaid) | Nights & weekends (unpaid) |
 | **Total costs** | **~250 EUR** | **~3,230 EUR** |
-| **Net profit (base case)** | **~5,500 EUR** | **~73,600 EUR** |
-| **Net profit (pessimistic)** | **~1,190 EUR** | **~16,000 EUR** |
+| **Net profit (base case)** | **~4,925 EUR** | **~38,770 EUR** |
+| **Net profit (pessimistic)** | **~750 EUR** | **~5,770 EUR** |
 
 ---
 
@@ -131,8 +140,8 @@ Professional-grade analytics (Monte Carlo, risk, diagnostics) + true multi-curre
 
 ### Phase 3 — Grow (Months 6-18)
 
-- SEO compounds from Phase 2 content
-- GitHub stars drive organic traffic
+- GitHub stars and community posts continue driving organic traffic
+- SEO articles start ranking (long-term bet, not primary driver)
 - Add 1-2 buzz features (e.g., crypto portfolio, EU tax-lot reporting)
 - Referral program: give a friend 1 month free, get 1 month free
 - Approach EU personal finance YouTubers/bloggers — offer free Pro accounts for reviews
@@ -151,8 +160,9 @@ Professional-grade analytics (Monte Carlo, risk, diagnostics) + true multi-curre
 
 | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
-| **yfinance breaks or gets rate-limited** | High | Critical | Abstract data layer behind an interface. Fallback to paid API (Twelve Data, ~30 USD/month). Pass cost to Pro users if needed. |
-| **Not enough users find the product** | Medium | High | Double down on SEO and GitHub presence early. If <100 total users at 6 months, product-market fit isn't there. |
+| **yfinance breaks or gets rate-limited** | High | Critical | Abstract data layer behind an interface now (before launch). Fallback options: Twelve Data (~30 USD/month for basic), Financial Modeling Prep (~15 USD/month), or Alpha Vantage (free tier + 50 USD/month). At Year 1 revenue, a 30 USD/month API cost is 7% of base-case revenue — manageable. At scale, pass cost via Pro pricing. **Do not wait for yfinance to break; build the abstraction layer before SaaS launch.** |
+| **Not enough users find the product** | Medium | High | GitHub and community posts are the primary driver, not SEO. If <100 total users at 6 months, product-market fit isn't there. |
+| **Competitor drops price or adds free tier** | Medium | Medium | Sharesight or Portseido launching a 5 USD/month tier or free plan is the most likely competitive threat. Response: lean into self-host + privacy angle (they can't match this) and community/open-source trust. Don't enter a price war. |
 | **Someone forks and hosts competing SaaS** | Low | Medium | AGPL requires open-sourcing their version. Brand, community, and iteration speed are the moat. |
 | **A competitor adds Monte Carlo** | Medium | Low | Monte Carlo alone isn't the moat — the combination of multi-currency + analytics + privacy + price is. |
 | **Hosting costs spike** | Low | Low | Sessions are lightweight (WebSocket + cached data). Fly.io scales cheaply. Only matters at 10,000+ concurrent users. |
@@ -188,13 +198,13 @@ Don't build analytics infrastructure for this. A spreadsheet updated monthly is 
 
 Before monetization can begin, the following must be in place:
 
-1. **Hosted SaaS deployment** — already partially done (Fly.io + Cloudflare)
-2. **User authentication** — currently browser-storage only; needs proper auth for multi-device access
-3. **Stripe integration** — billing, subscription management, webhooks
-4. **Feature gating** — tier-based access control for positions, Monte Carlo, export
-5. **Terms of service & privacy policy** — required for payment processing and GDPR compliance
-6. **Disclaimers** — "not financial advice" on every page with analytics
-7. **Data layer abstraction** — decouple from yfinance to enable fallback APIs
+1. **Multi-tenant architecture** — the app currently uses browser localStorage via NiceGUI's `app.storage.user`. A hosted SaaS serving thousands of users needs proper database-backed storage, user data isolation, session management, and security boundaries. This is a significant architectural change, not a minor engineering task.
+2. **User authentication** — email/password or OAuth for multi-device access and account recovery
+3. **Stripe integration** — billing, subscription management, webhooks for both recurring and one-time payments
+4. **Feature gating** — tier-based access control for position limits, Monte Carlo runs, export
+5. **Data layer abstraction** — decouple from yfinance to enable fallback APIs. Build this before SaaS launch, not after yfinance breaks.
+6. **GDPR compliance** — privacy policy, terms of service, data processing documentation, right to deletion, data export (Art. 20 portability), and a plan for what happens to user data if the project shuts down. Required for any EU-targeting product that processes financial data.
+7. **Disclaimers** — "not financial advice" on every page with analytics
 8. **Onboarding flow** — first-time user experience for non-technical hosted users
 
 These are engineering tasks that should be planned and prioritized separately from the business plan.
