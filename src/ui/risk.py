@@ -791,7 +791,7 @@ def _render_sector_breakdown(
             textinfo="label+percent parent",
             textfont=dict(size=13, color="white", family="Inter, sans-serif"),
             hovertemplate="<b>%{label}</b><br>Weight: %{value:.1f}%<extra></extra>",
-            branchvalues="total",
+            branchvalues="remainder",
         ))
 
         fig.update_layout(
@@ -938,56 +938,60 @@ def _render_rebalancing_calculator(portfolio_df: pd.DataFrame, currency_symbol: 
                             f'{currency_symbol}{remaining:.2f} unallocated</div>'
                         )
 
-        # ── Deposit ──
-        with ui.row().classes("w-full items-center").style("gap:8px;margin-bottom:8px;"):
-            ui.html(
-                f'<span style="font-size:11px;font-weight:600;color:{TEXT_SECONDARY};">'
-                f'Deposit</span>'
-            )
-            deposit_input = ui.number(
-                value=0, min=0, format="%.0f", prefix=currency_symbol,
-            ).props("dense borderless").style(
-                f"width:100px;background:{BG_PILL};border:1px solid {BORDER_SUBTLE};"
-                f"border-radius:6px;padding:0 8px;"
-            )
-
-            def _on_deposit(e):
-                deposit_ref["value"] = e.value or 0.0
-                _recalculate()
-            deposit_input.on_value_change(_on_deposit)
-
-        # ── Per-ticker rows: ticker | current -> [target] | drift bar ──
-        ui.html(
-            f'<div style="border-top:1px solid {BORDER_SUBTLE};margin:4px 0 8px 0;"></div>'
+        # ── Inputs: deposit + all targets in one row ──
+        input_style = (
+            f"background:{BG_PILL};border:1px solid {BORDER_SUBTLE};"
+            f"border-radius:6px;padding:0 4px;"
         )
+        with ui.row().classes("w-full items-end").style("gap:10px;flex-wrap:wrap;margin-bottom:10px;"):
+            with ui.column().style("gap:2px;"):
+                ui.html(
+                    f'<span style="font-size:9px;font-weight:600;color:{TEXT_DIM};'
+                    f'text-transform:uppercase;letter-spacing:0.06em;">Deposit</span>'
+                )
+                deposit_input = ui.number(
+                    value=0, min=0, format="%.0f", prefix=currency_symbol,
+                ).props("dense borderless").style(f"width:90px;{input_style}")
+
+                def _on_deposit(e):
+                    deposit_ref["value"] = e.value or 0.0
+                    _recalculate()
+                deposit_input.on_value_change(_on_deposit)
+
+            for _, row in ticker_data.iterrows():
+                ticker = row["Ticker"]
+                current_w = row["Weight (%)"]
+                with ui.column().style("gap:2px;"):
+                    ui.html(
+                        f'<span style="font-size:9px;font-weight:700;color:{TEXT_SECONDARY};">'
+                        f'{ticker} <span style="font-weight:400;color:{TEXT_DIM};">{current_w:.0f}%</span></span>'
+                    )
+                    inp = ui.number(
+                        value=round(current_w),
+                        min=0, max=100, step=1, format="%.0f",
+                        suffix="%",
+                    ).props("dense borderless").style(f"width:58px;{input_style}")
+
+                    def _make_handler(t):
+                        def handler(e):
+                            target_weights[t] = e.value if e.value is not None else 0.0
+                            _recalculate()
+                        return handler
+                    inp.on_value_change(_make_handler(ticker))
+
+        # ── Drift bars ──
+        ui.html(f'<div style="border-top:1px solid {BORDER_SUBTLE};margin:0 0 8px 0;"></div>')
         for _, row in ticker_data.iterrows():
             ticker = row["Ticker"]
-            current_w = row["Weight (%)"]
             with ui.row().classes("w-full items-center").style("gap:6px;margin-bottom:6px;"):
                 ui.html(
                     f'<span style="width:44px;font-size:11px;font-weight:700;'
                     f'color:{TEXT_PRIMARY};flex-shrink:0;">{ticker}</span>'
                 )
-                ui.html(
-                    f'<span style="font-size:10px;color:{TEXT_DIM};flex-shrink:0;">'
-                    f'{current_w:.0f}%\u2192</span>'
+                bar_containers[ticker] = ui.element("div").style(
+                    "flex:1;min-width:40px;display:flex;flex-direction:column;"
+                    "justify-content:center;gap:0;"
                 )
-                inp = ui.number(
-                    value=round(current_w, 1),
-                    min=0, max=100, step=0.5, format="%.1f",
-                    suffix="%",
-                ).props("dense borderless").style(
-                    f"width:58px;flex-shrink:0;background:{BG_PILL};"
-                    f"border:1px solid {BORDER_SUBTLE};border-radius:6px;padding:0 4px;"
-                )
-                bar_containers[ticker] = ui.column().style("flex:1;min-width:0;gap:0;")
-
-                def _make_handler(t):
-                    def handler(e):
-                        target_weights[t] = e.value if e.value is not None else 0.0
-                        _recalculate()
-                    return handler
-                inp.on_value_change(_make_handler(ticker))
 
         footer_ref["ref"] = ui.column().classes("w-full").style("margin-top:2px;")
         _recalculate()
