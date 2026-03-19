@@ -211,11 +211,6 @@ body, .q-page, .nicegui-content {
 .charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--grid-gap); width: 100%%; align-items: stretch; }
 .charts-row > * { display: flex; flex-direction: column; }
 .charts-row .chart-card { flex: 1; display: flex; flex-direction: column; }
-.charts-row .chart-card > .nicegui-column { flex: 1; display: flex; flex-direction: column; }
-.charts-row .chart-card .nicegui-column { flex: 1; display: flex; flex-direction: column; }
-.charts-row .chart-card .js-plotly-plot,
-.charts-row .chart-card .plotly,
-.charts-row .chart-card .plot-container { flex: 1; height: 100%% !important; }
 
 /* Plotly charts fill their container */
 .js-plotly-plot, .plotly, .plot-container { width: 100%% !important; }
