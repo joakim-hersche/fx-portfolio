@@ -5,7 +5,7 @@ import pandas as pd
 from cachetools import cached
 
 from src.cache import short_cache, long_cache, lenient_key
-from src.fx import get_ticker_currency, get_fx_rate
+from src.fx import get_ticker_currency, get_fx_rate, get_historical_fx_rate
 
 
 def compute_analytics(portfolio: dict, price_data: dict, spy_data: pd.DataFrame) -> pd.DataFrame:
@@ -221,3 +221,52 @@ def fetch_buy_price(ticker: str, purchase_date: str) -> tuple[float, str] | None
         return round(hist["Close"].iloc[0], 2), actual_date
     except Exception:
         return None
+
+
+def build_dividend_timeline(
+    portfolio: dict,
+    base_currency: str,
+    months_back: int = 24,
+) -> list[dict]:
+    """Return monthly dividend payments bucketed by ticker, converted to base currency.
+
+    Each entry: {"month": "2025-01", "ticker": "AAPL", "amount": 12.34}
+    Only includes months where a dividend was actually paid.
+    """
+    cutoff = pd.Timestamp.today() - pd.DateOffset(months=months_back)
+    cutoff_str = str(cutoff.date())
+    today_str = str(pd.Timestamp.today().date())
+    rows: list[dict] = []
+
+    for ticker, lots in portfolio.items():
+        total_shares = sum(lot["shares"] for lot in lots)
+        if total_shares <= 0:
+            continue
+
+        ticker_ccy = get_ticker_currency(ticker)
+        gbx = ticker_ccy == "GBX"
+
+        try:
+            hist = yf.Ticker(ticker).history(start=cutoff_str, end=today_str)
+            if hist.empty or "Dividends" not in hist.columns:
+                continue
+            divs = hist["Dividends"]
+            divs = divs[divs > 0]
+            if divs.empty:
+                continue
+
+            for date, amount in divs.items():
+                date_str = str(date.date()) if hasattr(date, "date") else str(date)[:10]
+                month_key = date_str[:7]  # "YYYY-MM"
+
+                if ticker_ccy == base_currency:
+                    fx = 1.0
+                else:
+                    fx = get_historical_fx_rate(ticker_ccy, base_currency, date_str)
+
+                converted = amount * fx * total_shares
+                rows.append({"month": month_key, "ticker": ticker, "amount": round(converted, 2)})
+        except Exception:
+            continue
+
+    return rows
