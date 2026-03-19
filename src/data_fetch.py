@@ -91,6 +91,8 @@ def fetch_fundamentals(ticker: str) -> dict:
         if current and low_1y and high_1y and high_1y > low_1y:
             position = round((current - low_1y) / (high_1y - low_1y) * 100, 1)
 
+        sector = info.get("sector") or "Unknown"
+        target_price = info.get("targetMeanPrice")
         return {
             "P/E Ratio":      round(pe, 1)        if pe      else None,
             "Div Yield (%)":  round(div_pct, 2)   if div_pct else None,
@@ -100,7 +102,7 @@ def fetch_fundamentals(ticker: str) -> dict:
             "Current Price":  round(current, 2)    if current else None,
             "Sector":         sector if sector else "Unknown",
             "Target Price":   round(target_price, 2) if target_price else None,
-            "Dividend Rate":  div_rate,
+            "Dividend Rate":  round(div_rate, 4) if div_rate else None,
         }
     except Exception:
         return {}
