@@ -173,8 +173,21 @@ def _build_positions_table(
 
         right_cols = {"Shares", "Buy Price", "Purchase Date", "Current Price",
                       "Target", "Total Value", "Dividends", "Today", "Return (%)", "Weight (%)"}
+        _col_tips = {
+            "Target": "Analyst consensus price target — the average price Wall Street analysts expect this stock to reach.",
+            "Dividends": "Cash dividends received since you bought this position, in your base currency.",
+            "Day P&L": "How much this position's value changed since yesterday's market close.",
+            "Return (%)": "Total return including dividends — how much you gained or lost as a % of what you paid.",
+            "Share (%)": "What percentage of your total portfolio this position represents by value.",
+        }
         header_cells = "".join(
-            f'<th scope="col" class="right">{c}</th>' if c in right_cols else f'<th scope="col">{c}</th>'
+            f'<th scope="col" class="right th-tip" data-tip="{_col_tips[c]}">{c}</th>'
+            if c in _col_tips and c in right_cols
+            else f'<th scope="col" class="th-tip" data-tip="{_col_tips[c]}">{c}</th>'
+            if c in _col_tips
+            else f'<th scope="col" class="right">{c}</th>'
+            if c in right_cols
+            else f'<th scope="col">{c}</th>'
             for c in columns
         )
         header = f"<thead><tr>{header_cells}</tr></thead>"
@@ -501,12 +514,21 @@ async def build_positions_tab(portfolio: dict, currency: str) -> None:
     currency_symbol = CURRENCY_SYMBOLS.get(currency, "$")
 
     if not portfolio:
-        ui.html(
-            f'<div style="color:{TEXT_DIM};font-size:14px;padding:24px;">'
-            "No positions yet. Add stocks in the sidebar, or use "
-            "<b>Load Sample</b> in the sidebar to try a demo portfolio."
-            "</div>"
-        )
+        with ui.column().classes("w-full items-center").style("padding:40px 20px;"):
+            ui.html(
+                f'<div style="color:{TEXT_DIM};font-size:14px;text-align:center;margin-bottom:16px;">'
+                "No positions yet. Add stocks in the sidebar, or load sample data to explore."
+                "</div>"
+            )
+            ui.button(
+                "Load Sample Portfolio", icon="science",
+                on_click=lambda: ui.run_javascript(
+                    'document.getElementById("btn-load-sample")?.click()'
+                ),
+            ).props("unelevated no-caps size=lg").style(
+                "background:#3B82F6; color:white; border-radius:8px; padding:12px 32px;"
+                " font-size:14px; font-weight:600;"
+            )
         return
 
     # Build the portfolio DataFrame (cached 15 min) — off the event loop

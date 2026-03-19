@@ -582,12 +582,12 @@ def _render_backtest(
         <table>
             <thead><tr>
                 <th scope="col">Ticker</th>
-                <th scope="col">Hit Rate 80% CI</th>
-                <th scope="col">Hit Rate 50% CI</th>
-                <th scope="col">Kurtosis</th>
-                <th scope="col">Skewness</th>
-                <th scope="col">Fat-tailed</th>
-                <th scope="col">Reliability</th>
+                <th scope="col" class="th-tip" data-tip="How often the actual price stayed inside the model's 80% confidence band. Should be close to 80% if the model is accurate.">Hit Rate 80% CI</th>
+                <th scope="col" class="th-tip" data-tip="How often the actual price stayed inside the 50% confidence band. Should be close to 50%.">Hit Rate 50% CI</th>
+                <th scope="col" class="th-tip" data-tip="Measures how 'fat' the tails of the return distribution are. Above 3 means extreme moves happen more often than expected.">Kurtosis</th>
+                <th scope="col" class="th-tip" data-tip="Whether returns lean more to one side. Negative = more large drops, positive = more large gains.">Skewness</th>
+                <th scope="col" class="th-tip" data-tip="Yes means this stock has unusually extreme price swings. The simulation will understate how bad a bad day can really be.">Fat-tailed</th>
+                <th scope="col" class="th-tip" data-tip="Overall model quality for this stock. Well-calibrated = trustworthy bands. Poorly-calibrated = take the fan chart with a grain of salt.">Reliability</th>
             </tr></thead>
             <tbody>{rows_html}</tbody>
         </table>
@@ -708,8 +708,8 @@ def _render_model_diagnostics(
             <table>
                 <thead><tr>
                     <th scope="col">Ticker</th>
-                    <th scope="col">Normality (JB)</th>
-                    <th scope="col">Independence (LB)</th>
+                    <th scope="col" class="th-tip" data-tip="Jarque-Bera test: checks if daily returns follow a bell curve. Pass = normal, Fail = fat tails or skew (extreme days happen more than expected).">Normality (JB)</th>
+                    <th scope="col" class="th-tip" data-tip="Ljung-Box test: checks if today's return is related to recent days. Pass = independent, Fail = there is momentum or mean-reversion the model ignores.">Independence (LB)</th>
                     <th scope="col">Verdict</th>
                 </tr></thead>
                 <tbody>{rows_html}</tbody>
@@ -734,12 +734,27 @@ async def build_forecast_tab(portfolio: dict, currency: str) -> None:
     tickers = list(portfolio.keys())
 
     if not tickers:
-        _empty_state("Add positions to your portfolio to see forecasts.")
+        with ui.column().classes("w-full items-center").style("padding:40px 20px;"):
+            ui.html(
+                f'<p style="color:{TEXT_DIM};font-size:14px;text-align:center;margin-bottom:16px;">'
+                "Add positions to see Monte Carlo simulations and projected outcomes."
+                "</p>"
+            )
+            ui.button(
+                "Load Sample Portfolio", icon="science",
+                on_click=lambda: ui.run_javascript(
+                    'document.getElementById("btn-load-sample")?.click()'
+                ),
+            ).props("unelevated no-caps size=lg").style(
+                "background:#3B82F6; color:white; border-radius:8px; padding:12px 32px;"
+                " font-size:14px; font-weight:600;"
+            )
         return
 
     _section_intro(
-        "Monte Carlo simulations project possible future paths for your portfolio and individual "
-        "positions. The fan charts show the range of likely outcomes based on historical return patterns."
+        "Imagine replaying the stock market 1,000 times. Each replay uses each stock's real "
+        "historical behaviour but shuffles the order of good and bad days randomly. The result "
+        "is a fan of possible futures — the wider the fan, the more uncertain the outcome."
     )
 
     # Load simulation data once for both sections (off the event loop)
@@ -760,55 +775,41 @@ async def build_forecast_tab(portfolio: dict, currency: str) -> None:
 
     _render_position_outlook(portfolio, tickers, price_data, currency, currency_symbol)
 
-
-async def build_diagnostics_tab(portfolio: dict, currency: str) -> None:
-    """Render the full Diagnostics tab content using NiceGUI widgets.
-
-    Parameters
-    ----------
-    portfolio : dict
-        Mapping of ticker -> list of lot dicts (the session portfolio).
-    currency : str
-        Base display currency code, e.g. "USD", "GBP", "EUR".
-    """
-    currency_symbol = CURRENCY_SYMBOLS.get(currency, "$")
-    tickers = list(portfolio.keys())
-
-    if not tickers:
-        _empty_state("Add positions to your portfolio to see diagnostics.")
-        return
-
-    ui.html(
-        f'<div style="background:{BG_PILL};border:1px solid {BORDER};border-radius:8px;'
-        f'padding:12px 16px;margin-bottom:8px;">'
-        f'<div style="font-size:12px;color:{TEXT_MUTED};line-height:1.6;">'
-        f'<b style="color:{TEXT_PRIMARY};">For most users:</b> check the '
-        f'<b style="color:{TEXT_PRIMARY};">Reliability</b> column in the table below. '
-        f'"Well-calibrated" means the model\'s confidence bands matched historical outcomes. '
-        f'The rest of this tab is for advanced users who want to verify the simulation assumptions.'
-        f'</div></div>'
-    )
-
-    _section_intro(
-        "Validates whether the Monte Carlo model's assumptions hold for your positions. "
-        "The backtest checks calibration against actual history; the diagnostics test normality "
-        "and independence of returns."
-    )
-
-    # Load simulation data once for both sections (off the event loop)
-    notification = ui.notification("Running diagnostics...", spinner=True, timeout=None)
-    try:
-        price_data = await run.io_bound(_load_simulation_data, tickers)
-    finally:
-        notification.dismiss()
-
-    if not price_data:
-        ui.notify("Could not load simulation data. Try reloading.", type="warning")
-        _empty_state("No price data available for diagnostics. Check your positions and try reloading.")
-        return
-
-    _render_backtest(portfolio, tickers, price_data, currency, currency_symbol)
-
+    # ── Model Diagnostics (collapsible advanced section) ──
     ui.html('<hr class="content-divider">')
 
-    _render_model_diagnostics(tickers, price_data)
+    with ui.expansion(
+        "Model Diagnostics",
+        icon="science",
+    ).classes("w-full").style(
+        f"background:{BG_PILL};border:1px solid {BORDER};border-radius:8px;"
+    ).props("dense header-class='text-grey-5'") as diag_exp:
+        diag_exp.style("margin-top:8px;")
+
+        ui.html(
+            f'<div style="font-size:12px;color:{TEXT_MUTED};line-height:1.6;margin-bottom:12px;">'
+            f'<b style="color:{TEXT_PRIMARY};">For most users:</b> check the '
+            f'<b style="color:{TEXT_PRIMARY};">Reliability</b> column in the backtest table. '
+            f'"Well-calibrated" means the simulation\'s confidence bands matched what actually happened. '
+            f'The rest is for advanced users who want to verify the model\'s statistical assumptions.'
+            f'</div>'
+        )
+
+        _render_backtest(portfolio, tickers, price_data, currency, currency_symbol)
+
+        ui.html('<hr class="content-divider">')
+
+        _render_model_diagnostics(tickers, price_data)
+
+
+async def build_diagnostics_tab(portfolio: dict, currency: str) -> None:
+    """Deprecated — diagnostics are now part of the Forecast tab.
+
+    Kept as a stub for backwards compatibility.
+    """
+    ui.html(
+        f'<p style="color:{TEXT_DIM};font-size:13px;padding:20px 0;">'
+        'Model diagnostics have moved to the Forecast tab. '
+        'Expand the "Model Diagnostics" section at the bottom.'
+        '</p>'
+    )

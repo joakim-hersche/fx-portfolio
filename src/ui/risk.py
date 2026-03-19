@@ -96,18 +96,10 @@ def _render_unified_table(
             f'</div>'
         )
 
-        # Combined intro text
         _section_intro(
-            "<b>Performance</b> \u2014 weight, 1-year price return, portfolio contribution, "
-            "and relative performance vs. the S&P 500 (adjusted for currency).<br>"
-            "<b>Risk</b> \u2014 annualised volatility, worst peak-to-trough drop, "
-            "return-per-unit-of-risk score, and market sensitivity (beta).<br>"
-            "<b>Valuation</b> \u2014 price/earnings ratio, dividend yield, "
-            "52-week price range with current position, and latest market price."
-        )
-        _section_intro(
+            "Performance, risk, and valuation metrics based on 12 months of daily price data. "
             "Colour coding uses common industry thresholds for context. "
-            "It does not indicate whether a position is suitable for your circumstances."
+            "Hover over any column header for a plain-language explanation."
         )
 
         if portfolio_df.empty:
@@ -266,16 +258,16 @@ def _render_unified_table(
             if position is not None:
                 position = min(position, 100.0)
 
-            # Build 52-week range bar
+            # Build 52-week range bar (single-line)
             if low is not None and high is not None and position is not None:
                 range_html = (
-                    f'<span style="display:inline-flex;align-items:center;gap:4px;min-width:120px;">'
-                    f'<span style="font-size:10px;color:{TEXT_DIM};">{currency_symbol}{low:.0f}</span>'
-                    f'<span class="range-bar-bg" style="width:80px;display:inline-block;">'
+                    f'<span style="display:inline-flex;align-items:center;gap:4px;white-space:nowrap;">'
+                    f'<span style="font-size:10px;color:{TEXT_DIM};min-width:32px;text-align:right;">{currency_symbol}{low:.0f}</span>'
+                    f'<span class="range-bar-bg" style="width:60px;display:inline-block;flex-shrink:0;">'
                     f'<span class="range-bar-fill" style="left:0;width:100%;"></span>'
                     f'<span class="range-bar-dot" style="left:{position}%;"></span>'
                     f'</span>'
-                    f'<span style="font-size:10px;color:{TEXT_DIM};">{currency_symbol}{high:.0f}</span>'
+                    f'<span style="font-size:10px;color:{TEXT_DIM};min-width:32px;">{currency_symbol}{high:.0f}</span>'
                     f'</span>'
                 )
             else:
@@ -298,16 +290,31 @@ def _render_unified_table(
                     f'</span>'
                 )
 
+            def _kv_tip(label: str, tip: str, value_str: str, cls: str = "") -> str:
+                color_style = ""
+                if cls == "td-pos":
+                    color_style = f"color:{GREEN};"
+                elif cls == "td-neg":
+                    color_style = f"color:{RED};"
+                elif cls == "td-amb":
+                    color_style = f"color:{AMBER};"
+                return (
+                    f'<span style="margin-right:14px;white-space:nowrap;">'
+                    f'<span class="th-tip" data-tip="{tip}" style="color:{TEXT_DIM};font-size:11px;">{label}</span> '
+                    f'<span style="font-size:11px;font-weight:600;{color_style}">{value_str}</span>'
+                    f'</span>'
+                )
+
             risk_line = (
-                _kv("Vol", _fmt(vol, "{:.1f}%"), vol_cls)
-                + _kv("Drop", _fmt(dd, "{:.1f}%"), dd_cls)
-                + _kv("R/R", _fmt(sharpe, "{:.2f}"), sharpe_cls)
-                + _kv("Beta", _fmt(beta, "{:.2f}"))
+                _kv_tip("Vol", "Annualised volatility — how much the price swings.", _fmt(vol, "{:.1f}%"), vol_cls)
+                + _kv_tip("Drop", "Max drawdown — biggest peak-to-trough fall.", _fmt(dd, "{:.1f}%"), dd_cls)
+                + _kv_tip("R/R", "Sharpe Ratio — return per unit of risk. Above 1 is good.", _fmt(sharpe, "{:.2f}"), sharpe_cls)
+                + _kv_tip("Beta", "Market sensitivity vs S&amp;P 500. 1.0 = same swings.", _fmt(beta, "{:.2f}"))
             )
 
             value_line = (
-                _kv("P/E", _fmt(pe, "{:.1f}\u00d7"))
-                + _kv("Yield", _fmt(div_yield, "{:.2f}%"))
+                _kv_tip("P/E", "Price-to-Earnings — years of profits you pay for the stock.", _fmt(pe, "{:.1f}\u00d7"))
+                + _kv_tip("Yield", "Annual dividend as % of stock price.", _fmt(div_yield, "{:.2f}%"))
                 + f'<span style="margin-right:14px;white-space:nowrap;">'
                 f'<span style="color:{TEXT_DIM};font-size:11px;">52-Wk</span> '
                 f'{range_html}'
@@ -350,10 +357,10 @@ def _render_unified_table(
         <table>
             <thead><tr>
                 <th scope="col">Ticker</th>
-                <th scope="col" class="right">Weight %</th>
-                <th scope="col" class="right">1Y Return</th>
-                <th scope="col" class="right">Contribution</th>
-                <th scope="col" class="right">vs SPY</th>
+                <th scope="col" class="right th-tip" data-tip="What percentage of your total portfolio value this position represents.">Weight %</th>
+                <th scope="col" class="right th-tip" data-tip="How much this stock's price changed over the past 12 months.">1Y Return</th>
+                <th scope="col" class="right th-tip" data-tip="How much this position contributed to your overall portfolio return, based on its weight.">Contribution</th>
+                <th scope="col" class="right th-tip" data-tip="Performance compared to the S&amp;P 500 index over the same period. Positive = beat the market.">vs SPY</th>
             </tr></thead>
             <tbody>{rows_html}</tbody>
         </table>
@@ -382,16 +389,9 @@ def _render_flat_table(
         )
 
         _section_intro(
-            "<b>Performance</b> \u2014 weight, 1-year price return, portfolio contribution, "
-            "and relative performance vs. the S&P 500 (adjusted for currency).<br>"
-            "<b>Risk</b> \u2014 annualised volatility, worst peak-to-trough drop, "
-            "return-per-unit-of-risk score, and market sensitivity (beta).<br>"
-            "<b>Valuation</b> \u2014 price/earnings ratio, dividend yield, "
-            "52-week price range with current position, and latest market price."
-        )
-        _section_intro(
+            "Performance, risk, and valuation metrics based on 12 months of daily price data. "
             "Colour coding uses common industry thresholds for context. "
-            "It does not indicate whether a position is suitable for your circumstances."
+            "Hover over any column header for a plain-language explanation."
         )
 
         if portfolio_df.empty:
@@ -527,16 +527,16 @@ def _render_flat_table(
             if position is not None:
                 position = max(5.0, min(position, 95.0))
 
-            # 52-week range bar (compact)
+            # 52-week range bar (compact, single-line)
             if low is not None and high is not None and position is not None:
                 range_html = (
-                    f'<div style="display:inline-flex;align-items:center;gap:4px;">'
-                    f'<span style="font-size:9px;color:{TEXT_DIM};">{currency_symbol}{low:.0f}</span>'
-                    f'<div class="range-bar-bg" style="width:80px;">'
+                    f'<div style="display:inline-flex;align-items:center;gap:4px;white-space:nowrap;">'
+                    f'<span style="font-size:9px;color:{TEXT_DIM};min-width:32px;text-align:right;">{currency_symbol}{low:.0f}</span>'
+                    f'<div class="range-bar-bg" style="width:60px;flex-shrink:0;">'
                     f'<div class="range-bar-fill" style="left:0;width:100%;"></div>'
                     f'<div class="range-bar-dot" style="left:{position}%;"></div>'
                     f'</div>'
-                    f'<span style="font-size:9px;color:{TEXT_DIM};">{currency_symbol}{high:.0f}</span>'
+                    f'<span style="font-size:9px;color:{TEXT_DIM};min-width:32px;">{currency_symbol}{high:.0f}</span>'
                     f'</div>'
                 )
             else:
@@ -577,13 +577,13 @@ def _render_flat_table(
                 <th class="right">1Y Return</th>
                 <th class="right">Contribution</th>
                 <th class="right">vs S&amp;P</th>
-                <th class="right" style="border-left:1px solid rgba(255,255,255,0.07);">Volatility</th>
-                <th class="right">Worst Drop</th>
-                <th class="right">Return/Risk</th>
-                <th class="right">Beta</th>
-                <th class="right" style="border-left:1px solid rgba(255,255,255,0.07);">P/E Ratio</th>
-                <th class="right">Div Yield</th>
-                <th>52-Week Range</th>
+                <th class="right th-tip" style="border-left:1px solid rgba(255,255,255,0.07);" data-tip="How much the price swings day to day, as a yearly %. Higher = more unpredictable.">Volatility</th>
+                <th class="right th-tip" data-tip="Biggest peak-to-trough fall in the past year. Shows the worst losing streak.">Worst Drop</th>
+                <th class="right th-tip" data-tip="Return per unit of risk (Sharpe Ratio). Above 1 is good, above 2 is excellent, below 0 means you lost money.">Return/Risk</th>
+                <th class="right th-tip" data-tip="How much this stock moves relative to the S&amp;P 500. 1.0 = same swings, above 1 = more volatile, below 1 = calmer.">Beta</th>
+                <th class="right th-tip" style="border-left:1px solid rgba(255,255,255,0.07);" data-tip="Price-to-Earnings ratio. How many years of current profits you pay for the stock. Lower can mean cheaper, higher can mean expected growth.">P/E Ratio</th>
+                <th class="right th-tip" data-tip="Annual dividend payment as a % of the stock price. Higher = more cash income from holding.">Div Yield</th>
+                <th class="th-tip" data-tip="The lowest and highest price in the past 52 weeks. The dot shows where the current price sits.">52-Week Range</th>
                 <th class="right">Current</th>
               </tr>
             </thead>
@@ -638,6 +638,13 @@ def _render_correlation_heatmap(price_data: dict, tickers: list) -> None:
             f'<div style="font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:{TEXT_MUTED};">Correlation Matrix</div>'
             f'<div style="font-size:10px;color:{TEXT_DIM};">12-month rolling</div>'
             f'</div>'
+        )
+
+        _section_intro(
+            "Shows whether your stocks tend to move together or independently. "
+            "Values near 1.0 (warm colours) mean two stocks rise and fall in sync — "
+            "less diversification benefit. Values near 0 (cool colours) mean they move "
+            "independently, which helps cushion your portfolio when one stock drops."
         )
 
         returns = {
@@ -728,7 +735,8 @@ def _render_sector_breakdown(
     with ui.column().classes("chart-card w-full"):
         _section_header("Sector Breakdown")
         _section_intro(
-            "Portfolio allocation grouped by GICS sector. "
+            "Shows which industries your money is spread across. "
+            "If one sector dominates, a downturn in that industry affects your whole portfolio. "
             "ETFs and crypto default to \u201cUnknown\u201d."
         )
 
@@ -801,9 +809,10 @@ def _render_rebalancing_calculator(portfolio_df: pd.DataFrame, currency_symbol: 
     with ui.column().classes("chart-card w-full"):
         _section_header("Rebalancing Calculator")
         _section_intro(
-            "Set target weights for each ticker and enter a deposit amount. "
-            "The calculator suggests buy-only actions to bring the portfolio "
-            "closer to your targets. It will never suggest selling."
+            "Helps you decide what to buy next. Set a target percentage for each stock "
+            "(how much of your portfolio you <i>want</i> it to be), enter how much money "
+            "you are adding, and the calculator tells you which stocks to buy to get closer "
+            "to your targets. It will never suggest selling."
         )
         ui.html(
             f'<div style="background:rgba(217,119,6,0.1);border:1px solid rgba(217,119,6,0.3);'
@@ -1020,10 +1029,6 @@ async def build_risk_tab(portfolio: dict, currency: str) -> None:
         )
         return
 
-    _section_intro(
-        "Portfolio risk, performance, and valuation metrics based on 12 months of daily price data."
-    )
-
     # ── Fetch data (off the event loop) ──────────────────────────────────
     def _fetch_risk_data():
         from concurrent.futures import ThreadPoolExecutor
@@ -1082,15 +1087,71 @@ async def build_risk_tab(portfolio: dict, currency: str) -> None:
 
     has_corr = len(tickers) >= 2
 
-    # ── Flat table (all columns visible, no expand/collapse) ──
+    # ── Portfolio-level risk KPIs ──────────────────────────
+    if not analytics_df.empty and not portfolio_df.empty:
+        ticker_weights = (
+            portfolio_df.groupby("Ticker")["Weight (%)"].sum() / 100
+        ).to_dict()
+
+        total_vol = total_dd = total_sharpe = total_beta = 0.0
+        w_sum_vol = w_sum_dd = w_sum_sharpe = w_sum_beta = 0.0
+        for _, arow in analytics_df.iterrows():
+            w = ticker_weights.get(arow["Ticker"], 0.0)
+            if w <= 0:
+                continue
+            v, d, s, b = (arow.get("Volatility"), arow.get("Max Drawdown"),
+                          arow.get("Sharpe Ratio"), arow.get("Beta"))
+            if v is not None and not pd.isna(v):
+                total_vol += w * v; w_sum_vol += w
+            if d is not None and not pd.isna(d):
+                total_dd += w * d; w_sum_dd += w
+            if s is not None and not pd.isna(s):
+                total_sharpe += w * s; w_sum_sharpe += w
+            if b is not None and not pd.isna(b):
+                total_beta += w * b; w_sum_beta += w
+
+        p_vol = (total_vol / w_sum_vol) if w_sum_vol > 0 else None
+        p_dd = (total_dd / w_sum_dd) if w_sum_dd > 0 else None
+        p_sharpe = (total_sharpe / w_sum_sharpe) if w_sum_sharpe > 0 else None
+        p_beta = (total_beta / w_sum_beta) if w_sum_beta > 0 else None
+
+        def _risk_kpi(label, value_str, sub_text):
+            return (
+                f'<div class="kpi-card">'
+                f'<div class="kpi-label">{label}</div>'
+                f'<div class="kpi-value">{value_str}</div>'
+                f'<div class="kpi-sub">{sub_text}</div>'
+                f'</div>'
+            )
+
+        ui.html(
+            '<div class="kpi-row" style="grid-template-columns:1fr 1fr 1fr 1fr;">'
+            + _risk_kpi("Portfolio Volatility",
+                        f"{p_vol:.1f}%" if p_vol is not None else "\u2014",
+                        "How much your portfolio swings in a typical year")
+            + _risk_kpi("Worst Drawdown",
+                        f"{p_dd:.1f}%" if p_dd is not None else "\u2014",
+                        "Biggest drop from peak in the past year")
+            + _risk_kpi("Return / Risk",
+                        f"{p_sharpe:.2f}" if p_sharpe is not None else "\u2014",
+                        "Return per unit of risk — above 1 is good")
+            + _risk_kpi("Market Beta",
+                        f"{p_beta:.2f}" if p_beta is not None else "\u2014",
+                        "How closely your portfolio follows the market")
+            + '</div>'
+        ).classes("w-full")
+
+    # ── Analytics table (full width) ───────────────────────
     _render_flat_table(
         portfolio_df, analytics_df, fund_rows, price_data_1y,
         currency_symbol, portfolio_color_map, base_currency=currency,
     )
 
+    # ── Correlation matrix (full width) ────────────────────
     if has_corr:
         _render_correlation_heatmap(price_data_1y, tickers)
 
-    # ── Sector Breakdown + Rebalancing Calculator ──────────
-    _render_sector_breakdown(fund_rows, portfolio_df)
-    _render_rebalancing_calculator(portfolio_df, currency_symbol)
+    # ── Sector + Rebalancing side by side ──────────────────
+    with ui.element("div").classes("charts-row w-full").style("width:100%;"):
+        _render_sector_breakdown(fund_rows, portfolio_df)
+        _render_rebalancing_calculator(portfolio_df, currency_symbol)

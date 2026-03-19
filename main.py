@@ -37,7 +37,7 @@ def _unsanitized_html_init(self, content='', **kwargs):
 ui.html.__init__ = _unsanitized_html_init
 
 from src.charts import CHART_COLORS
-from src.ui.forecast import build_diagnostics_tab, build_forecast_tab
+from src.ui.forecast import build_forecast_tab
 from src.ui.income import build_income_tab
 from src.ui.positions import build_positions_tab
 from src.ui.risk import build_risk_tab
@@ -194,7 +194,7 @@ def _get_market_status() -> tuple[str, str]:
     return "Closed", RED
 
 
-_TAB_NAMES = ["Overview", "Positions", "Risk & Analytics", "Income", "Forecast", "Diagnostics", "Guide"]
+_TAB_NAMES = ["Overview", "Positions", "Risk & Analytics", "Income", "Forecast", "Guide"]
 
 
 def _tab_url(tab_name: str | None = None) -> str:
@@ -532,12 +532,13 @@ async def index(request: Request):
                         await build_income_tab(portfolio, currency, portfolio_color_map)
                     elif name == "Forecast":
                         await build_forecast_tab(portfolio, currency)
-                    elif name == "Diagnostics":
-                        await build_diagnostics_tab(portfolio, currency)
                     elif name == "Guide":
                         build_guide_tab()
             finally:
-                spinner.delete()
+                try:
+                    spinner.delete()
+                except (ValueError, RuntimeError):
+                    pass
             _tab_built[name] = True
 
         # Build the initial tab
