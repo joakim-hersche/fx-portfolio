@@ -1,4 +1,4 @@
-"""Sidebar: add-position form, positions list, import/export/sample/clear."""
+"""Sidebar: search-first add-position, positions list, action icons."""
 
 from __future__ import annotations
 
@@ -12,7 +12,11 @@ from nicegui import run, ui
 from src.charts import CHART_COLORS
 from src.fx import CURRENCY_SYMBOLS, get_fx_rate, get_historical_fx_rate, get_ticker_currency
 from src.portfolio import fetch_buy_price
-from src.theme import ACCENT_DARK, BG_CARD, BG_PILL, BORDER, BORDER_INPUT, BORDER_SUBTLE, TEXT_DIM, TEXT_MUTED, TEXT_PRIMARY
+from src.theme import (
+    ACCENT, ACCENT_DARK, BG_CARD, BG_INPUT, BG_PILL,
+    BORDER, BORDER_INPUT, BORDER_SUBTLE,
+    TEXT_DIM, TEXT_MUTED, TEXT_PRIMARY,
+)
 from src.ui.shared import load_portfolio, save_portfolio
 
 # ── Sample portfolio path ──
@@ -35,8 +39,27 @@ _VALID_TICKER_RE = re.compile(r'^[A-Za-z0-9.\-=^]{1,15}$')
 
 
 def _is_valid_ticker(ticker: str) -> bool:
-    """Return True if ticker is a safe, well-formed symbol string."""
     return isinstance(ticker, str) and bool(_VALID_TICKER_RE.match(ticker))
+
+
+# ── Infer market from ticker ──
+_MARKET_SUFFIXES = {
+    ".L": "UK — FTSE 100",
+    ".DE": "Germany — DAX",
+    ".PA": "France — CAC 40",
+    ".SW": "Switzerland — SMI",
+    ".AS": "Netherlands — AEX",
+    ".MC": "Spain — IBEX 35",
+    ".ST": "Sweden — OMX 30",
+}
+
+
+def _infer_market(ticker: str) -> str | None:
+    """Infer market from ticker suffix, or None for US/unknown."""
+    for suffix, market in _MARKET_SUFFIXES.items():
+        if ticker.upper().endswith(suffix):
+            return market
+    return None
 
 
 def build_sidebar(
@@ -44,97 +67,121 @@ def build_sidebar(
     active_tab: dict,
     on_mutation=None,
 ) -> None:
-    """Build the sidebar: add-position form + positions list + import/export."""
+    """Build the sidebar: search-first add form + positions list + action icons."""
 
-    # ── Add Position form ──────────────────────────────────
-    ui.html('<div class="sidebar-section-header">Portfolio</div>')
+    # Build flat ticker->label map from all markets for the unified search
+    all_tickers: dict[str, str] = {}
+    for market, opts in stock_options.items():
+        if isinstance(opts, dict):
+            all_tickers.update(opts)
+        elif isinstance(opts, list):
+            all_tickers.update({t: t for t in opts})
 
-    # Market select
-    ui.html('<label class="form-label">Market</label>').classes("w-full")
-    market_select = ui.select(
-        _MARKETS,
-        value=_MARKETS[0],
-    ).props("dense outlined").classes("w-full").style("font-size:11px;")
-
-    # Ticker select (populated from stock options)
-    initial_options = stock_options.get(_MARKETS[0], {})
-    ui.html('<label class="form-label">Ticker</label>').classes("w-full")
-    ticker_select = ui.select(
-        options=initial_options,
+    # ── Unified Search Bar ─────────────────────────────────
+    search_select = ui.select(
+        options=all_tickers,
         with_input=True,
-    ).props("dense outlined use-input").classes("w-full").style("font-size:11px;")
-
-    def on_market_change(e):
-        market = e.value
-        opts = stock_options.get(market, {})
-        ticker_select.options = opts
-        ticker_select.value = None
-        ticker_select.update()
-        is_alt = market in _ALT_ASSETS
-        # Update shares/amount label text
-        new_label = f"Amount ({shared['currency']})" if is_alt else "Shares"
-        shares_label.content = f'<label class="form-label">{new_label}</label>'
-        shares_label.update()
-        # Toggle date vs price visibility
-        _update_price_date_visibility(is_alt, manual_checkbox.value if not is_alt else False)
-
-    market_select.on_value_change(on_market_change)
-
-    # Shares / Amount + Buy Price row
-    with ui.row().classes("w-full").style("gap:6px;"):
-        with ui.column().classes("w-full").style("gap:0; min-width:0; flex:1;"):
-            shares_label = ui.html('<label class="form-label">Shares</label>').classes("w-full")
-            shares_input = ui.number(placeholder="10", min=0.01).props(
-                "dense outlined"
-            ).classes("w-full").style("font-size:11px;")
-        with ui.column().classes("w-full").style("gap:0; min-width:0; flex:1;") as price_col:
-            price_label = ui.html('<label class="form-label">Buy Price</label>').classes("w-full")
-            price_input = ui.number(placeholder="150.00", min=0, step=0.01).props(
-                "dense outlined"
-            ).classes("w-full").style("font-size:11px;")
-            price_col.set_visibility(False)
-
-    # Date input with date picker popup (auto-close on pick to avoid backdrop trap)
-    date_label = ui.html('<label class="form-label">Date</label>').classes("w-full")
-    date_input = ui.input(placeholder="2024-01-15").props(
-        'dense outlined mask="####-##-##"'
-    ).classes("w-full").style("font-size:11px;")
-    with date_input:
-        with ui.menu().props("no-parent-event auto-close") as date_menu:
-            ui.date().bind_value(date_input)
-        with date_input.add_slot("append"):
-            ui.icon("edit_calendar").on("click", date_menu.open).classes("cursor-pointer")
-
-    # Manual price checkbox (hidden for alt assets)
-    manual_checkbox = ui.checkbox("Enter price manually", value=False).style(
-        "font-size:10px;"
+        label="Search ticker...",
+    ).props("dense outlined use-input clearable").classes("w-full").style(
+        f"font-size:11px;"
     )
 
-    def _update_price_date_visibility(is_alt: bool, is_manual: bool):
-        if is_alt:
-            date_label.set_visibility(True)
-            date_input.set_visibility(True)
-            price_col.set_visibility(False)
-            manual_checkbox.set_visibility(False)
-        elif is_manual:
-            # Keep date visible but optional (#14)
-            date_label.set_visibility(True)
-            date_input.set_visibility(True)
-            price_col.set_visibility(True)
-            manual_checkbox.set_visibility(True)
+    # ── Detail fields (hidden until ticker selected) ───────
+    detail_container = ui.column().classes("w-full").style("gap:6px;")
+    detail_container.set_visibility(False)
+
+    with detail_container:
+        # Market tag + company name
+        ticker_info = ui.html("").classes("w-full")
+
+        with ui.row().classes("w-full").style("gap:6px;"):
+            with ui.column().classes("w-full").style("gap:0; min-width:0; flex:1;"):
+                shares_label = ui.html(
+                    f'<label style="font-size:9px;font-weight:600;color:{TEXT_DIM};letter-spacing:0.04em;text-transform:uppercase;">Shares</label>'
+                ).classes("w-full")
+                shares_input = ui.number(placeholder="10", min=0.01).props(
+                    "dense outlined"
+                ).classes("w-full").style("font-size:11px;")
+            with ui.column().classes("w-full").style("gap:0; min-width:0; flex:1;"):
+                ui.html(
+                    f'<label style="font-size:9px;font-weight:600;color:{TEXT_DIM};letter-spacing:0.04em;text-transform:uppercase;">Date</label>'
+                ).classes("w-full")
+                date_input = ui.input(placeholder="2024-01-15").props(
+                    'dense outlined mask="####-##-##"'
+                ).classes("w-full").style("font-size:11px;")
+                with date_input:
+                    with ui.menu().props("no-parent-event auto-close") as date_menu:
+                        ui.date().bind_value(date_input)
+                    with date_input.add_slot("append"):
+                        ui.icon("edit_calendar").on("click", date_menu.open).classes(
+                            "cursor-pointer"
+                        ).style(f"font-size:16px;color:{TEXT_DIM};")
+
+        # Manual price row (hidden by default)
+        with ui.row().classes("w-full").style("gap:6px;") as price_row:
+            with ui.column().classes("w-full").style("gap:0; min-width:0; flex:1;"):
+                ui.html(
+                    f'<label style="font-size:9px;font-weight:600;color:{TEXT_DIM};letter-spacing:0.04em;text-transform:uppercase;">Buy Price</label>'
+                ).classes("w-full")
+                price_input = ui.number(placeholder="150.00", min=0, step=0.01).props(
+                    "dense outlined"
+                ).classes("w-full").style("font-size:11px;")
+        price_row.set_visibility(False)
+
+        manual_checkbox = ui.checkbox("Enter price manually", value=False).style(
+            f"font-size:10px;color:{TEXT_DIM};"
+        )
+
+        # Placeholder — real handler assigned after definition below
+        _add_handler = {"fn": None}
+
+        async def _on_add_click():
+            if _add_handler["fn"]:
+                await _add_handler["fn"]()
+
+        add_btn = ui.button("+ Add", on_click=_on_add_click).props(
+            'no-caps unelevated no-ripple color=none'
+        ).classes("w-full").style(
+            f"background:{ACCENT};color:white;font-size:11px;font-weight:600;"
+            f"padding:5px 0;min-height:28px;border-radius:5px;"
+        )
+
+    # ── Show/hide detail fields on ticker selection ────────
+    def _on_ticker_change(e):
+        ticker = e.value
+        if ticker and _is_valid_ticker(ticker):
+            detail_container.set_visibility(True)
+            market = _infer_market(ticker)
+            market_label = market.split(" — ")[0] if market else "US"
+            company = all_tickers.get(ticker, ticker)
+            is_alt = market in _ALT_ASSETS if market else False
+            ticker_info.content = (
+                f'<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;">'
+                f'<span style="font-size:9px;font-weight:600;padding:1px 6px;border-radius:3px;'
+                f'background:{ACCENT_DARK};color:#93C5FD;">{market_label}</span>'
+                f'<span style="font-size:10px;color:{TEXT_MUTED};white-space:nowrap;overflow:hidden;'
+                f'text-overflow:ellipsis;">{company}</span>'
+                f'</div>'
+            )
+            ticker_info.update()
+            # Update shares label for alt assets
+            label_text = f"Amount ({shared['currency']})" if is_alt else "Shares"
+            shares_label.content = (
+                f'<label style="font-size:9px;font-weight:600;color:{TEXT_DIM};'
+                f'letter-spacing:0.04em;text-transform:uppercase;">{label_text}</label>'
+            )
+            shares_label.update()
         else:
-            date_label.set_visibility(True)
-            date_input.set_visibility(True)
-            price_col.set_visibility(False)
-            manual_checkbox.set_visibility(True)
+            detail_container.set_visibility(False)
 
-    def on_manual_change(e):
-        is_alt = market_select.value in _ALT_ASSETS
-        _update_price_date_visibility(is_alt, e.value)
+    search_select.on_value_change(_on_ticker_change)
 
-    manual_checkbox.on_value_change(on_manual_change)
+    def _on_manual_change(e):
+        price_row.set_visibility(e.value)
 
-    # ── Add Position button ──────────────────────────────
+    manual_checkbox.on_value_change(_on_manual_change)
+
+    # ── Add Position logic ─────────────────────────────────
     async def on_add_position():
         add_btn.disable()
         try:
@@ -143,18 +190,18 @@ def build_sidebar(
             add_btn.enable()
 
     async def _on_add_position_inner():
-        market = market_select.value
-        is_alt = market in _ALT_ASSETS
-        ticker = ticker_select.value
-        manual = manual_checkbox.value and not is_alt
-
-        # Validation
+        ticker = search_select.value
         if not ticker:
             ui.notify("Please select a stock.", type="warning")
             return
         if not _is_valid_ticker(ticker):
             ui.notify("Invalid ticker symbol.", type="negative")
             return
+
+        market = _infer_market(ticker)
+        is_alt = market in _ALT_ASSETS if market else False
+        manual = manual_checkbox.value and not is_alt
+
         if not is_alt and (shares_input.value is None or shares_input.value <= 0):
             ui.notify("Please enter the number of shares.", type="warning")
             return
@@ -168,7 +215,6 @@ def build_sidebar(
             ui.notify("Please enter a valid buy price.", type="warning")
             return
 
-        # Determine buy price and FX rate (use run.io_bound for blocking I/O)
         ticker_currency = get_ticker_currency(ticker)
         base_currency = shared["currency"]
         purchase_date = date_input.value
@@ -177,7 +223,7 @@ def build_sidebar(
             buy_price = price_input.value
             buy_fx_rate = 1.0
             if not purchase_date:
-                ui.notify("No purchase date set. Optional — helps track dividends and purchase-relative returns.", type="info")
+                ui.notify("No purchase date set. Optional — helps track dividends.", type="info")
         elif purchase_date:
             notification = ui.notification("Fetching price data...", spinner=True, timeout=None)
             result = await run.io_bound(fetch_buy_price, ticker, str(purchase_date))
@@ -185,19 +231,20 @@ def build_sidebar(
             if result is None:
                 ui.notify(
                     f"Could not fetch price for {ticker} on {purchase_date}. "
-                    "Check the ticker symbol and date, or try again if Yahoo Finance is slow.",
+                    "Check the ticker and date, or try again.",
                     type="negative",
                 )
                 return
             buy_price, actual_date = result
             if actual_date != str(purchase_date):
                 ui.notify(
-                    f"{purchase_date} was not a trading day. Using price from {actual_date}.",
+                    f"{purchase_date} was not a trading day. Using {actual_date}.",
                     type="info",
                 )
-            buy_fx_rate = await run.io_bound(get_historical_fx_rate, ticker_currency, base_currency, str(purchase_date))
+            buy_fx_rate = await run.io_bound(
+                get_historical_fx_rate, ticker_currency, base_currency, str(purchase_date)
+            )
         else:
-            # Alt asset without date — use today
             purchase_date = str(pd.Timestamp.today().date())
             notification = ui.notification("Fetching price data...", spinner=True, timeout=None)
             result = await run.io_bound(fetch_buy_price, ticker, purchase_date)
@@ -208,7 +255,6 @@ def build_sidebar(
                 return
             buy_fx_rate, _ = await run.io_bound(get_fx_rate, ticker_currency, base_currency)
 
-        # Compute shares for alt assets
         if is_alt:
             shares = round(shares_input.value / buy_price, 6)
         else:
@@ -222,7 +268,6 @@ def build_sidebar(
             "manual_price": manual,
         }
 
-        # Mutate portfolio and save
         portfolio.setdefault(ticker, []).append(lot)
         stored = load_portfolio()
         stored["portfolio"] = portfolio
@@ -232,28 +277,22 @@ def build_sidebar(
         ui.notify(f"Added {shares:g} units of {ticker} at {sym}{buy_price:,.2f}", type="positive")
 
         # Reset form
-        ticker_select.value = None
+        search_select.value = None
         shares_input.value = None
         price_input.value = None
         date_input.value = ""
+        detail_container.set_visibility(False)
 
-        # Refresh visible tab + sidebar without full page reload
         positions_list.refresh()
         if on_mutation and on_mutation.get("fn"):
             await on_mutation["fn"]()
 
-    add_btn = ui.button("+ Add Position", on_click=on_add_position).classes(
-        "add-btn w-full"
-    ).props('no-caps unelevated no-ripple color=none aria-label="Add position"').style(
-        f"background:{ACCENT_DARK}; color:{TEXT_PRIMARY}; font-size:12px; font-weight:600; padding:8px 0; min-height:32px;"
-    )
-
-    # Enter key on shares and date inputs submits the form
+    _add_handler["fn"] = on_add_position
     shares_input.on("keydown.enter", on_add_position)
     date_input.on("keydown.enter", on_add_position)
 
-    # ── Divider + positions list ───────────────────────────
-    ui.html('<hr class="sidebar-divider" style="margin-top:12px;">')
+    # ── Positions list ─────────────────────────────────────
+    ui.html('<hr class="sidebar-divider" style="margin-top:4px;">')
     ui.html('<div class="sidebar-section-header">Positions</div>')
 
     @ui.refreshable
@@ -262,7 +301,9 @@ def build_sidebar(
             tickers = list(portfolio.keys())
             with ui.column().classes("w-full").style("gap:4px;"):
                 for i, ticker in enumerate(tickers):
-                    color = (shared.get("portfolio_color_map") or {}).get(ticker, CHART_COLORS[i % len(CHART_COLORS)])
+                    color = (shared.get("portfolio_color_map") or {}).get(
+                        ticker, CHART_COLORS[i % len(CHART_COLORS)]
+                    )
                     lots = portfolio[ticker]
                     total_shares = sum(lot.get("shares", 0) for lot in lots)
                     mkt_value = (shared.get("ticker_values") or {}).get(ticker)
@@ -272,7 +313,6 @@ def build_sidebar(
                         value_text = f"{total_shares:g} shares"
                     company_name = shared.get("name_map", {}).get(ticker, ticker)
                     _t = ticker
-                    # Single HTML card — dot, text, and x all inline
                     bridge = ui.element("div").style("display:none;")
                     bridge.on("remove_click", lambda _, t=_t: _confirm_remove(t))
                     bridge_id = f"c{bridge.id}"
@@ -292,7 +332,7 @@ def build_sidebar(
         else:
             ui.html(
                 f'<div style="font-size:11px;color:{TEXT_DIM};padding:8px 4px;">'
-                "No positions yet. Add one above.</div>"
+                "No positions yet. Search above to add one.</div>"
             )
 
     positions_list()
@@ -303,13 +343,13 @@ def build_sidebar(
         with ui.dialog() as dialog, ui.card().style(f"min-width:260px;background:{BG_CARD};"):
             ui.label(f"Remove {ticker}?").style("font-weight:600;font-size:14px;")
             if len(lots) == 1:
-                ui.label("This will remove the position. This cannot be undone.").style("font-size:12px;")
+                ui.label("This will remove the position.").style("font-size:12px;")
             else:
-                ui.label(f"This will remove all {len(lots)} lots. This cannot be undone.").style("font-size:12px;")
+                ui.label(f"This will remove all {len(lots)} lots.").style("font-size:12px;")
             with ui.row().classes("w-full justify-end gap-2"):
                 ui.button("Cancel", on_click=dialog.close).props("flat")
+
                 async def do_remove(d=dialog, t=ticker):
-                    # Soft delete with undo window (#21)
                     removed_lots = portfolio.pop(t)
                     stored = load_portfolio()
                     stored["portfolio"] = portfolio
@@ -319,8 +359,8 @@ def build_sidebar(
                     if on_mutation and on_mutation.get("fn"):
                         await on_mutation["fn"]()
 
-                    # Show undo toast
                     undo_state = {"undone": False}
+
                     async def _undo():
                         if undo_state["undone"]:
                             return
@@ -333,49 +373,47 @@ def build_sidebar(
                         if on_mutation and on_mutation.get("fn"):
                             await on_mutation["fn"]()
                         ui.notify(f"Restored {t}", type="positive")
-                    with ui.notification(f"Removed {t}", timeout=5) as n:
+
+                    with ui.notification(f"Removed {t}", timeout=5):
                         ui.button("Undo", on_click=_undo).props("flat dense")
+
                 ui.button("Remove", on_click=do_remove, color="red").props("flat")
         dialog.open()
 
-    # ── Import / Export / Sample / Clear ──────────────────
+    # ── Bottom action icons ────────────────────────────────
     ui.html('<hr class="sidebar-divider">')
 
-    # Import
+    # Hidden upload element
     async def on_import_upload(e):
         try:
             content = e.content.read()
             data = json.loads(content)
-            # Validate structure and types (#15)
             if not isinstance(data, dict):
-                ui.notify("Invalid portfolio file: expected a JSON object.", type="negative")
+                ui.notify("Invalid portfolio file.", type="negative")
                 return
             for t, lots in data.items():
                 if not isinstance(t, str) or not isinstance(lots, list):
-                    ui.notify(f"Invalid portfolio file: bad entry for '{t}'.", type="negative")
+                    ui.notify(f"Invalid entry for '{t}'.", type="negative")
                     return
                 if not _is_valid_ticker(t):
-                    ui.notify(f"Invalid ticker '{t}': must be 1-15 alphanumeric/.-=^ characters.", type="negative")
+                    ui.notify(f"Invalid ticker '{t}'.", type="negative")
                     return
                 for lot in lots:
                     if not isinstance(lot, dict) or not {"shares", "buy_price", "purchase_date"}.issubset(lot.keys()):
-                        ui.notify(f"Invalid lot for {t}: missing required fields.", type="negative")
+                        ui.notify(f"Invalid lot for {t}.", type="negative")
                         return
                     if not isinstance(lot["shares"], (int, float)) or lot["shares"] <= 0:
-                        ui.notify(f"Invalid shares for {t}: must be a positive number.", type="negative")
+                        ui.notify(f"Invalid shares for {t}.", type="negative")
                         return
                     if not isinstance(lot["buy_price"], (int, float)) or lot["buy_price"] <= 0:
-                        ui.notify(f"Invalid buy_price for {t}: must be a positive number.", type="negative")
-                        return
-                    if lot["purchase_date"] is not None and not isinstance(lot["purchase_date"], str):
-                        ui.notify(f"Invalid purchase_date for {t}: must be a string or null.", type="negative")
+                        ui.notify(f"Invalid buy_price for {t}.", type="negative")
                         return
             portfolio.clear()
             portfolio.update(data)
             stored = load_portfolio()
             stored["portfolio"] = portfolio
             save_portfolio(stored)
-            ui.notify("Portfolio imported successfully.", type="positive")
+            ui.notify("Portfolio imported.", type="positive")
             positions_list.refresh()
             if on_mutation and on_mutation.get("fn"):
                 await on_mutation["fn"]()
@@ -387,37 +425,20 @@ def build_sidebar(
         on_upload=on_import_upload,
     ).props('accept=".json"').style("display:none;")
 
-    _sidebar_btn_style = (
-        f"border:1px solid {BORDER_INPUT}; border-radius:5px; color:{TEXT_DIM}; "
-        f"font-size:11px; font-weight:500; padding:6px 0; margin-bottom:4px; "
-        f"text-transform:none; width:100%; box-sizing:border-box;"
-    )
-    _sidebar_btn_props = "flat no-caps no-ripple"
-
-    ui.button("Import Portfolio", on_click=lambda: ui.run_javascript(
-        f'document.getElementById("c{import_upload.id}").querySelector("input").click()'
-    )).classes("w-full").props(_sidebar_btn_props).style(_sidebar_btn_style)
-
-    # Export
     def on_export():
         if not portfolio:
             ui.notify("No positions to export.", type="warning")
             return
-        content = json.dumps(portfolio, indent=2)
-        ui.download(content.encode(), "portfolio.json")
+        ui.download(json.dumps(portfolio, indent=2).encode(), "portfolio.json")
 
-    ui.button("Export Portfolio", on_click=on_export).props(
-        _sidebar_btn_props
-    ).classes("w-full").style(_sidebar_btn_style)
-
-    # Load Sample
     def on_load_sample():
         with ui.dialog() as dialog, ui.card().style(f"min-width:260px;background:{BG_CARD};"):
             ui.label("Load Sample Portfolio?").style("font-weight:600;font-size:14px;")
-            ui.label("This will replace your current portfolio with sample data.").style("font-size:12px;")
+            ui.label("This replaces your current portfolio.").style(f"font-size:12px;color:{TEXT_MUTED};")
             with ui.row().classes("w-full justify-end gap-2"):
                 ui.button("Cancel", on_click=dialog.close).props("flat")
-                async def do_load_sample(d=dialog):
+
+                async def do_load(d=dialog):
                     with open(_SAMPLE_PATH) as f:
                         sample = json.load(f)
                     portfolio.clear()
@@ -430,23 +451,20 @@ def build_sidebar(
                     positions_list.refresh()
                     if on_mutation and on_mutation.get("fn"):
                         await on_mutation["fn"]()
-                ui.button("Load Sample", on_click=do_load_sample, color="blue").props("flat")
+
+                ui.button("Load Sample", on_click=do_load, color="blue").props("flat")
         dialog.open()
 
-    ui.button("Load Sample", on_click=on_load_sample).props(
-        _sidebar_btn_props
-    ).classes("w-full").style(_sidebar_btn_style)
-
-    # Clear All
     def on_clear_all():
         if not portfolio:
             ui.notify("Portfolio is already empty.", type="info")
             return
         with ui.dialog() as dialog, ui.card().style(f"min-width:260px;background:{BG_CARD};"):
             ui.label("Clear All Positions?").style("font-weight:600;font-size:14px;")
-            ui.label("This will delete all your positions. This cannot be undone.").style("font-size:12px;")
+            ui.label("This cannot be undone.").style(f"font-size:12px;color:{TEXT_MUTED};")
             with ui.row().classes("w-full justify-end gap-2"):
                 ui.button("Cancel", on_click=dialog.close).props("flat")
+
                 async def do_clear(d=dialog):
                     portfolio.clear()
                     stored = load_portfolio()
@@ -457,9 +475,33 @@ def build_sidebar(
                     positions_list.refresh()
                     if on_mutation and on_mutation.get("fn"):
                         await on_mutation["fn"]()
+
                 ui.button("Clear All", on_click=do_clear, color="red").props("flat")
         dialog.open()
 
-    ui.button("Clear All", on_click=on_clear_all).props(
-        _sidebar_btn_props
-    ).classes("w-full").style(_sidebar_btn_style)
+    _icon_style = (
+        f"color:{TEXT_DIM};min-width:0;width:32px;height:28px;"
+        f"border:1px solid {BORDER_SUBTLE};border-radius:5px;"
+    )
+
+    with ui.row().classes("w-full items-center justify-center").style("gap:4px;"):
+        ui.button(
+            icon="upload",
+            on_click=lambda: ui.run_javascript(
+                f'document.getElementById("c{import_upload.id}").querySelector("input").click()'
+            ),
+        ).props('flat dense round size=sm aria-label="Import"').style(_icon_style).tooltip("Import Portfolio")
+
+        ui.button(
+            icon="download", on_click=on_export,
+        ).props('flat dense round size=sm aria-label="Export"').style(_icon_style).tooltip("Export Portfolio")
+
+        ui.html(f'<div style="width:1px;height:16px;background:{BORDER_SUBTLE};"></div>')
+
+        ui.button(
+            icon="dataset", on_click=on_load_sample,
+        ).props('flat dense round size=sm aria-label="Sample"').style(_icon_style).tooltip("Load Sample")
+
+        ui.button(
+            icon="delete_outline", on_click=on_clear_all,
+        ).props('flat dense round size=sm aria-label="Clear"').style(_icon_style).tooltip("Clear All")
