@@ -57,6 +57,7 @@ GLOBAL_CSS = """
 /* ── Spacing scale ─────────────────────────────────────── */
 :root {
   --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 20px; --sp-6: 24px;
+  --grid-gap: 14px;
 }
 
 /* ── Reset Quasar/NiceGUI defaults ─────────────────────── */
@@ -163,7 +164,7 @@ body, .q-page, .nicegui-content {
 .sidebar-btn:hover { border-color: rgba(255,255,255,0.15); color: %(TEXT_MUTED)s; }
 
 /* ── KPI cards ─────────────────────────────────────────── */
-.kpi-row { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; margin-bottom: 8px; width: 100%%; }
+.kpi-row { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: var(--grid-gap); margin-bottom: 8px; width: 100%%; }
 .kpi-card {
   background: %(BG_CARD)s; border: 1px solid %(BORDER)s;
   border-radius: 10px; padding: 16px 18px; box-sizing: border-box;
@@ -202,7 +203,7 @@ body, .q-page, .nicegui-content {
   font-size: 10px; font-weight: 700; letter-spacing: 0.12em;
   text-transform: uppercase; color: %(TEXT_MUTED)s;
 }
-.charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; width: 100%%; }
+.charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--grid-gap); width: 100%%; }
 
 /* Plotly charts fill their container */
 .js-plotly-plot, .plotly, .plot-container { width: 100%% !important; }
@@ -309,13 +310,13 @@ body, .q-page, .nicegui-content {
 }
 
 /* ── Responsive grid classes ─────────────────────────── */
-.risk-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; width: 100%%; align-items: stretch; }
+.risk-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--grid-gap); width: 100%%; align-items: stretch; }
 .risk-grid > * { display: flex; flex-direction: column; }
 .risk-grid > * > .chart-card { flex: 1; display: flex; flex-direction: column; }
-.metric-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; width: 100%%; }
-.metric-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; width: 100%%; }
+.metric-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--grid-gap); width: 100%%; }
+.metric-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--grid-gap); width: 100%%; }
 .preview-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; width: 100%%; }
-.diag-row { display: flex; gap: 14px; align-items: stretch !important; flex-wrap: wrap; width: 100%%; }
+.diag-row { display: flex; gap: var(--grid-gap); align-items: stretch !important; flex-wrap: wrap; width: 100%%; }
 .diag-row > * { flex: 1; min-width: 280px; }
 .diag-row > * { align-self: stretch !important; }
 .diag-row > .nicegui-column.chart-card,
