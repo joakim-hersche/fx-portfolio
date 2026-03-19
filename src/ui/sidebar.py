@@ -93,6 +93,11 @@ def build_sidebar(
         f"font-size:11px;"
     )
 
+    search_select.add_slot(
+        "no-option",
+        f'<div style="padding:8px 12px;font-size:11px;color:{TEXT_DIM};">No matching tickers found</div>'
+    )
+
     # After each input keystroke, auto-highlight the first filtered option
     # so pressing Enter selects it without needing arrow-down first.
     search_select.on(
