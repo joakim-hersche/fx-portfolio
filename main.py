@@ -35,9 +35,9 @@ def _unsanitized_html_init(self, content='', **kwargs):
 ui.html.__init__ = _unsanitized_html_init
 
 from src.charts import CHART_COLORS
-from src.nicegui_forecast import build_diagnostics_tab, build_forecast_tab
-from src.nicegui_positions import build_positions_tab
-from src.nicegui_risk import build_risk_tab
+from src.ui.forecast import build_diagnostics_tab, build_forecast_tab
+from src.ui.positions import build_positions_tab
+from src.ui.risk import build_risk_tab
 from src.data_fetch import fetch_company_name, load_stock_options
 from src.fx import CURRENCY_SYMBOLS
 from src.portfolio import build_portfolio_df, fetch_buy_price

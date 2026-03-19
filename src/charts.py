@@ -25,9 +25,26 @@ def _apply_default_layout(fig: go.Figure, **overrides) -> go.Figure:
         template=_PLOT_TMPL,
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
+        hoverlabel=dict(
+            bgcolor="#1C1D26",
+            bordercolor="#1E293B",
+            font=dict(color="#F1F5F9", size=11, family="Inter, sans-serif"),
+        ),
+        modebar=dict(
+            bgcolor="rgba(0,0,0,0)",
+            color="#64748B",
+            activecolor=C_NEUTRAL,
+        ),
     )
     defaults.update(overrides)
     fig.update_layout(**defaults)
+    _axis_style = dict(
+        gridcolor="rgba(255,255,255,0.04)",
+        tickfont=dict(color="#CBD5E1", size=10),
+        title_font=dict(color="#CBD5E1", size=11),
+    )
+    fig.update_xaxes(**_axis_style)
+    fig.update_yaxes(**_axis_style)
     return fig
 
 
@@ -73,7 +90,12 @@ def build_qq_plot(
         xaxis_title="Theoretical quantiles (normal)",
         yaxis_title="Sample quantiles (actual returns)",
         showlegend=True,
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+        legend=dict(
+            orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0,
+            bgcolor="rgba(0,0,0,0)",
+            bordercolor="rgba(255,255,255,0.06)",
+            font=dict(size=10, color=C_NEUTRAL),
+        ),
     )
     return fig
 
@@ -141,10 +163,10 @@ def build_fan_chart(
     for hl in (hlines or []):
         fig.add_hline(
             y=hl["y"],
-            line=dict(color=hl.get("color", "#9CA3AF"), width=hl.get("width", 1.5), dash=hl.get("dash", "dot")),
+            line=dict(color=hl.get("color", C_NEUTRAL), width=hl.get("width", 1.5), dash=hl.get("dash", "dot")),
             annotation_text=hl.get("text", ""),
             annotation_position=hl.get("position", "top left"),
-            annotation_font_color=hl.get("color", "#9CA3AF"),
+            annotation_font_color=hl.get("color", C_NEUTRAL),
         )
 
     _apply_default_layout(
@@ -152,7 +174,12 @@ def build_fan_chart(
         margin=dict(t=20, b=40),
         yaxis=dict(tickprefix=currency_symbol, title=y_title),
         xaxis=dict(title="Date"),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0, font=dict(size=12)) if show_legend else dict(visible=False),
+        legend=dict(
+            orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0,
+            font=dict(size=10, color=C_NEUTRAL),
+            bgcolor="rgba(0,0,0,0)",
+            bordercolor="rgba(255,255,255,0.06)",
+        ) if show_legend else dict(visible=False),
         hovermode="x unified",
     )
     return fig
@@ -220,7 +247,9 @@ def build_comparison_chart(
             orientation="h",
             yanchor="bottom", y=1.02,
             xanchor="left", x=0,
-            font=dict(size=11),
+            font=dict(size=10, color=C_NEUTRAL),
+            bgcolor="rgba(0,0,0,0)",
+            bordercolor="rgba(255,255,255,0.06)",
         ),
     )
     fig.add_hline(y=100, line_dash="dash", line_color="gray")
@@ -273,7 +302,7 @@ def build_correlation_heatmap(corr_df: pd.DataFrame) -> go.Figure:
     _scale = [
         [0.00, "#DC2626"],  # -1.0  strong negative
         [0.25, "#FCA5A5"],  # -0.5  weak negative
-        [0.50, "#9CA3AF"],  #  0.0  no correlation
+        [0.50, C_NEUTRAL],  #  0.0  no correlation
         [0.75, "#86EFAC"],  # +0.5  weak positive
         [1.00, "#16A34A"],  # +1.0  strong positive
     ]
@@ -282,7 +311,12 @@ def build_correlation_heatmap(corr_df: pd.DataFrame) -> go.Figure:
     _apply_default_layout(
         fig,
         margin=dict(t=20),
-        coloraxis_colorbar=dict(title="Correlation", tickvals=[-1, -0.5, 0, 0.5, 1]),
+        coloraxis_colorbar=dict(
+            title="Correlation",
+            title_font=dict(color=C_NEUTRAL, size=10),
+            tickfont=dict(color=C_NEUTRAL, size=9),
+            tickvals=[-1, -0.5, 0, 0.5, 1],
+        ),
     )
     return fig
 
@@ -306,10 +340,10 @@ def build_portfolio_histogram(
         hovertemplate=f"{currency_symbol}%{{x:,.0f}}<br>Count: %{{y}}<extra></extra>",
     ))
     for val, label, color, pos in [
-        (p10,         "p10",     "#DC2626", "top left"),
-        (p50,         "Median",  "#6366F1", "top right"),
-        (p90,         "p90",     "#16A34A", "top right"),
-        (start_value, "Current", "#9CA3AF", "bottom right"),
+        (p10,         "p10",     C_NEGATIVE, "top left"),
+        (p50,         "Median",  "#6366F1",  "top right"),
+        (p90,         "p90",     C_POSITIVE, "top right"),
+        (start_value, "Current", C_NEUTRAL, "bottom right"),
     ]:
         fig.add_vline(
             x=val,
