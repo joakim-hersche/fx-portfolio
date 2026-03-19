@@ -13,7 +13,6 @@ from src.charts import (
     C_POSITIVE,
     C_NEGATIVE,
     C_AMBER,
-    build_correlation_heatmap,
 )
 from src.stocks import TICKER_COLORS
 from src.data_fetch import fetch_analytics_history, fetch_fundamentals
@@ -359,8 +358,23 @@ def _render_unified_table(
 
 # ── Correlation Heatmap ─────────────────────────────────────────────────────
 
+def _corr_color(val: float) -> str:
+    """Map a correlation value to a background color."""
+    if val < 0:
+        return "#14B8A6"   # teal — inverse/hedge
+    if val < 0.2:
+        return "#3B82F6"   # blue — low
+    if val < 0.4:
+        return "#6366F1"   # indigo — low-moderate
+    if val < 0.6:
+        return "#8B5CF6"   # purple — moderate
+    if val < 0.8:
+        return "#D97706"   # amber — high
+    return "#DC2626"       # red — very high
+
+
 def _render_correlation_heatmap(price_data: dict, tickers: list) -> None:
-    """Render the pairwise correlation matrix as a Plotly heatmap."""
+    """Render the pairwise correlation matrix as an HTML CSS grid."""
     with ui.column().classes("chart-card w-full"):
         ui.html(
             f'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">'
@@ -382,8 +396,41 @@ def _render_correlation_heatmap(price_data: dict, tickers: list) -> None:
             return
 
         corr_df = pd.DataFrame(returns).dropna().corr()
-        fig = build_correlation_heatmap(corr_df)
-        ui.plotly(fig).classes("w-full")
+        labels = list(corr_df.columns)
+        n = len(labels)
+
+        # Build HTML grid
+        cell_style = (
+            "border-radius:6px;aspect-ratio:1;display:flex;"
+            "align-items:center;justify-content:center;"
+        )
+        font_style = "font-size:10px;font-weight:600;color:rgba(255,255,255,0.85);"
+        label_style = f"font-size:10px;font-weight:700;color:{TEXT_FAINT};display:flex;align-items:center;justify-content:center;"
+
+        cells = f'<div style="{label_style}"></div>'  # empty corner
+        for lbl in labels:
+            cells += f'<div style="{label_style}">{lbl}</div>'
+
+        for i, row_lbl in enumerate(labels):
+            cells += f'<div style="{label_style}">{row_lbl}</div>'
+            for j, col_lbl in enumerate(labels):
+                val = corr_df.iloc[i, j]
+                if i == j:
+                    cells += (
+                        f'<div style="{cell_style}background:{BG_PILL};'
+                        f'font-size:9px;color:{TEXT_DIM};">1.0</div>'
+                    )
+                else:
+                    bg = _corr_color(val)
+                    cells += (
+                        f'<div style="{cell_style}background:{bg};{font_style}">'
+                        f'{val:.2f}</div>'
+                    )
+
+        ui.html(
+            f'<div style="display:grid;grid-template-columns:repeat({n + 1},1fr);gap:4px;">'
+            f'{cells}</div>'
+        )
 
         if len(corr_df) > 1:
             mask = np.triu(np.ones(corr_df.shape, dtype=bool), k=1)
