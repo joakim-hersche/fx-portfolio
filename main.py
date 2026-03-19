@@ -445,10 +445,24 @@ async def index(request: Request):
     if portfolio:
         ticker_values = await run.io_bound(_compute_ticker_values)
 
+    # Pre-fetch company names off the UI thread
+    def _fetch_all_names():
+        from concurrent.futures import ThreadPoolExecutor
+        tickers = list(portfolio.keys())
+        if not tickers:
+            return {}
+        with ThreadPoolExecutor(max_workers=min(10, len(tickers))) as ex:
+            return dict(zip(tickers, ex.map(fetch_company_name, tickers)))
+
+    name_map: dict[str, str] = {}
+    if portfolio:
+        name_map = await run.io_bound(_fetch_all_names)
+
     # Shared mutable state that sidebar and tabs can both read/write
     _shared = {
         "portfolio_color_map": portfolio_color_map,
         "ticker_values": ticker_values,
+        "name_map": name_map,
         "currency": currency,
         "currency_symbol": CURRENCY_SYMBOLS.get(currency, "$"),
     }
@@ -530,12 +544,15 @@ async def index(request: Request):
         portfolio_color_map = _build_color_map(portfolio)
         if portfolio:
             ticker_values = await run.io_bound(_compute_ticker_values)
+            new_names = await run.io_bound(_fetch_all_names)
         else:
             ticker_values = {}
+            new_names = {}
 
         # Update the shared dict so the sidebar sees the new values
         _shared["portfolio_color_map"] = portfolio_color_map
         _shared["ticker_values"] = ticker_values
+        _shared["name_map"] = new_names
 
         # Invalidate all tab caches so they rebuild on next visit
         for name in _TAB_NAMES:
@@ -788,7 +805,7 @@ def _build_sidebar(
                     value_text = f"{_shared['currency_symbol']}{mkt_value:,.0f}"
                 else:
                     value_text = f"{total_shares:g} shares"
-                company_name = fetch_company_name(ticker)
+                company_name = _shared.get("name_map", {}).get(ticker, ticker)
                 with ui.row().classes("w-full items-center position-row").style(
                     "gap:6px;"
                 ):
