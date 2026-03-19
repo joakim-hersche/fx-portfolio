@@ -332,6 +332,90 @@ def build_sidebar(
     ui.html('<hr class="sidebar-divider" style="margin-top:4px;">')
     ui.html('<div class="sidebar-section-header">Positions</div>')
 
+    # ── Edit lot dialog ──────────────────────────────────────
+    def _edit_lot(ticker: str, lot_index: int):
+        lots = portfolio.get(ticker, [])
+        if lot_index >= len(lots):
+            return
+        lot = lots[lot_index]
+        n_lots = len(lots)
+        title = f"Edit {ticker}" + (f" — Lot {lot_index + 1}/{n_lots}" if n_lots > 1 else "")
+
+        with ui.dialog() as dialog, ui.card().style(f"min-width:300px;background:{BG_CARD};"):
+            ui.label(title).style("font-weight:600;font-size:14px;")
+
+            with ui.column().classes("w-full").style("gap:8px;"):
+                ui.html(
+                    f'<label style="font-size:9px;font-weight:600;color:{TEXT_DIM};'
+                    f'letter-spacing:0.04em;text-transform:uppercase;">Shares</label>'
+                )
+                edit_shares = ui.number(
+                    value=lot.get("shares", 0), min=0.01
+                ).props("dense outlined").classes("w-full").style("font-size:11px;")
+
+                ui.html(
+                    f'<label style="font-size:9px;font-weight:600;color:{TEXT_DIM};'
+                    f'letter-spacing:0.04em;text-transform:uppercase;">Buy Price</label>'
+                )
+                edit_price = ui.number(
+                    value=lot.get("buy_price", 0), min=0, step=0.01
+                ).props("dense outlined").classes("w-full").style("font-size:11px;")
+
+                ui.html(
+                    f'<label style="font-size:9px;font-weight:600;color:{TEXT_DIM};'
+                    f'letter-spacing:0.04em;text-transform:uppercase;">Purchase Date</label>'
+                )
+                edit_date = ui.input(
+                    value=lot.get("purchase_date", "") or ""
+                ).props('dense outlined mask="####-##-##"').classes("w-full").style("font-size:11px;")
+
+            with ui.row().classes("w-full justify-between").style("margin-top:8px;"):
+                async def do_delete(d=dialog, t=ticker, li=lot_index):
+                    lots_ref = portfolio.get(t, [])
+                    if len(lots_ref) <= 1:
+                        portfolio.pop(t, None)
+                    else:
+                        lots_ref.pop(li)
+                    stored = load_portfolio()
+                    stored["portfolio"] = portfolio
+                    save_portfolio(stored)
+                    d.close()
+                    positions_list.refresh()
+                    if on_mutation and on_mutation.get("fn"):
+                        await on_mutation["fn"]()
+                    ui.notify(f"Deleted lot from {t}", type="info")
+
+                ui.button("Delete", on_click=do_delete, color="red").props("flat")
+
+                async def do_save(d=dialog, t=ticker, li=lot_index):
+                    new_shares = edit_shares.value
+                    new_price = edit_price.value
+                    new_date = edit_date.value
+                    if not new_shares or new_shares <= 0:
+                        ui.notify("Shares must be positive.", type="warning")
+                        return
+                    if new_price is None or new_price < 0:
+                        ui.notify("Price must be non-negative.", type="warning")
+                        return
+                    lots_ref = portfolio.get(t, [])
+                    if li < len(lots_ref):
+                        lots_ref[li]["shares"] = new_shares
+                        lots_ref[li]["buy_price"] = new_price
+                        lots_ref[li]["purchase_date"] = new_date if new_date else None
+                    stored = load_portfolio()
+                    stored["portfolio"] = portfolio
+                    save_portfolio(stored)
+                    d.close()
+                    positions_list.refresh()
+                    if on_mutation and on_mutation.get("fn"):
+                        await on_mutation["fn"]()
+                    ui.notify(f"Updated {t}", type="positive")
+
+                ui.button("Save", on_click=do_save).props("flat").style(
+                    f"color:{ACCENT};"
+                )
+        dialog.open()
+
     @ui.refreshable
     def positions_list():
         if portfolio:
@@ -349,18 +433,48 @@ def build_sidebar(
                     else:
                         value_text = f"{total_shares:g} shares"
                     company_name = shared.get("name_map", {}).get(ticker, ticker)
+
+                    # Detect unavailable tickers
+                    is_unavailable = (shared.get("unavailable_tickers") or set())
+                    warn_html = ""
+                    if ticker in is_unavailable:
+                        warn_html = (
+                            f'<span style="color:#D97706;font-size:12px;flex-shrink:0;" '
+                            f'title="Data unavailable for {ticker}">\u26a0</span>'
+                        )
+
                     _t = ticker
                     bridge = ui.element("div").style("display:none;")
                     bridge.on("remove_click", lambda _, t=_t: _confirm_remove(t))
+
+                    # Edit bridges — one per lot
+                    edit_bridges = []
+                    for li in range(len(lots)):
+                        eb = ui.element("div").style("display:none;")
+                        eb.on("edit_click", lambda _, t=_t, idx=li: _edit_lot(t, idx))
+                        edit_bridges.append(f"c{eb.id}")
+
                     bridge_id = f"c{bridge.id}"
+
+                    # Build edit click JS — for single lot, click edit icon directly;
+                    # for multi-lot, click opens first lot (user can navigate via dialog)
+                    edit_onclick = (
+                        f"document.getElementById('{edit_bridges[0]}')"
+                        f".dispatchEvent(new Event('edit_click'))"
+                    ) if edit_bridges else ""
+
                     ui.html(
                         f'<div style="display:flex;align-items:center;gap:8px;width:100%;'
                         f'background:{BG_PILL};border:1px solid {BORDER_SUBTLE};'
                         f'border-radius:6px;padding:7px 8px 7px 10px;box-sizing:border-box;">'
                         f'<div style="width:6px;height:6px;border-radius:50%;background:{color};flex-shrink:0;"></div>'
+                        f'{warn_html}'
                         f'<div style="flex:1;min-width:0;font-size:11px;font-weight:600;color:{TEXT_PRIMARY};'
                         f'line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="{company_name}">'
                         f'{ticker} <span style="font-weight:400;color:{TEXT_DIM};">{value_text}</span></div>'
+                        f'<div onclick="{edit_onclick}" '
+                        f'style="flex-shrink:0;cursor:pointer;color:{TEXT_DIM};font-size:12px;line-height:1;'
+                        f'padding:2px;opacity:0.5;" title="Edit {_t}">\u270e</div>'
                         f'<div onclick="document.getElementById(\'{bridge_id}\').dispatchEvent(new Event(\'remove_click\'))" '
                         f'style="flex-shrink:0;cursor:pointer;color:{TEXT_DIM};font-size:14px;line-height:1;'
                         f'padding:2px;opacity:0.6;" title="Remove {_t}">&times;</div>'
