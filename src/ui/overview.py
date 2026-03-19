@@ -133,10 +133,13 @@ async def build_overview_tab(
     daily_pnl = df["Daily P&L"].sum()
     n_positions = len(portfolio)
     cost_basis = (df["Buy Price"] * df["Shares"]).sum()
-    total_contributed = sum(
-        lot["shares"] * lot.get("buy_price", 0) * lot.get("buy_fx_rate", 1.0)
-        for lots in portfolio.values() for lot in lots
-    )
+    total_contributed = 0.0
+    for ticker, lots in portfolio.items():
+        ticker_ccy = get_ticker_currency(ticker)
+        fallback_fx, _ = get_fx_rate(ticker_ccy, currency)
+        for lot in lots:
+            lot_fx = lot.get("buy_fx_rate", fallback_fx)
+            total_contributed += lot["shares"] * lot.get("buy_price", 0) * lot_fx
     total_divs = df["Dividends"].sum()
     total_return = total_value + total_divs - cost_basis
     total_ret_pct = (total_return / cost_basis * 100) if cost_basis else 0.0
@@ -557,16 +560,15 @@ async def export_excel(portfolio: dict, currency: str) -> None:
             f = fetch_fundamentals(t)
             if f:
                 tc = get_ticker_currency(t)
-                fx_ccy = "GBP" if tc == "GBX" else tc
-                # Build target price map for Excel (FX-converted)
+                # Build target price map for Excel (FX-converted, GBX /100 handled by get_fx_rate)
                 tp = f.get("Target Price")
-                if tp is not None and fx_ccy != base_currency:
-                    fx_tp, _ = get_fx_rate(fx_ccy, base_currency)
+                if tp is not None and tc != base_currency:
+                    fx_tp, _ = get_fx_rate(tc, base_currency)
                     excel_target_prices[t] = round(tp * fx_tp, 2)
                 elif tp is not None:
                     excel_target_prices[t] = tp
-                if fx_ccy != base_currency:
-                    fx, _ = get_fx_rate(fx_ccy, base_currency)
+                if tc != base_currency:
+                    fx, _ = get_fx_rate(tc, base_currency)
                     if f.get("1-Year Low"):
                         f["1-Year Low"] = round(f["1-Year Low"] * fx, 2)
                     if f.get("1-Year High"):

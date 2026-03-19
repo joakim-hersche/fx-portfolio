@@ -64,7 +64,10 @@ def test_fundamentals_missing_target_price_returns_none(mock_ticker):
 
 
 @patch("src.data_fetch.yf.Ticker")
-def test_fundamentals_gbx_target_price_divided_by_100(mock_ticker):
+def test_fundamentals_gbx_target_price_returned_in_trading_currency(mock_ticker):
+    """Target price is returned in trading currency (pence for GBX).
+    Callers handle GBX->GBP conversion via get_fx_rate('GBX', ...) which divides by 100.
+    """
     mock_ticker.return_value.info = _mock_info({"targetMeanPrice": 15000.0})
     result = fetch_fundamentals("SHEL.L")
-    assert result["Target Price"] == 150.0  # 15000 / 100
+    assert result["Target Price"] == 15000.0  # raw pence, caller converts
