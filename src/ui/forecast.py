@@ -455,9 +455,9 @@ def _render_position_outlook(
                     f'</div>'
                 )
             _caption(
-                f"Calibrated on {result['train_days']} trading days of {ticker} history "
-                f"({lookback_toggle.value} window). Assumes log-normally distributed daily returns with "
-                f"\u03bc = {result['mu_annual']:+.1f}%/yr, \u03c3 = {result['sigma_annual']:.1f}%/yr. "
+                f"Based on {result['train_days']} trading days of {ticker} history "
+                f"({lookback_toggle.value} window). Historical average annual return: "
+                f"{result['mu_annual']:+.1f}%/yr, typical annual swing: {result['sigma_annual']:.1f}%/yr. "
                 f"This is a statistical model, not financial advice."
             )
 
