@@ -223,24 +223,24 @@ def _render_portfolio_outlook(
             with ui.element("div").classes("metric-grid-4"):
                 ui.html(
                     f'<div class="metric-card">'
-                    f'<div class="metric-label">VaR 95% ({hl})</div>'
+                    f'<div class="metric-label">Worst likely loss ({hl})</div>'
                     f'<div class="metric-value" style="color:#DC2626;">{currency_symbol}{abs(vc["var_abs"]):,.0f}</div>'
-                    f'<div class="metric-sub">{vc["var"] * 100:.1f}%</div>'
+                    f'<div class="metric-sub">In 95% of scenarios, you\'d lose less than this</div>'
                     f'</div>'
                 )
                 ui.html(
                     f'<div class="metric-card">'
-                    f'<div class="metric-label">CVaR 95% ({hl})</div>'
+                    f'<div class="metric-label">Average tail loss ({hl})</div>'
                     f'<div class="metric-value" style="color:#DC2626;">{currency_symbol}{abs(vc["cvar_abs"]):,.0f}</div>'
-                    f'<div class="metric-sub">{vc["cvar"] * 100:.1f}%</div>'
+                    f'<div class="metric-sub">Average loss in the worst 5% of scenarios</div>'
                     f'</div>'
                 )
                 p10_chg = (corr_p10 - start_val) / start_val * 100
                 ui.html(
                     f'<div class="metric-card">'
-                    f'<div class="metric-label">p10 outcome</div>'
+                    f'<div class="metric-label">Pessimistic outcome</div>'
                     f'<div class="metric-value" style="color:#D97706;">{currency_symbol}{corr_p10:,.0f}</div>'
-                    f'<div class="metric-sub">{p10_chg:+.1f}%</div>'
+                    f'<div class="metric-sub">9 out of 10 simulations ended above this</div>'
                     f'</div>'
                 )
                 if div_is_benefit:
