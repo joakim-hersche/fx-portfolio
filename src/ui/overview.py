@@ -278,40 +278,14 @@ async def build_overview_tab(
 
             ui.html(alloc_html).classes("w-full").style("flex:1;display:flex;")
 
-        # Comparison chart — stretch to fill the card height
-        with ui.column().classes("chart-card").style("min-width:0;flex:1;") as comp_card:
-            await build_comparison(portfolio, name_map, portfolio_color_map, currency)
+        # Comparison chart — compute height to match allocation card
+        # Allocation height: n_bars * (bar_h + bar_gap) + card padding (~32px) + header (~30px)
+        alloc_content_h = n_bars * (bar_h + bar_gap)
+        # Subtract comparison card padding (32px) + header/controls (~70px) to get chart height
+        chart_h = max(300, alloc_content_h - 40)
 
-    # Resize the Plotly chart to fill its card after both cards have rendered
-    ui.run_javascript('''
-        setTimeout(() => {
-            const row = document.querySelector(".charts-row");
-            if (!row) return;
-            const cards = row.querySelectorAll(".chart-card");
-            if (cards.length < 2) return;
-            const plotDiv = cards[1].querySelector(".js-plotly-plot");
-            if (!plotDiv) return;
-            // Subtract card padding + header/controls height from card height
-            const cardStyle = getComputedStyle(cards[1]);
-            const padTop = parseFloat(cardStyle.paddingTop);
-            const padBot = parseFloat(cardStyle.paddingBottom);
-            const cardH = cards[1].offsetHeight;
-            // Find the plotly container's previous siblings total height
-            let siblingsH = 0;
-            let el = plotDiv.closest(".nicegui-plotly") || plotDiv;
-            while (el.parentElement && !el.parentElement.classList.contains("chart-card")) {
-                el = el.parentElement;
-            }
-            for (const sib of el.parentElement.children) {
-                if (sib === el || sib.contains(plotDiv)) break;
-                siblingsH += sib.offsetHeight + 8;
-            }
-            const targetH = cardH - padTop - padBot - siblingsH;
-            if (targetH > 300) {
-                Plotly.relayout(plotDiv, { height: targetH });
-            }
-        }, 500);
-    ''')
+        with ui.column().classes("chart-card").style("min-width:0;"):
+            await build_comparison(portfolio, name_map, portfolio_color_map, currency, chart_height=chart_h)
 
     # ── Contributions vs. Portfolio Value chart ─────────────
     from src.portfolio import build_contribution_timeline
@@ -384,6 +358,7 @@ async def build_overview_tab(
 
 async def build_comparison(
     portfolio: dict, name_map: dict, portfolio_color_map: dict, base_currency: str,
+    chart_height: int | None = None,
 ) -> None:
     """Comparison chart with time-range toggle and FX adjustment."""
     range_options = {"3M": "3mo", "6M": "6mo", "1Y": "1y", "Max": "since"}
@@ -495,6 +470,9 @@ async def build_comparison(
                 line=dict(color="gray", width=1.5, dash="dash"),
                 hovertemplate="SPY: %{y:.1f}<extra></extra>",
             ))
+
+        if chart_height:
+            fig.update_layout(height=chart_height)
 
         with chart_container:
             ui.plotly(fig).classes("w-full")
