@@ -93,8 +93,8 @@ body, .q-page, .nicegui-content {
 .q-tab-panel > .nicegui-content > .nicegui-column > :first-child {
     padding-top: 4px;
 }
-.q-tabs { background: %(BG_MAIN)s !important; border-bottom: 1px solid %(BORDER)s !important; }
-.q-tabs__content { justify-content: center !important; }
+.q-tabs { background: %(BG_MAIN)s !important; border-bottom: none !important; }
+.q-tabs__content { justify-content: center !important; border-bottom: 1px solid %(BORDER)s !important; }
 .q-tab { flex: 0 0 auto !important; align-self: center !important; }
 .q-tab { text-transform: none !important; font-family: 'Inter', sans-serif !important; font-size: 12px !important; font-weight: 500 !important; letter-spacing: 0.01em !important; color: %(TEXT_FAINT)s !important; }
 .q-tab--active { color: %(TEXT_PRIMARY)s !important; font-weight: 600 !important; }
