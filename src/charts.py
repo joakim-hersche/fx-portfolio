@@ -299,21 +299,24 @@ def build_price_history_chart(
 
 
 def build_correlation_heatmap(corr_df: pd.DataFrame) -> go.Figure:
-    # Red → light-red → neutral-gray → light-green → green
-    # Matches the dashboard's existing C_NEGATIVE / C_POSITIVE color language.
-    # Gray center avoids the harsh white midpoint that breaks dark-mode readability.
+    # Dark navy → muted blue → slate center → light blue → bright blue
+    # Matches the dashboard's blue accent palette instead of red/green.
     _scale = [
-        [0.00, "#DC2626"],  # -1.0  strong negative
-        [0.25, "#FCA5A5"],  # -0.5  weak negative
-        [0.50, C_NEUTRAL],  #  0.0  no correlation
-        [0.75, "#86EFAC"],  # +0.5  weak positive
-        [1.00, "#16A34A"],  # +1.0  strong positive
+        [0.00, "#7F1D1D"],  # -1.0  deep negative (dark red-brown)
+        [0.25, "#6366F1"],  # -0.5  indigo
+        [0.50, "#334155"],  #  0.0  slate (matches BG_CARD)
+        [0.75, "#0EA5E9"],  # +0.5  sky blue
+        [1.00, "#1D4ED8"],  # +1.0  strong blue (matches ACCENT)
     ]
+    n = len(corr_df)
+    cell_size = max(50, min(80, 400 // max(n, 1)))
+    fig_height = max(350, n * cell_size + 100)
     fig = px.imshow(corr_df, color_continuous_scale=_scale, zmin=-1, zmax=1, text_auto=".2f")
-    fig.update_traces(textfont=dict(color="#1E293B"))
+    fig.update_traces(textfont=dict(color="#E2E8F0", size=12))
     _apply_default_layout(
         fig,
-        margin=dict(t=20),
+        height=fig_height,
+        margin=dict(t=20, b=20),
         coloraxis_colorbar=dict(
             title="Correlation",
             title_font=dict(color=C_NEUTRAL, size=10),

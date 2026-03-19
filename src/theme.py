@@ -309,8 +309,9 @@ body, .q-page, .nicegui-content {
 }
 
 /* ── Responsive grid classes ─────────────────────────── */
-.risk-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; width: 100%%; align-items: stretch !important; }
-.risk-grid > * > .chart-card { height: 100%% !important; }
+.risk-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; width: 100%%; align-items: start; }
+.risk-grid > * > .chart-card { min-height: 100%%; display: flex; flex-direction: column; }
+.risk-grid > * { display: flex; }
 .metric-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; width: 100%%; }
 .metric-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; width: 100%%; }
 .preview-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; width: 100%%; }
