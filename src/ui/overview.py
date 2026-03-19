@@ -1,7 +1,6 @@
 """Overview tab — KPI cards, allocation chart, comparison chart, Excel export."""
 
 import asyncio
-import csv
 import datetime
 import io
 import json
@@ -615,28 +614,3 @@ async def export_excel(portfolio: dict, currency: str) -> None:
     ui.notify("Report downloaded", type="positive")
 
 
-async def export_csv(portfolio: dict, currency: str) -> None:
-    """Build and download a flat CSV of positions."""
-    if not portfolio:
-        ui.notify("No positions to export.", type="warning")
-        return
-
-    def _build():
-        df = build_portfolio_df(portfolio, currency)
-        if df.empty:
-            return None
-        buf = io.StringIO()
-        writer = csv.writer(buf)
-        writer.writerow(df.columns.tolist())
-        for _, row in df.iterrows():
-            writer.writerow(row.tolist())
-        return buf.getvalue().encode("utf-8")
-
-    csv_bytes = await run.io_bound(_build)
-    if csv_bytes is None:
-        ui.notify("Could not build CSV — no price data.", type="negative")
-        return
-
-    filename = f"portfolio_{pd.Timestamp.today().strftime('%Y%m%d')}.csv"
-    ui.download(csv_bytes, filename)
-    ui.notify("CSV downloaded", type="positive")

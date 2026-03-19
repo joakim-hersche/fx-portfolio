@@ -45,7 +45,7 @@ from src.fx import CURRENCY_SYMBOLS
 from src.portfolio import build_portfolio_df
 from src.stocks import TICKER_COLORS
 from src.ui.guide import build_guide_tab
-from src.ui.overview import build_overview_tab, export_excel, export_csv
+from src.ui.overview import build_overview_tab, export_excel
 from src.ui.shared import load_portfolio, save_portfolio, get_storage_secret
 from src.ui.sidebar import build_sidebar
 from src.theme import (
@@ -321,28 +321,76 @@ async def index(request: Request):
                 f'</div>'
             )
 
-        # Right: currency selector + export button
+        # Right: currency pill + export dropdown + info
         with ui.row().classes("items-center gap-2").style("height:32px;"):
-            async def _handle_currency_select(e):
-                await _on_currency_change(e.value)
 
-            ui.select(
-                list(CURRENCY_SYMBOLS.keys()),
-                value=currency,
-                on_change=_handle_currency_select,
-            ).props('dense borderless').style(
-                f"background:{BG_INPUT}; border:1px solid {BORDER_INPUT}; border-radius:6px; color:{TEXT_MUTED}; font-size:12px; min-width:70px; height:32px; max-height:32px;"
+            # ── Currency segmented pill ────────────────────────
+            currencies = list(CURRENCY_SYMBOLS.keys())
+            pill_container = ui.element("div").style(
+                f"display:flex; border:1px solid rgba(59,130,246,0.3); border-radius:8px; overflow:hidden;"
             )
-            ui.button("Excel", icon="download", on_click=lambda: export_excel(portfolio, currency)).props(
-                'flat dense size=sm no-caps color=none aria-label="Export portfolio to Excel"'
+            currency_buttons: dict[str, ui.button] = {}
+
+            _pill_active = (
+                "background:#3B82F6; color:white; border:none; padding:6px 12px;"
+                " font-size:12px; font-weight:600; cursor:pointer; min-width:0;"
+            )
+            _pill_inactive = (
+                f"background:transparent; color:{TEXT_MUTED}; border:none;"
+                " border-left:1px solid rgba(59,130,246,0.2); padding:6px 10px;"
+                " font-size:12px; cursor:pointer; min-width:0;"
+            )
+
+            async def _on_pill_click(selected_currency: str):
+                for ccy, btn in currency_buttons.items():
+                    btn.style(_pill_active if ccy == selected_currency else _pill_inactive)
+                await _on_currency_change(selected_currency)
+
+            with pill_container:
+                for i, ccy in enumerate(currencies):
+                    style = _pill_active if ccy == currency else _pill_inactive
+                    # First button has no left border
+                    if i == 0:
+                        style = style.replace("border-left:1px solid rgba(59,130,246,0.2); ", "")
+                    btn = ui.button(
+                        ccy,
+                        on_click=lambda c=ccy: _on_pill_click(c),
+                    ).props("flat dense no-caps size=sm unelevated").style(style)
+                    currency_buttons[ccy] = btn
+
+            # ── Export dropdown ────────────────────────────────
+            import json as _json
+
+            def _export_json():
+                if not portfolio:
+                    ui.notify("No positions to export.", type="warning")
+                    return
+                ui.download(_json.dumps(portfolio, indent=2).encode(), "portfolio.json")
+                ui.notify("Portfolio backup downloaded.", type="positive")
+
+            with ui.button("Export", icon="expand_more").props(
+                'flat dense no-caps size=sm color=none'
             ).style(
-                f"border:1px solid {BORDER_INPUT}; border-radius:6px; padding:0 12px; height:32px; color:{TEXT_MUTED} !important; font-size:12px;"
-            )
-            ui.button("CSV", icon="download", on_click=lambda: export_csv(portfolio, currency)).props(
-                'flat dense size=sm no-caps color=none aria-label="Export portfolio to CSV"'
-            ).style(
-                f"border:1px solid {BORDER_INPUT}; border-radius:6px; padding:0 12px; height:32px; color:{TEXT_MUTED} !important; font-size:12px;"
-            )
+                f"border:1px solid {BORDER_INPUT}; border-radius:6px; padding:0 12px;"
+                f" height:32px; color:{TEXT_MUTED} !important; font-size:12px;"
+            ):
+                with ui.menu().style(
+                    f"background:{BG_CARD}; border:1px solid rgba(255,255,255,0.12);"
+                    f" border-radius:10px; min-width:260px;"
+                ):
+                    with ui.menu_item(on_click=lambda: export_excel(portfolio, currency)).style("padding:10px 14px;"):
+                        with ui.row().classes("items-center gap-3 no-wrap"):
+                            ui.html('<span style="font-size:16px;">📊</span>')
+                            with ui.column().style("gap:1px;"):
+                                ui.label("Excel Report").style(f"font-size:13px; color:{TEXT_PRIMARY}; font-weight:500;")
+                                ui.label("Full workbook with charts and analytics").style(f"font-size:11px; color:{TEXT_DIM};")
+                    ui.separator().style("margin:4px 14px; opacity:0.15;")
+                    with ui.menu_item(on_click=_export_json).style("padding:10px 14px;"):
+                        with ui.row().classes("items-center gap-3 no-wrap"):
+                            ui.html('<span style="font-size:16px;">💾</span>')
+                            with ui.column().style("gap:1px;"):
+                                ui.label("Portfolio Backup").style(f"font-size:13px; color:{TEXT_PRIMARY}; font-weight:500;")
+                                ui.label("Save positions as JSON for re-import").style(f"font-size:11px; color:{TEXT_DIM};")
 
             def _open_about():
                 with ui.dialog() as dlg, ui.card().style(
