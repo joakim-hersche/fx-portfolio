@@ -4,11 +4,14 @@ All functions use cachetools TTLCache so they are called once per ticker per
 TTL window, with no framework dependency.
 """
 
+import logging
 from concurrent.futures import ThreadPoolExecutor
 
 import pandas as pd
 import yfinance as yf
 from cachetools import cached
+
+logger = logging.getLogger(__name__)
 
 from src.cache import short_cache, long_cache, long_cache_history, long_cache_fundamentals, long_cache_names, lenient_key
 
@@ -112,9 +115,14 @@ def fetch_simulation_history(ticker: str) -> pd.DataFrame:
     """Fetch up to 5-year price history for Monte Carlo simulation. Cached for 24 hours."""
     try:
         hist = yf.Ticker(ticker).history(period="5y")
+        if hist.empty:
+            logger.warning("fetch_simulation_history(%s): yfinance returned empty DataFrame", ticker)
+            return pd.DataFrame()
         hist.index = hist.index.tz_localize(None)
+        logger.info("fetch_simulation_history(%s): %d rows fetched", ticker, len(hist))
         return hist
-    except Exception:
+    except Exception as e:
+        logger.error("fetch_simulation_history(%s) failed: %s", ticker, e)
         return pd.DataFrame()
 
 

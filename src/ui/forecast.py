@@ -100,10 +100,12 @@ def _empty_state(msg: str) -> None:
 
 def _load_simulation_data(tickers: list) -> dict:
     """Fetch 5-year simulation history for all tickers."""
-    from concurrent.futures import ThreadPoolExecutor
-    with ThreadPoolExecutor(max_workers=min(10, len(tickers))) as ex:
-        results = dict(ex.map(lambda t: (t, fetch_simulation_history(t)), tickers))
-    return {t: hist for t, hist in results.items() if not hist.empty}
+    results = {}
+    for t in tickers:
+        hist = fetch_simulation_history(t)
+        if not hist.empty:
+            results[t] = hist
+    return results
 
 
 def _get_start_prices(tickers: list, price_data: dict, currency: str) -> dict:
