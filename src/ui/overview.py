@@ -58,13 +58,28 @@ async def build_overview_tab(
             </div>
         """).classes("w-full")
 
-        # Getting Started card pointing to the Guide tab (#25)
-        with ui.element("div").classes("chart-card").style("margin-top:16px;cursor:pointer;") as guide_card:
+        # Onboarding card
+        with ui.element("div").classes("chart-card").style("margin-top:16px;"):
             ui.html(f'<div class="chart-title">Getting Started</div>')
             ui.html(
+                f'<div style="font-size:12px;color:{TEXT_MUTED};line-height:1.8;margin-top:8px;">'
+                '<b style="color:#CBD5E1;">1.</b> Search for a stock in the sidebar '
+                '(e.g., AAPL, MSFT, ASML.AS)<br>'
+                '<b style="color:#CBD5E1;">2.</b> Enter how many shares you bought and when<br>'
+                '<b style="color:#CBD5E1;">3.</b> Your dashboard fills in automatically'
+                '</div>'
+            )
+            ui.html(
+                f'<div style="font-size:12px;color:{TEXT_DIM};margin-top:12px;">'
+                'Or try the app instantly with example data \u2014 click <b style="color:#CBD5E1;">Sample</b> in the sidebar.</div>'
+            )
+
+        # Guide card
+        with ui.element("div").classes("chart-card").style("margin-top:8px;cursor:pointer;") as guide_card:
+            ui.html(f'<div class="chart-title">Guide</div>')
+            ui.html(
                 f'<p style="font-size:12px;color:{TEXT_MUTED};line-height:1.6;margin-top:8px;">'
-                "New here? Check the <b>Guide</b> tab for a plain-language walkthrough of every "
-                "feature, or add your first position using the sidebar.</p>"
+                "Plain-language walkthrough of every feature \u2014 what each number means and how to read the charts.</p>"
             )
         if tabs is not None and tab_map is not None:
             guide_card.on("click", lambda: tabs.set_value(tab_map["Guide"]))
