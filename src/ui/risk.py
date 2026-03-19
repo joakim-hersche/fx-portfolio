@@ -798,7 +798,7 @@ def _render_sector_breakdown(
         if n == 1:
             s, d = sorted_sectors[0]
             grid_html = (
-                f'<div style="flex:1;min-height:160px;">'
+                f'<div style="height:100%;min-height:160px;">'
                 f'{_cell(s, d, sector_colors[s])}'
                 f'</div>'
             )
@@ -807,7 +807,7 @@ def _render_sector_breakdown(
             s1, d1 = sorted_sectors[1]
             w0 = max(30, min(70, round(d0["weight"] / (d0["weight"] + d1["weight"]) * 100)))
             grid_html = (
-                f'<div style="display:grid;grid-template-columns:{w0}fr {100-w0}fr;gap:3px;flex:1;min-height:160px;">'
+                f'<div style="display:grid;grid-template-columns:{w0}fr {100-w0}fr;gap:3px;height:100%;min-height:160px;">'
                 f'{_cell(s0, d0, sector_colors[s0])}'
                 f'{_cell(s1, d1, sector_colors[s1])}'
                 f'</div>'
@@ -849,7 +849,7 @@ def _render_sector_breakdown(
                     i += 1
 
             grid_html = (
-                f'<div style="display:grid;grid-template-columns:{left_w}fr {right_w}fr;gap:3px;flex:1;min-height:160px;">'
+                f'<div style="display:grid;grid-template-columns:{left_w}fr {right_w}fr;gap:3px;height:100%;min-height:160px;">'
                 f'{_cell(s0, d0, sector_colors[s0])}'
                 f'<div style="display:flex;flex-direction:column;gap:3px;">'
                 f'{right_cells}'
@@ -857,7 +857,7 @@ def _render_sector_breakdown(
                 f'</div>'
             )
 
-        ui.html(grid_html)
+        ui.html(grid_html).classes("w-full").style("flex:1;min-height:160px;")
 
 
 # ── Rebalancing Calculator (drift bars) ──────────────────────────────────────
@@ -1018,7 +1018,7 @@ def _render_rebalancing_calculator(portfolio_df: pd.DataFrame, currency_symbol: 
                 def _on_deposit(e):
                     deposit_ref["value"] = e.value or 0.0
                     _recalculate()
-                deposit_input.on("update:model-value", _on_deposit)
+                deposit_input.on_value_change( _on_deposit)
 
         # ── Per-ticker target inputs ──
         for _, row in ticker_data.iterrows():
@@ -1044,7 +1044,7 @@ def _render_rebalancing_calculator(portfolio_df: pd.DataFrame, currency_symbol: 
                         target_weights[t] = e.value if e.value is not None else 0.0
                         _recalculate()
                     return handler
-                inp.on("update:model-value", _make_handler(ticker))
+                inp.on_value_change( _make_handler(ticker))
 
         # ── Result area (drift bars + buy suggestions) ──
         result_container["ref"] = ui.column().classes("w-full").style("margin-top:8px;")
