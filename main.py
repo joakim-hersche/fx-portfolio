@@ -4,6 +4,7 @@ Replaces the Streamlit app.py with a reactive, WebSocket-driven UI that
 matches the approved design_proposal.html visual concept.
 """
 
+import asyncio
 import datetime
 import json
 import os
@@ -50,7 +51,7 @@ from src.ui.shared import load_portfolio, save_portfolio, get_storage_secret
 from src.ui.sidebar import build_sidebar
 from src.theme import (
     ACCENT, BG_CARD, BG_INPUT, BG_MAIN, BG_SIDEBAR, BG_TOPBAR,
-    BORDER, BORDER_INPUT, GLOBAL_CSS,
+    BORDER, BORDER_INPUT, BORDER_SUBTLE, GLOBAL_CSS,
     GREEN, AMBER, RED, TEXT_FAINT,
     TEXT_DIM, TEXT_MUTED, TEXT_PRIMARY,
 )
@@ -392,43 +393,41 @@ async def index(request: Request):
                                 ui.label("Portfolio Backup").style(f"font-size:13px; color:{TEXT_PRIMARY}; font-weight:500;")
                                 ui.label("Save positions as JSON for re-import").style(f"font-size:11px; color:{TEXT_DIM};")
 
-            def _open_about():
-                with ui.dialog() as dlg, ui.card().style(
-                    f"min-width:380px; max-width:480px; background:{BG_CARD}; border:1px solid rgba(255,255,255,0.12);"
-                    f" border-radius:10px; padding:20px;"
-                ):
-                    ui.label("Market Dashboard").style(
-                        f"font-size:16px; font-weight:700; color:{TEXT_PRIMARY}; margin-bottom:4px;"
+            with ui.dialog() as about_dlg, ui.card().style(
+                f"min-width:380px; max-width:480px; background:{BG_CARD}; border:1px solid rgba(255,255,255,0.12);"
+                f" border-radius:10px; padding:20px;"
+            ):
+                ui.label("Market Dashboard").style(
+                    f"font-size:16px; font-weight:700; color:{TEXT_PRIMARY}; margin-bottom:4px;"
+                )
+                ui.label("v2.0 — NiceGUI Edition").style(
+                    f"font-size:11px; color:{TEXT_DIM}; margin-bottom:12px;"
+                )
+                ui.html(
+                    f'<div style="font-size:12px; color:{TEXT_MUTED}; line-height:1.7;">'
+                    '<p style="margin-bottom:10px;">A real-time stock portfolio tracker. '
+                    'Add positions across major global exchanges, monitor performance in '
+                    'your home currency, and run Monte Carlo simulations to project future outcomes.</p>'
+                    '<p style="margin-bottom:6px;"><b style="color:#CBD5E1;">Data sources</b></p>'
+                    '<ul style="margin:0 0 10px 16px; padding:0;">'
+                    '<li>Stock prices, FX rates, dividends, fundamentals — <b>Yahoo Finance</b> via yfinance</li>'
+                    '<li>Stock index constituents — <b>Wikipedia</b> (scraped at startup, cached 24h)</li>'
+                    '</ul>'
+                    '<p style="margin-bottom:6px;"><b style="color:#CBD5E1;">Disclaimer</b></p>'
+                    f'<p style="font-size:12px; color:{TEXT_DIM};">All data is provided as-is for informational '
+                    'purposes only. Prices may be delayed up to 15 minutes. Monte Carlo simulations '
+                    'are statistical projections based on historical returns and do not constitute '
+                    'financial advice. Positions flagged as fat-tailed violate the model\'s normality '
+                    'assumption — confidence bands for those assets will understate real tail risk.</p>'
+                    '</div>'
+                )
+                with ui.row().classes("w-full justify-end").style("margin-top:12px;"):
+                    ui.button("Close", on_click=about_dlg.close).props("flat no-caps").style(
+                        f"border:1px solid {BORDER_SUBTLE};border-radius:6px;color:{TEXT_MUTED};"
+                        f"font-size:11px;padding:6px 16px;text-transform:none;"
                     )
-                    ui.label("v2.0 — NiceGUI Edition").style(
-                        f"font-size:11px; color:{TEXT_DIM}; margin-bottom:12px;"
-                    )
-                    ui.html(
-                        f'<div style="font-size:12px; color:{TEXT_MUTED}; line-height:1.7;">'
-                        '<p style="margin-bottom:10px;">A real-time stock portfolio tracker. '
-                        'Add positions across major global exchanges, monitor performance in '
-                        'your home currency, and run Monte Carlo simulations to project future outcomes.</p>'
-                        '<p style="margin-bottom:6px;"><b style="color:#CBD5E1;">Data sources</b></p>'
-                        '<ul style="margin:0 0 10px 16px; padding:0;">'
-                        '<li>Stock prices, FX rates, dividends, fundamentals — <b>Yahoo Finance</b> via yfinance</li>'
-                        '<li>Stock index constituents — <b>Wikipedia</b> (scraped at startup, cached 24h)</li>'
-                        '</ul>'
-                        '<p style="margin-bottom:6px;"><b style="color:#CBD5E1;">Disclaimer</b></p>'
-                        f'<p style="font-size:12px; color:{TEXT_DIM};">All data is provided as-is for informational '
-                        'purposes only. Prices may be delayed up to 15 minutes. Monte Carlo simulations '
-                        'are statistical projections based on historical returns and do not constitute '
-                        'financial advice. Positions flagged as fat-tailed violate the model\'s normality '
-                        'assumption — confidence bands for those assets will understate real tail risk.</p>'
-                        '</div>'
-                    )
-                    with ui.row().classes("w-full justify-end").style("margin-top:12px;"):
-                        ui.button("Close", on_click=dlg.close).props("flat no-caps").style(
-                            f"border:1px solid {BORDER_SUBTLE};border-radius:6px;color:{TEXT_MUTED};"
-                            f"font-size:11px;padding:6px 16px;text-transform:none;"
-                        )
-                dlg.open()
 
-            ui.button(icon="info", on_click=_open_about).props(
+            ui.button(icon="info", on_click=about_dlg.open).props(
                 "flat dense round size=sm color=none"
             ).style(
                 f"color:{TEXT_MUTED} !important; min-width:0; width:32px; height:32px;"
@@ -524,7 +523,7 @@ async def index(request: Request):
             try:
                 with container:
                     if name == "Overview":
-                        await build_overview_tab(portfolio, currency, portfolio_color_map, tabs, tab_map)
+                        await build_overview_tab(portfolio, currency, portfolio_color_map)
                     elif name == "Positions":
                         await build_positions_tab(portfolio, currency)
                     elif name == "Risk & Analytics":
@@ -543,6 +542,13 @@ async def index(request: Request):
 
         # Build the initial tab
         await _build_tab(initial_tab_name)
+
+        # Pre-build remaining tabs in the background (left to right)
+        async def _prebuild_tabs():
+            for name in _TAB_NAMES:
+                if not _tab_built.get(name):
+                    await _build_tab(name)
+        asyncio.create_task(_prebuild_tabs())
 
         # Update browser URL when switching tabs; build tab if not yet built
         async def _on_tab_change(e):
