@@ -332,7 +332,7 @@ async def index(request: Request):
             currency_buttons: dict[str, ui.button] = {}
 
             _pill_active = (
-                "background:#3B82F6; color:white; border:none; padding:6px 12px;"
+                "background:#3B82F6; color:white !important; border:none; padding:6px 12px;"
                 " font-size:12px; font-weight:600; cursor:pointer; min-width:0;"
             )
             _pill_inactive = (
