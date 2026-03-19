@@ -789,10 +789,11 @@ def _render_sector_breakdown(
             values=values,
             marker=dict(
                 colors=colors,
-                line=dict(width=2, color="#1C1D26"),
+                line=dict(width=4, color=BG_CARD),
+                cornerradius=6,
             ),
             textinfo="label+percent parent",
-            textfont=dict(size=13, color="white", family="Inter, sans-serif"),
+            textfont=dict(size=13, color="rgba(255,255,255,0.85)", family="Inter, sans-serif"),
             hovertemplate="<b>%{label}</b><br>Weight: %{value:.1f}%<extra></extra>",
             hoverlabel=dict(
                 bgcolor="#1C1D26",
@@ -800,7 +801,7 @@ def _render_sector_breakdown(
                 font=dict(color="#F1F5F9", size=11, family="Inter, sans-serif"),
             ),
             branchvalues="remainder",
-            tiling=dict(pad=3),
+            tiling=dict(pad=4),
             pathbar=dict(visible=False),
         ))
 
@@ -966,7 +967,7 @@ def _render_rebalancing_calculator(portfolio_df: pd.DataFrame, currency_symbol: 
                 )
                 deposit_input = ui.number(
                     value=0, min=0, format="%.0f", prefix=currency_symbol,
-                ).props("dense borderless").style(f"width:90px;{input_style}")
+                ).props("dense borderless").style(f"width:120px;{input_style}")
 
                 def _on_deposit(e):
                     deposit_ref["value"] = e.value or 0.0
@@ -995,12 +996,14 @@ def _render_rebalancing_calculator(portfolio_df: pd.DataFrame, currency_symbol: 
                     inp.on_value_change(_make_handler(ticker))
 
         # ── Drift bars ──
+        max_ticker_len = max((len(r["Ticker"]) for _, r in ticker_data.iterrows()), default=4)
+        label_w = max(32, max_ticker_len * 8 + 4)
         ui.html(f'<div style="border-top:1px solid {BORDER_SUBTLE};margin:0 0 8px 0;"></div>')
         for _, row in ticker_data.iterrows():
             ticker = row["Ticker"]
             with ui.row().classes("w-full items-center").style("gap:6px;margin-bottom:6px;"):
                 ui.html(
-                    f'<span style="width:44px;font-size:11px;font-weight:700;'
+                    f'<span style="width:{label_w}px;font-size:11px;font-weight:700;'
                     f'color:{TEXT_PRIMARY};flex-shrink:0;">{ticker}</span>'
                 )
                 bar_containers[ticker] = ui.element("div").style(
