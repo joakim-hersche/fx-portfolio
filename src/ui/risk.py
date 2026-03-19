@@ -31,6 +31,7 @@ from src.theme import (
     GREEN,
     RED,
     AMBER,
+    ACCENT,
 )
 
 
@@ -395,6 +396,284 @@ def _render_performance_attribution(
         ''')
 
 
+# ── Sector Breakdown Chart ────────────────────────────────────────────────────
+
+# Neutral blues/purples/teals palette for sector bars
+_SECTOR_COLORS = [
+    "#1E40AF", "#0E7490", "#6D28D9", "#0369A1", "#4F46E5",
+    "#0F766E", "#1D4ED8", "#7C3AED", "#0891B2", "#3730A3",
+]
+
+
+def _render_sector_breakdown(
+    fund_rows: list[dict],
+    portfolio_df: pd.DataFrame,
+) -> None:
+    """Render a horizontal bar chart showing portfolio weight by sector."""
+    with ui.column().classes("chart-card w-full"):
+        _section_header("Sector Breakdown")
+        _section_intro(
+            "Portfolio allocation grouped by GICS sector. "
+            "ETFs and crypto default to \u201cUnknown\u201d."
+        )
+
+        if not fund_rows or portfolio_df.empty:
+            ui.html(
+                f'<p style="color:{TEXT_DIM}; font-size:12px;">'
+                f'No sector data available.</p>'
+            )
+            return
+
+        # Build a ticker -> sector mapping from fund_rows
+        ticker_sector: dict[str, str] = {
+            r["Ticker"]: r.get("Sector", "Unknown") for r in fund_rows
+        }
+
+        # Aggregate weights by ticker first (portfolio_df has per-lot rows)
+        ticker_weights = (
+            portfolio_df.groupby("Ticker")["Weight (%)"].sum().to_dict()
+        )
+
+        # Sum weights per sector
+        sector_weights: dict[str, float] = {}
+        for ticker, weight in ticker_weights.items():
+            sector = ticker_sector.get(ticker, "Unknown")
+            sector_weights[sector] = sector_weights.get(sector, 0.0) + weight
+
+        # Sort descending by weight
+        sorted_sectors = sorted(sector_weights.items(), key=lambda x: x[1], reverse=True)
+
+        if not sorted_sectors:
+            ui.html(
+                f'<p style="color:{TEXT_DIM}; font-size:12px;">'
+                f'No sector data available.</p>'
+            )
+            return
+
+        max_pct = max(w for _, w in sorted_sectors) if sorted_sectors else 1
+        bar_h = 14
+
+        bar_rows = ""
+        for i, (sector, pct) in enumerate(sorted_sectors):
+            bar_width = (pct / max_pct * 100) if max_pct > 0 else 0
+            color = _SECTOR_COLORS[i % len(_SECTOR_COLORS)]
+            bar_rows += (
+                f'<div style="display:flex;align-items:center;gap:8px;line-height:1.4;">'
+                f'<div style="width:120px;font-size:11px;font-weight:600;color:{TEXT_SECONDARY};'
+                f'flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" '
+                f'title="{sector}">{sector}</div>'
+                f'<div style="flex:1;height:{bar_h}px;background:rgba(255,255,255,0.04);'
+                f'border-radius:4px;overflow:hidden;">'
+                f'<div style="width:{bar_width:.1f}%;height:100%;background:{color};'
+                f'border-radius:4px;"></div>'
+                f'</div>'
+                f'<div style="width:36px;font-size:11px;color:{TEXT_DIM};text-align:right;'
+                f'flex-shrink:0;">{pct:.0f}%</div>'
+                f'</div>'
+            )
+
+        ui.html(
+            f'<div style="display:flex;flex-direction:column;gap:6px;">'
+            f'{bar_rows}'
+            f'</div>'
+        )
+
+
+# ── Rebalancing Calculator ────────────────────────────────────────────────────
+
+def _render_rebalancing_calculator(portfolio_df: pd.DataFrame, currency_symbol: str) -> None:
+    """Render an interactive buy-only rebalancing calculator."""
+    with ui.column().classes("chart-card w-full"):
+        _section_header("Rebalancing Calculator")
+        _section_intro(
+            "Set target weights for each ticker and enter a deposit amount. "
+            "The calculator suggests buy-only actions to bring the portfolio "
+            "closer to your targets. It will never suggest selling."
+        )
+
+        if portfolio_df.empty:
+            ui.html(
+                f'<p style="color:{TEXT_DIM}; font-size:12px;">'
+                f'No positions to rebalance.</p>'
+            )
+            return
+
+        # Aggregate to ticker level
+        ticker_data = (
+            portfolio_df.groupby("Ticker")
+            .agg({"Weight (%)": "sum", "Total Value": "sum", "Current Price": "first"})
+            .reset_index()
+        )
+
+        # State containers
+        target_weights: dict[str, float] = {
+            row["Ticker"]: round(row["Weight (%)"], 2)
+            for _, row in ticker_data.iterrows()
+        }
+        deposit_ref = {"value": 0.0}
+        output_container = None
+
+        def _recalculate():
+            """Recalculate rebalancing suggestions."""
+            if output_container is None:
+                return
+            output_container.clear()
+
+            deposit = deposit_ref["value"] or 0.0
+
+            with output_container:
+                if deposit <= 0:
+                    ui.html(
+                        f'<p style="color:{TEXT_DIM}; font-size:12px; margin-top:8px;">'
+                        f'Enter a deposit amount to see buy suggestions.</p>'
+                    )
+                    return
+
+                total_value = ticker_data["Total Value"].sum()
+                new_total = total_value + deposit
+
+                # Compute drift and buy-only allocation
+                suggestions = []
+                for _, row in ticker_data.iterrows():
+                    ticker = row["Ticker"]
+                    current_pct = row["Weight (%)"]
+                    target_pct = target_weights.get(ticker, current_pct)
+                    current_value = row["Total Value"]
+                    price = row["Current Price"]
+
+                    target_value = new_total * target_pct / 100
+                    deficit = target_value - current_value
+                    drift = target_pct - (current_value / new_total * 100)
+
+                    suggestions.append({
+                        "Ticker": ticker,
+                        "Current %": current_pct,
+                        "Target %": target_pct,
+                        "Drift": drift,
+                        "Deficit": max(deficit, 0),  # buy-only
+                        "Price": price,
+                    })
+
+                # Sort by deficit descending (most underweight first)
+                suggestions.sort(key=lambda s: s["Deficit"], reverse=True)
+
+                # Allocate deposit to most underweight positions, whole shares
+                remaining = deposit
+                actions: list[dict] = []
+                for s in suggestions:
+                    if remaining <= 0 or s["Price"] is None or s["Price"] <= 0 or s["Deficit"] <= 0:
+                        actions.append({**s, "Shares to Buy": 0, "Amount": 0.0})
+                        continue
+                    max_spend = min(s["Deficit"], remaining)
+                    shares = int(max_spend / s["Price"])
+                    amount = shares * s["Price"]
+                    remaining -= amount
+                    actions.append({**s, "Shares to Buy": shares, "Amount": amount})
+
+                # Second pass: allocate remaining to most underweight that can buy at least 1 share
+                if remaining > 0:
+                    for a in actions:
+                        if remaining <= 0:
+                            break
+                        price = a["Price"]
+                        if price and price > 0 and remaining >= price:
+                            extra = int(remaining / price)
+                            if extra > 0:
+                                a["Shares to Buy"] += extra
+                                a["Amount"] += extra * price
+                                remaining -= extra * price
+
+                # Build output table
+                rows_html = ""
+                for a in actions:
+                    drift_val = a["Drift"]
+                    drift_cls = "td-pos" if drift_val > 0.5 else ("td-neg" if drift_val < -0.5 else "")
+                    shares = a["Shares to Buy"]
+                    action_text = f"Buy {shares}" if shares > 0 else "\u2014"
+                    action_cls = "td-pos" if shares > 0 else ""
+                    amount_text = f"{currency_symbol}{a['Amount']:.2f}" if shares > 0 else "\u2014"
+
+                    rows_html += (
+                        f'<tr>'
+                        f'<td><div class="td-ticker">{a["Ticker"]}</div></td>'
+                        f'<td class="right">{a["Current %"]:.1f}%</td>'
+                        f'<td class="right">{a["Target %"]:.1f}%</td>'
+                        f'<td class="{drift_cls} right">{drift_val:+.1f}%</td>'
+                        f'<td class="{action_cls}">{action_text}</td>'
+                        f'<td class="right">{amount_text}</td>'
+                        f'</tr>'
+                    )
+
+                unallocated = remaining
+                footer = ""
+                if unallocated > 0.01:
+                    footer = (
+                        f'<div style="font-size:11px;color:{TEXT_DIM};margin-top:6px;">'
+                        f'Unallocated: {currency_symbol}{unallocated:.2f} '
+                        f'(not enough for a whole share)</div>'
+                    )
+
+                ui.html(f'''
+                <div class="table-wrap" style="margin-top:8px;">
+                <table>
+                    <thead><tr>
+                        <th scope="col">Ticker</th>
+                        <th scope="col" class="right">Current %</th>
+                        <th scope="col" class="right">Target %</th>
+                        <th scope="col" class="right">Drift</th>
+                        <th scope="col">Action</th>
+                        <th scope="col" class="right">Amount</th>
+                    </tr></thead>
+                    <tbody>{rows_html}</tbody>
+                </table>
+                </div>
+                {footer}
+                ''')
+
+        # ── Input controls ──────────────────────────────
+        with ui.row().classes("w-full").style("gap:16px;align-items:flex-end;flex-wrap:wrap;"):
+            # Deposit field
+            with ui.column().style("gap:2px;"):
+                ui.html(f'<span style="font-size:10px;font-weight:500;color:{TEXT_DIM};">Next Deposit ({currency_symbol})</span>')
+                deposit_input = ui.number(
+                    value=0, min=0, format="%.2f",
+                ).style("width:140px;")
+
+                def _on_deposit(e):
+                    deposit_ref["value"] = e.value or 0.0
+                    _recalculate()
+                deposit_input.on("update:model-value", _on_deposit)
+
+        # Target weight inputs
+        ui.html(
+            f'<div style="font-size:10px;font-weight:500;color:{TEXT_DIM};margin-top:10px;">'
+            f'Target Weights</div>'
+        )
+        with ui.row().classes("w-full").style("gap:10px;flex-wrap:wrap;"):
+            for _, row in ticker_data.iterrows():
+                ticker = row["Ticker"]
+                with ui.column().style("gap:2px;"):
+                    ui.html(
+                        f'<span style="font-size:10px;font-weight:600;color:{TEXT_SECONDARY};">'
+                        f'{ticker}</span>'
+                    )
+                    inp = ui.number(
+                        value=round(row["Weight (%)"], 2),
+                        min=0, max=100, step=0.5, format="%.1f",
+                        suffix="%",
+                    ).style("width:90px;")
+
+                    def _make_handler(t):
+                        def handler(e):
+                            target_weights[t] = e.value if e.value is not None else 0.0
+                            _recalculate()
+                        return handler
+                    inp.on("update:model-value", _make_handler(ticker))
+
+        output_container = ui.column().classes("w-full")
+        _recalculate()
+
+
 # ── Public entry point ───────────────────────────────────────────────────────
 
 async def build_risk_tab(portfolio: dict, currency: str) -> None:
@@ -463,6 +742,7 @@ async def build_risk_tab(portfolio: dict, currency: str) -> None:
                 row["1-Year Position"] = info.get("1-Year Position")
                 cur_price = info.get("Current Price")
                 row["Current Price"] = round(cur_price * fx_rate, 2) if cur_price is not None else None
+                row["Sector"] = info.get("Sector", "Unknown")
                 fund_rows.append(row)
         return price_data_1y, analytics_df, fund_rows, portfolio_df
 
@@ -496,3 +776,10 @@ async def build_risk_tab(portfolio: dict, currency: str) -> None:
                 _render_correlation_heatmap(price_data_1y, tickers)
         with ui.column().classes("w-full"):
             _render_fundamentals_table(fund_rows, currency_symbol, portfolio_color_map)
+
+    # ── Row 3: Sector Breakdown + Rebalancing Calculator ──────────
+    with ui.element("div").classes("risk-grid"):
+        with ui.column().classes("w-full"):
+            _render_sector_breakdown(fund_rows, portfolio_df)
+        with ui.column().classes("w-full"):
+            _render_rebalancing_calculator(portfolio_df, currency_symbol)
