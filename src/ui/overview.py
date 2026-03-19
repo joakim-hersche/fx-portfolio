@@ -29,62 +29,71 @@ from src.theme import (
 
 async def build_overview_tab(
     portfolio: dict, currency: str, portfolio_color_map: dict[str, str],
-    tabs=None, tab_map: dict | None = None,
 ) -> None:
     """Overview tab — KPI cards + allocation chart + comparison chart."""
     currency_symbol = CURRENCY_SYMBOLS.get(currency, "$")
 
     if not portfolio:
-        ui.html("""
-            <div class="kpi-row">
-                <div class="kpi-card hero">
-                    <div class="kpi-label">Portfolio Value</div>
-                    <div class="kpi-value">\u2014</div>
-                    <div class="kpi-sub">Add positions to get started</div>
+        ui.html(f'''
+            <div style="display:flex;flex-direction:column;align-items:center;
+                        justify-content:center;padding:60px 20px 40px;max-width:480px;
+                        margin:0 auto;text-align:center;">
+                <div style="font-size:20px;font-weight:700;color:{TEXT_PRIMARY};
+                            margin-bottom:6px;">No positions yet</div>
+                <div style="font-size:13px;color:{TEXT_DIM};line-height:1.6;
+                            margin-bottom:32px;">
+                    Add your first stock in the sidebar to see portfolio analytics,
+                    or load sample data to explore the dashboard.</div>
+
+                <div style="display:flex;flex-direction:column;gap:16px;width:100%;
+                            text-align:left;">
+                    <div style="display:flex;gap:12px;align-items:flex-start;">
+                        <div style="width:24px;height:24px;border-radius:6px;
+                                    background:{ACCENT};color:#fff;font-size:12px;
+                                    font-weight:700;display:flex;align-items:center;
+                                    justify-content:center;flex-shrink:0;">1</div>
+                        <div>
+                            <div style="font-size:13px;font-weight:600;color:{TEXT_PRIMARY};">
+                                Search for a stock</div>
+                            <div style="font-size:12px;color:{TEXT_DIM};margin-top:2px;">
+                                Use the sidebar search — e.g. AAPL, MSFT, ASML.AS</div>
+                        </div>
+                    </div>
+                    <div style="display:flex;gap:12px;align-items:flex-start;">
+                        <div style="width:24px;height:24px;border-radius:6px;
+                                    background:{ACCENT};color:#fff;font-size:12px;
+                                    font-weight:700;display:flex;align-items:center;
+                                    justify-content:center;flex-shrink:0;">2</div>
+                        <div>
+                            <div style="font-size:13px;font-weight:600;color:{TEXT_PRIMARY};">
+                                Enter your position</div>
+                            <div style="font-size:12px;color:{TEXT_DIM};margin-top:2px;">
+                                Shares, buy price, and purchase date</div>
+                        </div>
+                    </div>
+                    <div style="display:flex;gap:12px;align-items:flex-start;">
+                        <div style="width:24px;height:24px;border-radius:6px;
+                                    background:{ACCENT};color:#fff;font-size:12px;
+                                    font-weight:700;display:flex;align-items:center;
+                                    justify-content:center;flex-shrink:0;">3</div>
+                        <div>
+                            <div style="font-size:13px;font-weight:600;color:{TEXT_PRIMARY};">
+                                Dashboard fills in automatically</div>
+                            <div style="font-size:12px;color:{TEXT_DIM};margin-top:2px;">
+                                Returns, risk metrics, charts, and more</div>
+                        </div>
+                    </div>
                 </div>
-                <div class="kpi-card hero">
-                    <div class="kpi-label">Total Return</div>
-                    <div class="kpi-value">\u2014</div>
-                    <div class="kpi-sub">vs. total cost basis</div>
-                </div>
-                <div class="kpi-card">
-                    <div class="kpi-label">Today's Change</div>
-                    <div class="kpi-value" style="font-size:20px;">\u2014</div>
-                    <div class="kpi-sub">Since market open</div>
-                </div>
-                <div class="kpi-card">
-                    <div class="kpi-label">Positions</div>
-                    <div class="kpi-value" style="font-size:28px;">0</div>
-                    <div class="kpi-sub">Add positions in the sidebar</div>
+
+                <div style="border-top:1px solid {BORDER};margin-top:28px;
+                            padding-top:16px;width:100%;text-align:center;">
+                    <div style="font-size:12px;color:{TEXT_DIM};">
+                        Want to explore first? Click
+                        <b style="color:{TEXT_PRIMARY};">Sample</b> in the sidebar
+                        to load example data.</div>
                 </div>
             </div>
-        """).classes("w-full")
-
-        # Onboarding card
-        with ui.element("div").classes("chart-card").style("margin-top:16px;"):
-            ui.html(f'<div class="chart-title">Getting Started</div>')
-            ui.html(
-                f'<div style="font-size:12px;color:{TEXT_MUTED};line-height:1.8;margin-top:8px;">'
-                '<b style="color:#CBD5E1;">1.</b> Search for a stock in the sidebar '
-                '(e.g., AAPL, MSFT, ASML.AS)<br>'
-                '<b style="color:#CBD5E1;">2.</b> Enter how many shares you bought and when<br>'
-                '<b style="color:#CBD5E1;">3.</b> Your dashboard fills in automatically'
-                '</div>'
-            )
-            ui.html(
-                f'<div style="font-size:12px;color:{TEXT_DIM};margin-top:12px;">'
-                'Or try the app instantly with example data \u2014 click <b style="color:#CBD5E1;">Sample</b> in the sidebar.</div>'
-            )
-
-        # Guide card
-        with ui.element("div").classes("chart-card").style("margin-top:8px;cursor:pointer;") as guide_card:
-            ui.html(f'<div class="chart-title">Guide</div>')
-            ui.html(
-                f'<p style="font-size:12px;color:{TEXT_MUTED};line-height:1.6;margin-top:8px;">'
-                "Plain-language walkthrough of every feature \u2014 what each number means and how to read the charts.</p>"
-            )
-        if tabs is not None and tab_map is not None:
-            guide_card.on("click", lambda: tabs.set_value(tab_map["Guide"]))
+        ''').classes("w-full")
 
         return
 
@@ -102,6 +111,17 @@ async def build_overview_tab(
             'Could not retrieve price data for any positions.</div>'
         )
         return
+
+    fx_warnings = df.attrs.get("fx_warnings", [])
+    if fx_warnings:
+        tickers_str = ", ".join(fx_warnings)
+        ui.html(
+            f'<div style="background:rgba(220,38,38,0.1);border:1px solid rgba(220,38,38,0.3);'
+            f'border-radius:8px;padding:10px 14px;margin-bottom:8px;">'
+            f'<span style="color:#DC2626;font-weight:600;">FX rate unavailable</span>'
+            f'<span style="color:{TEXT_DIM};font-size:12px;"> for {tickers_str}. '
+            f'Values shown with 1:1 rate — figures may be inaccurate.</span></div>'
+        ).classes("w-full")
 
     # ── Shared helpers ─────────────────────────────────────
     with ThreadPoolExecutor(max_workers=min(10, len(portfolio))) as _ex:
@@ -340,25 +360,6 @@ async def build_overview_tab(
 
     await _build_contribution_chart()
 
-    # Other tabs preview — clickable cards that navigate to each tab
-    with ui.element("div").classes("w-full").style(
-        f"width:100%;"
-    ):
-        ui.html(f'<div style="font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:{TEXT_DIM};margin-bottom:8px;">Other tabs</div>')
-        with ui.element("div").classes("preview-grid w-full").style("width:100%;"):
-            for _tab_name, _tab_desc in [
-                ("Positions", "Positions table &middot; Price history per ticker"),
-                ("Risk & Analytics", "Attribution &middot; Risk metrics &middot; Heatmap &middot; Fundamentals"),
-                ("Forecast", "Portfolio outlook &middot; Position outlook &middot; Fan charts &middot; VaR/CVaR"),
-                ("Diagnostics", "Monte Carlo backtest &middot; Model diagnostics &middot; QQ plots"),
-                ("Guide", "Getting started &middot; Metric explanations &middot; How to read charts"),
-            ]:
-                card = ui.element("div").classes("preview-card").style("cursor:pointer;")
-                with card:
-                    ui.html(f'<div class="preview-card-label">{_tab_name}</div>')
-                    ui.html(f'<div class="preview-card-text">{_tab_desc}</div>')
-                if tabs is not None and tab_map is not None:
-                    card.on("click", lambda _, t=_tab_name: tabs.set_value(tab_map[t]))
 
 
 async def build_comparison(

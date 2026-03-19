@@ -124,21 +124,21 @@ def build_portfolio_df(portfolio: dict, base_currency: str) -> pd.DataFrame:
     # Fetch FX rates and dividends in parallel
     def _fetch_extras(ticker):
         ticker_ccy = get_ticker_currency(ticker)
-        fx_rate, _ = get_fx_rate(ticker_ccy, base_currency)
+        fx_rate, fx_ok = get_fx_rate(ticker_ccy, base_currency)
         div_cache = {}
         for lot in portfolio[ticker]:
             pd_date = lot.get("purchase_date")
             if pd_date and pd_date != "Manual" and pd_date not in div_cache:
                 div_cache[pd_date] = _dividends_in_base_currency(ticker, pd_date, ticker_ccy, base_currency)
-        return ticker, fx_rate, div_cache
+        return ticker, fx_rate, div_cache, fx_ok
 
     extras = {}
     with ThreadPoolExecutor(max_workers=min(10, len(tickers))) as executor:
         futures = {executor.submit(_fetch_extras, t): t for t in tickers}
         for future in as_completed(futures):
             try:
-                ticker, fx_rate, div_cache = future.result()
-                extras[ticker] = (fx_rate, div_cache)
+                ticker, fx_rate, div_cache, fx_ok = future.result()
+                extras[ticker] = (fx_rate, div_cache, fx_ok)
             except Exception:
                 continue
 
@@ -160,7 +160,7 @@ def build_portfolio_df(portfolio: dict, base_currency: str) -> pd.DataFrame:
         extra = extras.get(ticker)
         if extra is None:
             continue
-        fx_rate, div_cache = extra
+        fx_rate, div_cache, fx_ok = extra
 
         current_price = float(close.iloc[-1]) * fx_rate
         prev_price = float(close.iloc[-2]) * fx_rate
@@ -201,6 +201,7 @@ def build_portfolio_df(portfolio: dict, base_currency: str) -> pd.DataFrame:
 
     df = pd.DataFrame(rows)
     df["Weight (%)"] = (df["Total Value"] / df["Total Value"].sum() * 100).round(2)
+    df.attrs["fx_warnings"] = [t for t in extras if not extras[t][2]]
     return df
 
 
