@@ -733,7 +733,7 @@ def _sheet_fundamentals(wb: Workbook, fund_rows: list[dict], name_map: dict) -> 
 
     fund_df = pd.DataFrame(fund_rows)
     fund_df.insert(1, "Company", fund_df["Ticker"].map(name_map))
-    headers = ["Ticker", "Company", "P/E Ratio", "Div Yield (%)", "1-Year Low", "1-Year High", "1-Year Position (%)"]
+    headers = ["Ticker", "Company", "Sector", "P/E Ratio", "Div Yield (%)", "1-Year Low", "1-Year High", "1-Year Position (%)"]
     fund_df = fund_df[[c for c in headers if c in fund_df.columns]]
 
     _write_headers(ws, list(fund_df.columns))
