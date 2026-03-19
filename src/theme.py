@@ -315,7 +315,7 @@ body, .q-page, .nicegui-content {
 .risk-grid > * > .chart-card { flex: 1; display: flex; flex-direction: column; }
 .metric-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--grid-gap); width: 100%%; }
 .metric-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--grid-gap); width: 100%%; }
-.preview-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; width: 100%%; }
+.preview-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: var(--grid-gap); width: 100%%; }
 .diag-row { display: flex; gap: var(--grid-gap); align-items: stretch !important; flex-wrap: wrap; width: 100%%; }
 .diag-row > * { flex: 1; min-width: 280px; }
 .diag-row > * { align-self: stretch !important; }
