@@ -508,7 +508,7 @@ def build_sidebar(
     )
     _dlg_accent_style = (
         f"background:{ACCENT_DARK};border:1px solid rgba(59,130,246,0.3);"
-        f"border-radius:6px;color:#93C5FD;font-size:11px;padding:6px 16px;text-transform:none;"
+        f"border-radius:6px;color:white !important;font-size:11px;padding:6px 16px;text-transform:none;"
     )
 
     def _confirm_remove(ticker: str):
