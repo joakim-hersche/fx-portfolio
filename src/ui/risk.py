@@ -323,9 +323,8 @@ def _render_performance_attribution(
                     # Adjust for USD->base_currency FX change over the same period
                     try:
                         import yfinance as yf
-                        from src.cache import yf_session
                         fx_pair = f"USD{base_currency}=X"
-                        fx_hist = yf.Ticker(fx_pair, session=yf_session).history(period="1y")
+                        fx_hist = yf.Ticker(fx_pair).history(period="1y")
                         if not fx_hist.empty and "Close" in fx_hist.columns:
                             fx_close = fx_hist["Close"].dropna()
                             if len(fx_close) >= 2:

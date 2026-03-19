@@ -3,7 +3,7 @@ import pandas as pd
 import logging
 from cachetools import cached
 
-from src.cache import short_cache, long_cache, yf_session
+from src.cache import short_cache, long_cache
 
 _log = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ def get_fx_rate(from_currency: str, to_currency: str) -> tuple[float, bool]:
         return gbp_rate / 100, ok
     try:
         pair = f"{from_currency}{to_currency}=X"
-        rate = yf.Ticker(pair, session=yf_session).history(period="1d")["Close"].iloc[-1]
+        rate = yf.Ticker(pair).history(period="1d")["Close"].iloc[-1]
         return float(rate), True
     except Exception as exc:
         _log.warning("FX rate fetch failed for %s→%s: %s — using 1.0 fallback", from_currency, to_currency, exc)
@@ -63,7 +63,7 @@ def get_historical_fx_rate(from_currency: str, to_currency: str, date_str: str) 
     try:
         end = str((pd.Timestamp(date_str) + pd.DateOffset(days=7)).date())
         pair = f"{from_currency}{to_currency}=X"
-        hist = yf.Ticker(pair, session=yf_session).history(start=date_str, end=end)
+        hist = yf.Ticker(pair).history(start=date_str, end=end)
         if not hist.empty:
             return float(hist["Close"].iloc[0])
     except Exception:
