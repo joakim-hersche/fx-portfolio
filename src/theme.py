@@ -534,6 +534,31 @@ body, .q-page, .nicegui-content {
   .q-header { padding-top: env(safe-area-inset-top); }
 }
 
+/* Allocation bar chart — custom hover tooltip */
+.alloc-bar { position: relative; }
+.alloc-tip {
+    display: none;
+    position: absolute;
+    left: 70px; bottom: calc(100%% + 6px);
+    background: %(BG_CARD)s;
+    border: 1px solid %(BORDER)s;
+    border-radius: 6px;
+    padding: 8px 10px;
+    white-space: nowrap;
+    z-index: 100;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    pointer-events: none;
+}
+.alloc-tip::after {
+    content: '';
+    position: absolute;
+    top: 100%%; left: 20px;
+    border: 5px solid transparent;
+    border-top-color: %(BORDER)s;
+}
+.alloc-bar:hover .alloc-tip { display: block; }
+.alloc-bar:hover > div:nth-child(2) { opacity: 0.85; }
+
 /* Sidebar search — vertically center input text */
 .sidebar-search .q-field__control {
     min-height: 36px !important;
