@@ -313,8 +313,8 @@ async def build_overview_tab(
                 template="plotly",
                 paper_bgcolor="rgba(0,0,0,0)",
                 plot_bgcolor="rgba(0,0,0,0)",
-                xaxis_title="Date",
-                yaxis_title=f"Value ({currency})",
+                xaxis=dict(title="Date"),
+                yaxis=dict(tickprefix=currency_symbol, title=f"Value ({currency})"),
                 legend=dict(
                     orientation="h", yanchor="bottom", y=1.02,
                     xanchor="left", x=0,
@@ -325,10 +325,16 @@ async def build_overview_tab(
                 hoverlabel=dict(
                     bgcolor="#1C1D26", bordercolor="#1E293B",
                     font=dict(color="#F1F5F9", size=11, family="Inter, sans-serif"),
+                    namelength=-1,
+                ),
+                modebar=dict(
+                    bgcolor="rgba(0,0,0,0)",
+                    color="#64748B",
+                    activecolor="#94A3B8",
                 ),
             )
-            fig.update_xaxes(gridcolor="rgba(255,255,255,0.04)", tickfont=dict(color="#CBD5E1", size=10))
-            fig.update_yaxes(gridcolor="rgba(255,255,255,0.04)", tickfont=dict(color="#CBD5E1", size=10))
+            fig.update_xaxes(gridcolor="rgba(255,255,255,0.04)", tickfont=dict(color="#CBD5E1", size=10), title_font=dict(color="#CBD5E1", size=11))
+            fig.update_yaxes(gridcolor="rgba(255,255,255,0.04)", tickfont=dict(color="#CBD5E1", size=10), title_font=dict(color="#CBD5E1", size=11))
             with ui.column().classes("chart-card w-full").style("min-width:0;"):
                 ui.html('<div class="chart-title">Contributions vs. Portfolio Value</div>')
                 ui.plotly(fig).classes("w-full")
