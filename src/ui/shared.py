@@ -6,15 +6,12 @@ import base64
 import json
 import logging as _logging
 import os
-from typing import TYPE_CHECKING
+from typing import Any
 
 from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from nicegui import app, ui
-
-if TYPE_CHECKING:
-    from typing import Any
 
 _log = _logging.getLogger(__name__)
 
