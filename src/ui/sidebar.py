@@ -479,6 +479,7 @@ def build_sidebar(
             ui.notify("No positions to export.", type="warning")
             return
         ui.download(json.dumps(portfolio, indent=2).encode(), "portfolio.json")
+        ui.notify("Portfolio exported.", type="positive")
 
     def on_load_sample():
         with ui.dialog() as dialog, ui.card().style(_dlg_card_style):
