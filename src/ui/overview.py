@@ -215,13 +215,11 @@ async def build_overview_tab(
         f'{card_1}{card_2}{card_3}{card_4}{card_5}</div>'
     ).classes("w-full")
 
-    # ── Allocation + Comparison side by side ───────────────
-    with ui.element("div").classes("charts-row w-full").style("width:100%;"):
-        # Allocation chart
-        with ui.column().classes("chart-card").style("min-width:0;"):
-            with ui.row().classes("w-full items-center justify-between").style("margin:0;"):
-                ui.html('<div class="chart-title">Portfolio Allocation</div>')
-                ui.html(f'<div style="font-size:10px;color:{TEXT_DIM};">by market value</div>')
+    # ── Allocation chart ───────────────
+    with ui.column().classes("chart-card w-full").style("min-width:0;"):
+        with ui.row().classes("w-full items-center justify-between").style("margin:0;"):
+            ui.html('<div class="chart-title">Portfolio Allocation</div>')
+            ui.html(f'<div style="font-size:10px;color:{TEXT_DIM};">by market value</div>')
             alloc_df = (
                 df.groupby("Ticker")["Total Value"]
                 .sum()
@@ -278,9 +276,9 @@ async def build_overview_tab(
 
             ui.html(alloc_html).classes("w-full").style("flex:1;display:flex;")
 
-        # Comparison chart
-        with ui.column().classes("chart-card").style("min-width:0;"):
-            await build_comparison(portfolio, name_map, portfolio_color_map, currency)
+    # ── Comparison chart (full width) ───────────────
+    with ui.column().classes("chart-card w-full").style("min-width:0;"):
+        await build_comparison(portfolio, name_map, portfolio_color_map, currency)
 
     # ── Contributions vs. Portfolio Value chart ─────────────
     from src.portfolio import build_contribution_timeline
@@ -330,25 +328,6 @@ async def build_overview_tab(
 
     await _build_contribution_chart()
 
-    # Other tabs preview — clickable cards that navigate to each tab
-    with ui.element("div").classes("w-full").style(
-        f"width:100%;"
-    ):
-        ui.html(f'<div style="font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:{TEXT_DIM};margin-bottom:8px;">Other tabs</div>')
-        with ui.element("div").classes("preview-grid w-full").style("width:100%;"):
-            for _tab_name, _tab_desc in [
-                ("Positions", "Positions table &middot; Price history per ticker"),
-                ("Risk & Analytics", "Attribution &middot; Risk metrics &middot; Heatmap &middot; Fundamentals"),
-                ("Forecast", "Portfolio outlook &middot; Position outlook &middot; Fan charts &middot; VaR/CVaR"),
-                ("Diagnostics", "Monte Carlo backtest &middot; Model diagnostics &middot; QQ plots"),
-                ("Guide", "Getting started &middot; Metric explanations &middot; How to read charts"),
-            ]:
-                card = ui.element("div").classes("preview-card").style("cursor:pointer;")
-                with card:
-                    ui.html(f'<div class="preview-card-label">{_tab_name}</div>')
-                    ui.html(f'<div class="preview-card-text">{_tab_desc}</div>')
-                if tabs is not None and tab_map is not None:
-                    card.on("click", lambda _, t=_tab_name: tabs.set_value(tab_map[t]))
 
 
 async def build_comparison(
