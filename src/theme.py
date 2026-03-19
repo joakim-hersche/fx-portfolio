@@ -90,6 +90,9 @@ body, .q-page, .nicegui-content {
 .q-tab-panel > .nicegui-content,
 .q-tab-panel > div > .nicegui-content { width: 100%% !important; max-width: none !important; padding: 0 !important; }
 .q-tab-panel .nicegui-column { width: 100%% !important; gap: var(--grid-gap) !important; }
+.q-tab-panel > .nicegui-content > .nicegui-column > :first-child {
+    padding-top: 4px;
+}
 .q-tabs { background: %(BG_MAIN)s !important; border-bottom: 1px solid %(BORDER)s !important; }
 .q-tab { text-transform: none !important; font-family: 'Inter', sans-serif !important; font-size: 12px !important; font-weight: 500 !important; letter-spacing: 0.01em !important; color: %(TEXT_FAINT)s !important; }
 .q-tab--active { color: %(TEXT_PRIMARY)s !important; font-weight: 600 !important; }
