@@ -224,9 +224,9 @@ def _render_portfolio_outlook(
             with ui.element("div").classes("metric-grid-4"):
                 ui.html(
                     f'<div class="metric-card">'
-                    f'<div class="metric-label">Worst likely loss ({hl})</div>'
+                    f'<div class="metric-label">Value at Risk 95% ({hl})</div>'
                     f'<div class="metric-value" style="color:#DC2626;">{currency_symbol}{abs(vc["var_abs"]):,.0f}</div>'
-                    f'<div class="metric-sub">In 95% of scenarios, you\'d lose less than this ({vc["var"] * 100:.1f}%)</div>'
+                    f'<div class="metric-sub">5% of simulations lost more than this — actual losses could be larger ({vc["var"] * 100:.1f}%)</div>'
                     f'</div>'
                 )
                 ui.html(
@@ -239,19 +239,19 @@ def _render_portfolio_outlook(
                 p10_chg = (corr_p10 - start_val) / start_val * 100
                 ui.html(
                     f'<div class="metric-card">'
-                    f'<div class="metric-label">Pessimistic outcome</div>'
+                    f'<div class="metric-label">10th percentile outcome</div>'
                     f'<div class="metric-value" style="color:#D97706;">{currency_symbol}{corr_p10:,.0f}</div>'
-                    f'<div class="metric-sub">9 out of 10 simulations ended above this ({p10_chg:+.1f}%)</div>'
+                    f'<div class="metric-sub">10% of simulations ended below this — not a worst case ({p10_chg:+.1f}%)</div>'
                     f'</div>'
                 )
                 if div_is_benefit:
                     div_color = GREEN
-                    div_title = "Diversification benefit"
-                    div_sub = f"Correlation reduces p10 downside"
+                    div_title = "Correlation effect"
+                    div_sub = f"Correlation narrows downside in simulation"
                 else:
                     div_color = RED
-                    div_title = "Correlation risk"
-                    div_sub = f"Correlation widens p10 downside"
+                    div_title = "Correlation effect"
+                    div_sub = f"Correlation widens downside in simulation"
                 ui.html(
                     f'<div class="metric-card">'
                     f'<div class="metric-label">{div_title}</div>'
@@ -427,16 +427,16 @@ def _render_position_outlook(
                 if wavg is not None:
                     prob_above = float((end_paths >= wavg).mean() * 100)
                     _metric_card(
-                        "Prob. above avg buy",
+                        "Simulated prob. above avg buy",
                         f"{prob_above:.0f}%",
-                        f"vs {currency_symbol}{wavg:,.2f}",
+                        f"Model-based — vs {currency_symbol}{wavg:,.2f}",
                     )
 
                 prob_above_current = float((end_paths >= current_price).mean() * 100)
                 _metric_card(
-                    "Prob. above today's price",
+                    "Simulated prob. above current",
                     f"{prob_above_current:.0f}%",
-                    f"vs {currency_symbol}{current_price:,.2f}",
+                    f"Model-based — vs {currency_symbol}{current_price:,.2f}",
                 )
 
                 _metric_card(
@@ -531,15 +531,15 @@ def _render_backtest(
 
         def _reliability_label(hit_rate_80: float) -> str:
             if hit_rate_80 >= 80:
-                return "Good"
+                return "Well-calibrated"
             if hit_rate_80 >= 65:
-                return "Moderate"
-            return "Low"
+                return "Under-calibrated"
+            return "Poorly-calibrated"
 
         def _reliability_color(label: str) -> str:
-            if label == "Good":
+            if label == "Well-calibrated":
                 return GREEN
-            if label == "Moderate":
+            if label == "Under-calibrated":
                 return AMBER
             return RED
 
@@ -784,7 +784,7 @@ async def build_diagnostics_tab(portfolio: dict, currency: str) -> None:
         f'<div style="font-size:12px;color:{TEXT_MUTED};line-height:1.6;">'
         f'<b style="color:{TEXT_PRIMARY};">For most users:</b> check the '
         f'<b style="color:{TEXT_PRIMARY};">Reliability</b> column in the table below. '
-        f'"Good" means the model is trustworthy for that position. '
+        f'"Well-calibrated" means the model\'s confidence bands matched historical outcomes. '
         f'The rest of this tab is for advanced users who want to verify the simulation assumptions.'
         f'</div></div>'
     )
