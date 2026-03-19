@@ -249,18 +249,11 @@ body, .q-page, .nicegui-content {
 .table-wrap thead th.right, .table-wrap tbody td.right { text-align: right; }
 
 /* ── Tooltip on table headers ────────────────────────── */
-.th-tip { position: relative; cursor: help; border-bottom: 1px dotted %(TEXT_FAINT)s; }
+.th-tip { cursor: help; }
 .th-tip::after {
-  content: attr(data-tip); position: absolute; left: 50%%; bottom: 100%%;
-  transform: translateX(-50%%); padding: 8px 12px; border-radius: 6px;
-  background: %(BG_CARD)s; border: 1px solid %(BORDER)s;
-  color: %(TEXT_SECONDARY)s; font-size: 11px; font-weight: 400;
-  letter-spacing: normal; text-transform: none; white-space: normal;
-  width: max-content; max-width: 260px; line-height: 1.5;
-  pointer-events: none; opacity: 0; transition: opacity 0.15s;
-  z-index: 100; margin-bottom: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  content: ' \u24d8'; font-size: 9px; color: %(TEXT_DIM)s; font-weight: 400;
+  vertical-align: super; letter-spacing: normal; text-transform: none;
 }
-.th-tip:hover::after { opacity: 1; }
 
 /* ── 52-week range bar ────────────────────────────────── */
 .range-bar-bg {
