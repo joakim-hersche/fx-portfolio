@@ -341,6 +341,7 @@ def _render_unified_table(
         ''')
 
         ui.html(f'''
+        <div style="overflow-x:auto;">
         <div class="table-wrap">
         <table>
             <thead><tr>
@@ -352,6 +353,7 @@ def _render_unified_table(
             </tr></thead>
             <tbody>{rows_html}</tbody>
         </table>
+        </div>
         </div>
         ''')
 
@@ -919,6 +921,7 @@ def _render_rebalancing_calculator(portfolio_df: pd.DataFrame, currency_symbol: 
                     )
 
                 ui.html(f'''
+                <div style="overflow-x:auto;">
                 <div class="table-wrap" style="margin-top:8px;">
                 <table>
                     <thead><tr>
@@ -931,6 +934,7 @@ def _render_rebalancing_calculator(portfolio_df: pd.DataFrame, currency_symbol: 
                     </tr></thead>
                     <tbody>{rows_html}</tbody>
                 </table>
+                </div>
                 </div>
                 {footer}
                 ''')
