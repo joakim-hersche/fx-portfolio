@@ -36,6 +36,7 @@ ui.html.__init__ = _unsanitized_html_init
 
 from src.charts import CHART_COLORS
 from src.ui.forecast import build_diagnostics_tab, build_forecast_tab
+from src.ui.income import build_income_tab
 from src.ui.positions import build_positions_tab
 from src.ui.risk import build_risk_tab
 from src.data_fetch import fetch_company_name, load_stock_options
@@ -79,7 +80,7 @@ _PWA_HEAD = """
 """
 
 
-_TAB_NAMES = ["Overview", "Positions", "Risk & Analytics", "Forecast", "Diagnostics", "Guide"]
+_TAB_NAMES = ["Overview", "Positions", "Risk & Analytics", "Income", "Forecast", "Diagnostics", "Guide"]
 
 
 def _tab_url(tab_name: str | None = None) -> str:
@@ -349,6 +350,8 @@ async def index(request: Request):
                         await build_positions_tab(portfolio, currency)
                     elif name == "Risk & Analytics":
                         await build_risk_tab(portfolio, currency)
+                    elif name == "Income":
+                        await build_income_tab(portfolio, currency, portfolio_color_map)
                     elif name == "Forecast":
                         await build_forecast_tab(portfolio, currency)
                     elif name == "Diagnostics":

@@ -1591,6 +1591,69 @@ def _sheet_scenario(wb: Workbook, positions_df: pd.DataFrame, name_map: dict, cu
     _add_table(ws, "tblScenario", f"A2:{get_column_letter(len(headers))}{last_data}")
 
 
+# ── Income sheet ──────────────────────────────────────────────────────────────
+
+def _sheet_income(wb: Workbook, positions_df: pd.DataFrame, fund_rows: list[dict], name_map: dict, currency: str) -> None:
+    """Per-position dividend income summary."""
+    from src.fx import get_ticker_currency, get_fx_rate
+
+    ws = wb.create_sheet("Income")
+    curr_fmt = _CURRENCY_FMT.get(currency, '#,##0.00')
+    headers = ["Ticker", "Company", "Shares", "Annual Income", "Yield (%)", "Yield on Cost (%)"]
+
+    _no_gridlines(ws)
+    _write_headers(ws, headers)
+
+    # Build a lookup from fund_rows
+    fund_map = {}
+    for fr in fund_rows:
+        t = fr.get("Ticker")
+        if t:
+            fund_map[t] = fr
+
+    row = 2
+    tickers = sorted(positions_df["Ticker"].unique()) if not positions_df.empty else []
+    for ticker in tickers:
+        ticker_df = positions_df[positions_df["Ticker"] == ticker]
+        total_shares = ticker_df["Shares"].sum()
+        total_value = ticker_df["Total Value"].sum()
+        cost_basis = (ticker_df["Buy Price"] * ticker_df["Shares"]).sum()
+
+        fund = fund_map.get(ticker, {})
+        div_rate = fund.get("Dividend Rate")
+        div_yield = fund.get("Div Yield (%)")
+
+        ticker_ccy = get_ticker_currency(ticker)
+        fx_rate, _ = get_fx_rate(ticker_ccy, currency)
+
+        if div_rate and div_rate > 0:
+            annual_income = div_rate * total_shares * fx_rate
+            yoc = (annual_income / cost_basis * 100) if cost_basis > 0 else 0
+        else:
+            annual_income = 0
+            yoc = 0
+
+        name = name_map.get(ticker, ticker)
+        ws.cell(row, 1, ticker).font = Font(bold=True, size=10)
+        ws.cell(row, 2, name)
+        ws.cell(row, 3, total_shares).number_format = '#,##0'
+        ws.cell(row, 4, round(annual_income, 2)).number_format = curr_fmt
+        ws.cell(row, 5, round(div_yield, 2) if div_yield else 0).number_format = '0.00'
+        ws.cell(row, 6, round(yoc, 2)).number_format = '0.00'
+
+        fill = _ALT_FILL if (row - 2) % 2 else None
+        if fill:
+            for c in range(1, len(headers) + 1):
+                ws.cell(row, c).fill = fill
+        for c in range(1, len(headers) + 1):
+            ws.cell(row, c).border = _CELL_BORDER
+        row += 1
+
+    _autofit(ws)
+    if row > 3:
+        _add_table(ws, "tblIncome", f"A2:{get_column_letter(len(headers))}{row - 1}")
+
+
 # ── Public API ─────────────────────────────────────────────────────────────────
 
 def build_excel_report(
@@ -1626,6 +1689,7 @@ def build_excel_report(
         ("Attribution",       lambda: _sheet_attribution(wb, positions_df, name_map)),
         ("Fundamentals",      lambda: _sheet_fundamentals(wb, fund_rows, name_map)),
         ("Monte Carlo",       lambda: _sheet_monte_carlo(wb, _bt, _tmc, _pmc, name_map, currency)),
+        ("Income",            lambda: _sheet_income(wb, positions_df, fund_rows, name_map, currency)),
         ("Correlation",       lambda: _sheet_correlation(wb, price_histories, positions_df)),
         ("Price History",     lambda: _sheet_price_history(wb, price_histories)),
         ("Daily Returns",     lambda: _sheet_daily_returns(wb, price_histories)),
