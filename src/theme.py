@@ -228,9 +228,9 @@ body, .q-page, .nicegui-content {
 .table-wrap tbody tr:last-child { border-bottom: none; }
 .table-wrap tbody tr:hover { background: rgba(255,255,255,0.03); }
 .table-wrap tbody td { padding: 9px 12px; color: %(TEXT_SECONDARY)s; }
-.td-pos { color: %(GREEN)s; font-weight: 600; }
-.td-neg { color: %(RED)s; font-weight: 600; }
-.td-amb { color: %(AMBER)s; font-weight: 600; }
+.table-wrap tbody td.td-pos { color: %(GREEN)s; font-weight: 600; }
+.table-wrap tbody td.td-neg { color: %(RED)s; font-weight: 600; }
+.table-wrap tbody td.td-amb { color: %(AMBER)s; font-weight: 600; }
 .td-ticker { font-weight: 700; color: %(TEXT_PRIMARY)s; display: flex; align-items: center; gap: 6px; }
 .hm-cell { aspect-ratio: 1; border-radius: 3px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; color: rgba(255,255,255,0.85); }
 .hm-label { font-size: 10px; font-weight: 700; color: %(TEXT_FAINT)s; display: flex; align-items: center; justify-content: center; }
@@ -309,9 +309,9 @@ body, .q-page, .nicegui-content {
 }
 
 /* ── Responsive grid classes ─────────────────────────── */
-.risk-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; width: 100%%; align-items: start; }
-.risk-grid > * > .chart-card { min-height: 100%%; display: flex; flex-direction: column; }
-.risk-grid > * { display: flex; }
+.risk-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; width: 100%%; align-items: stretch; }
+.risk-grid > * { display: flex; flex-direction: column; }
+.risk-grid > * > .chart-card { flex: 1; display: flex; flex-direction: column; }
 .metric-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; width: 100%%; }
 .metric-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; width: 100%%; }
 .preview-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; width: 100%%; }
