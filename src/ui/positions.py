@@ -80,7 +80,7 @@ def _build_positions_table(
         "and how much you've gained or lost. <b>Today's Change</b> is how much "
         "your value moved since yesterday's market close. "
         "<b>Total Return</b> includes any dividends received. "
-        "<b>Portfolio Share</b> is what percentage of your total investment "
+        "<b>Share</b> is what percentage of your total investment "
         "this position represents."
         + (" Click a row to view its price chart below." if on_click_bridge_id else "")
         + "</p>"
@@ -151,20 +151,20 @@ def _build_positions_table(
         columns = [
             "Ticker",
             "Company",
-            "Buy #",
+            "Lot",
             "Shares",
             "Buy Price",
             "Purchase Date",
             "Current Price",
             "Total Value",
             "Dividends",
-            "Today",
+            "Day P&L",
             "Return (%)",
-            "Weight (%)",
+            "Share (%)",
         ]
 
         right_cols = {"Shares", "Buy Price", "Purchase Date", "Current Price",
-                      "Total Value", "Dividends", "Today", "Return (%)", "Weight (%)"}
+                      "Total Value", "Dividends", "Day P&L", "Return (%)", "Share (%)"}
         header_cells = "".join(
             f'<th scope="col" class="right">{c}</th>' if c in right_cols else f'<th scope="col">{c}</th>'
             for c in columns
