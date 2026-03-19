@@ -4,7 +4,7 @@ import yfinance as yf
 import pandas as pd
 from cachetools import cached
 
-from src.cache import short_cache, long_cache, lenient_key, yf_session
+from src.cache import short_cache, long_cache, lenient_key
 from src.fx import get_ticker_currency, get_fx_rate
 
 
@@ -73,7 +73,7 @@ def _dividends_in_base_currency(
     """Sum dividends per share from purchase_date to today, converted at historical FX rates."""
     try:
         today = str(pd.Timestamp.today().date())
-        ticker_obj = yf.Ticker(ticker, session=yf_session)
+        ticker_obj = yf.Ticker(ticker)
         hist = ticker_obj.history(start=purchase_date, end=today)
         if hist.empty or "Dividends" not in hist.columns:
             return 0.0
@@ -90,7 +90,7 @@ def _dividends_in_base_currency(
         fx_from = "GBP" if gbx else from_currency
         fx_pair = f"{fx_from}{base_currency}=X"
 
-        fx_hist = yf.Ticker(fx_pair, session=yf_session).history(start=purchase_date, end=today)
+        fx_hist = yf.Ticker(fx_pair).history(start=purchase_date, end=today)
         if fx_hist.empty:
             fallback, _ = get_fx_rate(from_currency, base_currency)
             return float(dividends.sum() * fallback)
@@ -214,7 +214,7 @@ def fetch_buy_price(ticker: str, purchase_date: str) -> tuple[float, str] | None
     """
     try:
         end = str((pd.Timestamp(purchase_date) + pd.DateOffset(days=7)).date())
-        hist = yf.Ticker(ticker, session=yf_session).history(start=purchase_date, end=end)
+        hist = yf.Ticker(ticker).history(start=purchase_date, end=end)
         if hist.empty:
             return None
         actual_date = str(hist.index[0].date())

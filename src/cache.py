@@ -34,18 +34,6 @@ def _make_hashable(obj):
         return hashlib.md5(pickle.dumps(obj, protocol=pickle.HIGHEST_PROTOCOL)).hexdigest()
 
 
-import requests
-
-
-class _TimeoutSession(requests.Session):
-    """Session that enforces a default timeout on all requests."""
-    def request(self, *args, **kwargs):
-        kwargs.setdefault("timeout", 15)
-        return super().request(*args, **kwargs)
-
-
-yf_session = _TimeoutSession()
-
 
 def lenient_key(*args, **kwargs):
     """Cache key function that handles unhashable arguments like dicts and DataFrames."""

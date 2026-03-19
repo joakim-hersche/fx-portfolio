@@ -10,7 +10,7 @@ import pandas as pd
 import yfinance as yf
 from cachetools import cached
 
-from src.cache import short_cache, long_cache, long_cache_history, long_cache_fundamentals, long_cache_names, lenient_key, yf_session
+from src.cache import short_cache, long_cache, long_cache_history, long_cache_fundamentals, long_cache_names, lenient_key
 
 from src.fx import get_ticker_currency, CURRENCY_SYMBOLS
 from src.monte_carlo import run_monte_carlo_backtest, run_monte_carlo_portfolio, run_monte_carlo_ticker
@@ -26,7 +26,7 @@ from src.stocks import (
 def fetch_price_history_short(ticker: str) -> pd.DataFrame:
     """Fetch 6-month price history. Cached for 15 minutes."""
     try:
-        hist = yf.Ticker(ticker, session=yf_session).history(period="6mo")
+        hist = yf.Ticker(ticker).history(period="6mo")
         hist.index = hist.index.tz_localize(None)
         return hist
     except Exception:
@@ -37,7 +37,7 @@ def fetch_price_history_short(ticker: str) -> pd.DataFrame:
 def fetch_price_history_long(ticker: str) -> pd.DataFrame:
     """Fetch full price history. Cached for 24 hours."""
     try:
-        hist = yf.Ticker(ticker, session=yf_session).history(period="max")
+        hist = yf.Ticker(ticker).history(period="max")
         hist.index = hist.index.tz_localize(None)
         return hist
     except Exception:
@@ -48,7 +48,7 @@ def fetch_price_history_long(ticker: str) -> pd.DataFrame:
 def fetch_fundamentals(ticker: str) -> dict:
     """Fetch P/E, dividend yield, and 1-year range. Cached for 24 hours."""
     try:
-        info = yf.Ticker(ticker, session=yf_session).info
+        info = yf.Ticker(ticker).info
         current  = info.get("currentPrice") or info.get("regularMarketPrice")
         low_1y   = info.get("fiftyTwoWeekLow")
         high_1y  = info.get("fiftyTwoWeekHigh")
@@ -101,7 +101,7 @@ def fetch_fundamentals(ticker: str) -> dict:
 def fetch_company_name(ticker: str) -> str:
     """Fetch short company name. Falls back to ticker on failure."""
     try:
-        info = yf.Ticker(ticker, session=yf_session).info
+        info = yf.Ticker(ticker).info
         return info.get("shortName") or info.get("longName") or ticker
     except Exception:
         return ticker
@@ -111,7 +111,7 @@ def fetch_company_name(ticker: str) -> str:
 def fetch_simulation_history(ticker: str) -> pd.DataFrame:
     """Fetch up to 5-year price history for Monte Carlo simulation. Cached for 24 hours."""
     try:
-        hist = yf.Ticker(ticker, session=yf_session).history(period="5y")
+        hist = yf.Ticker(ticker).history(period="5y")
         hist.index = hist.index.tz_localize(None)
         return hist
     except Exception:
@@ -122,7 +122,7 @@ def fetch_simulation_history(ticker: str) -> pd.DataFrame:
 def fetch_analytics_history(ticker: str) -> pd.DataFrame:
     """Fetch 1-year price history for analytics. Cached for 24 hours."""
     try:
-        hist = yf.Ticker(ticker, session=yf_session).history(period="1y")
+        hist = yf.Ticker(ticker).history(period="1y")
         hist.index = hist.index.tz_localize(None)
         return hist
     except Exception:
@@ -133,7 +133,7 @@ def fetch_analytics_history(ticker: str) -> pd.DataFrame:
 def fetch_price_history_range(ticker: str, period: str) -> pd.DataFrame:
     """Fetch price history for a given period string (e.g. '3mo', '1y'). Cached for 15 minutes."""
     try:
-        hist = yf.Ticker(ticker, session=yf_session).history(period=period)
+        hist = yf.Ticker(ticker).history(period=period)
         hist.index = hist.index.tz_localize(None)
         return hist
     except Exception:
