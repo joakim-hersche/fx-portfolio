@@ -57,7 +57,7 @@ GLOBAL_CSS = """
 /* ── Spacing scale ─────────────────────────────────────── */
 :root {
   --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 20px; --sp-6: 24px;
-  --grid-gap: 14px;
+  --grid-gap: 12px;
 }
 
 /* ── Reset Quasar/NiceGUI defaults ─────────────────────── */
