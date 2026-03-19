@@ -1,11 +1,7 @@
-"""Framework-agnostic caching utilities.
+"""TTL caches for data-fetch functions.
 
-Replaces @st.cache_data decorators with cachetools TTLCache so the data layer
-has no Streamlit dependency.
-
-NOTE: All caches are in-memory only and process-local.  A server restart
-means a cold start for every user — all yfinance / FX data will be
-re-fetched on the first request after restart.
+Three separate caches prevent key collisions between
+history, fundamentals, and name lookups.
 """
 
 import hashlib

@@ -21,6 +21,9 @@ audit_screenshots/
 demo_raw/
 *.webm
 
+# NiceGUI
+.nicegui/
+
 # Claude Code
 .claude/
 

@@ -1,16 +1,6 @@
-"""
-Monte Carlo simulation for portfolio value projection and backtesting.
+"""Monte Carlo simulation engine for portfolio projection and backtesting.
 
 price_data expected format: {ticker: pd.DataFrame with a 'Close' column, DatetimeIndex}
-
-For the backtest, pass 5-year history (period="5y") so there is enough training
-data before the 1-year test window. Fetch with a separate cached function in app.py:
-
-    @st.cache_data(ttl=86400)
-    def fetch_simulation_history(ticker: str) -> pd.DataFrame:
-        hist = yf.Ticker(ticker).history(period="5y")
-        hist.index = hist.index.tz_localize(None)
-        return hist
 """
 
 import numpy as np
