@@ -661,33 +661,28 @@ def build_sidebar(
                 ui.button("Clear All", on_click=do_clear).props("flat no-caps").style(_dlg_danger_style)
         dialog.open()
 
-    _icon_style = (
-        f"color:{TEXT_DIM};min-width:0;width:auto;height:auto;"
-        f"border:1px solid {BORDER_SUBTLE};border-radius:5px;"
-        f"padding:4px 8px;"
+    _action_btn_style = (
+        f"border:1px solid {BORDER_SUBTLE}; border-radius:6px; padding:6px 0;"
+        f" color:{TEXT_MUTED} !important; font-size:11px; text-transform:none;"
+        f" width:100%; justify-content:center;"
     )
-    _icon_label_style = f"font-size:8px;color:{TEXT_DIM};margin-top:1px;"
 
-    with ui.row().classes("w-full items-center justify-center").style("gap:8px;"):
-        with ui.column().classes("items-center").style("gap:0;"):
-            ui.button(
-                icon="upload",
-                on_click=lambda: ui.run_javascript(
-                    f'document.getElementById("c{import_upload.id}").querySelector("input").click()'
-                ),
-            ).props('flat dense round size=sm aria-label="Import"').style(_icon_style).tooltip("Import Portfolio")
-            ui.html(f'<div style="{_icon_label_style}">Import</div>')
+    with ui.column().classes("w-full").style("gap:6px;"):
+        ui.button(
+            "Import Portfolio", icon="upload",
+            on_click=lambda: ui.run_javascript(
+                f'document.getElementById("c{import_upload.id}").querySelector("input").click()'
+            ),
+        ).props('flat no-caps').classes("w-full").style(_action_btn_style)
 
-        ui.html(f'<div style="width:1px;height:24px;background:{BORDER_SUBTLE};"></div>')
+        ui.button(
+            "Load Sample", icon="science",
+            on_click=on_load_sample,
+        ).props('flat no-caps').classes("w-full").style(_action_btn_style)
 
-        with ui.column().classes("items-center").style("gap:0;"):
-            ui.button(
-                icon="science", on_click=on_load_sample,
-            ).props('flat dense round size=sm aria-label="Sample"').style(_icon_style).tooltip("Load Sample")
-            ui.html(f'<div style="{_icon_label_style}">Sample</div>')
-
-        with ui.column().classes("items-center").style("gap:0;"):
-            ui.button(
-                icon="delete_outline", on_click=on_clear_all,
-            ).props('flat dense round size=sm aria-label="Clear"').style(_icon_style).tooltip("Clear All")
-            ui.html(f'<div style="{_icon_label_style}">Clear</div>')
+        ui.button(
+            "Clear All", icon="delete_outline",
+            on_click=on_clear_all,
+        ).props('flat no-caps').classes("w-full").style(
+            _action_btn_style.replace(f"color:{TEXT_MUTED}", f"color:{TEXT_DIM}")
+        )
