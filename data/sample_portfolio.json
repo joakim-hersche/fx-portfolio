@@ -1,29 +1,29 @@
 {
   "AAPL": [
-    {"shares": 15, "buy_price": 123.10, "purchase_date": "2023-01-03", "manual_price": false}
+    {"shares": 15, "buy_price": 123.10, "buy_fx_rate": 1.0, "purchase_date": "2023-01-03", "manual_price": false}
   ],
   "JNJ": [
-    {"shares": 8, "buy_price": 144.71, "purchase_date": "2023-02-15", "manual_price": false}
+    {"shares": 8, "buy_price": 144.71, "buy_fx_rate": 1.0, "purchase_date": "2023-02-15", "manual_price": false}
   ],
   "XOM": [
-    {"shares": 20, "buy_price": 77.07, "purchase_date": "2022-07-01", "manual_price": false}
+    {"shares": 20, "buy_price": 77.07, "buy_fx_rate": 1.0, "purchase_date": "2022-07-01", "manual_price": false}
   ],
   "KO": [
-    {"shares": 25, "buy_price": 53.73, "purchase_date": "2023-03-10", "manual_price": false}
+    {"shares": 25, "buy_price": 53.73, "buy_fx_rate": 1.0, "purchase_date": "2023-03-10", "manual_price": false}
   ],
   "ASML.AS": [
-    {"shares": 2, "buy_price": 384.96, "purchase_date": "2022-10-14", "manual_price": false}
+    {"shares": 2, "buy_price": 384.96, "buy_fx_rate": 0.98, "purchase_date": "2022-10-14", "manual_price": false}
   ],
   "HSBA.L": [
-    {"shares": 300, "buy_price": 457.39, "purchase_date": "2022-11-01", "manual_price": false}
+    {"shares": 300, "buy_price": 457.39, "buy_fx_rate": 0.0115, "purchase_date": "2022-11-01", "manual_price": false}
   ],
   "SPY": [
-    {"shares": 6, "buy_price": 341.18, "purchase_date": "2022-10-12", "manual_price": false}
+    {"shares": 6, "buy_price": 341.18, "buy_fx_rate": 1.0, "purchase_date": "2022-10-12", "manual_price": false}
   ],
   "GLD": [
-    {"shares": 12, "buy_price": 157.87, "purchase_date": "2022-09-01", "manual_price": false}
+    {"shares": 12, "buy_price": 157.87, "buy_fx_rate": 1.0, "purchase_date": "2022-09-01", "manual_price": false}
   ],
   "O": [
-    {"shares": 25, "buy_price": 49.18, "purchase_date": "2022-10-01", "manual_price": false}
+    {"shares": 25, "buy_price": 49.18, "buy_fx_rate": 1.0, "purchase_date": "2022-10-01", "manual_price": false}
   ]
 }

@@ -17,7 +17,7 @@ def fetch_wikipedia_table(url, ticker_col, name_col, suffix=""):
                     name = str(row[name_col]).strip()
                     if ticker and name and ticker != "nan":
                         full_ticker = f"{ticker}{suffix}"
-                        stocks[f"{name} ({full_ticker})"] = full_ticker
+                        stocks[full_ticker] = f"{name} ({full_ticker})"
                 return stocks
     except Exception as e:
         print(f"Failed to fetch {url}: {e}")
@@ -78,84 +78,92 @@ def get_ibex_stocks():
         suffix=".MC"
     )
 
+def get_omx30_stocks():
+    return fetch_wikipedia_table(
+        url="https://en.wikipedia.org/wiki/OMX_Stockholm_30",
+        ticker_col="Ticker",
+        name_col="Company",
+        suffix=".ST"
+    )
+
 def get_crypto():
     return {
-        "Bitcoin (BTC-USD)":  "BTC-USD",
-        "Ethereum (ETH-USD)": "ETH-USD",
-        "Solana (SOL-USD)":   "SOL-USD",
-        "XRP (XRP-USD)":      "XRP-USD",
-        "BNB (BNB-USD)":      "BNB-USD",
+        "BTC-USD":  "Bitcoin (BTC-USD)",
+        "ETH-USD":  "Ethereum (ETH-USD)",
+        "SOL-USD":  "Solana (SOL-USD)",
+        "XRP-USD":  "XRP (XRP-USD)",
+        "BNB-USD":  "BNB (BNB-USD)",
     }
 
 def get_commodities():
     return {
-        "Gold Futures (GC=F)":        "GC=F",
-        "Silver Futures (SI=F)":      "SI=F",
-        "Crude Oil WTI (CL=F)":       "CL=F",
-        "Natural Gas (NG=F)":         "NG=F",
-        "Gold ETF (GLD)":             "GLD",
-        "Silver ETF (SLV)":           "SLV",
+        "GC=F":  "Gold Futures (GC=F)",
+        "SI=F":  "Silver Futures (SI=F)",
+        "CL=F":  "Crude Oil WTI (CL=F)",
+        "NG=F":  "Natural Gas (NG=F)",
+        "GLD":   "Gold ETF (GLD)",
+        "SLV":   "Silver ETF (SLV)",
     }
 
 def get_etfs():
     return {
-        "S&P 500 ETF (SPY)": "SPY",
-        "Nasdaq 100 ETF (QQQ)": "QQQ",
-        "Total Market ETF (VTI)": "VTI",
-        "Growth ETF (VUG)": "VUG",
-        "Dividend ETF (VYM)": "VYM",
-        "iShares Core MSCI Europe (IMAE.AS)": "IMAE.AS",
-        "Vanguard FTSE Europe (VGK)": "VGK",
-        "iShares STOXX Europe 600 (EXSA.DE)": "EXSA.DE",
-        "iShares MSCI World (IWDA.AS)": "IWDA.AS",
-        "Vanguard Total World (VT)": "VT",
+        "SPY":     "S&P 500 ETF (SPY)",
+        "QQQ":     "Nasdaq 100 ETF (QQQ)",
+        "VTI":     "Total Market ETF (VTI)",
+        "VUG":     "Growth ETF (VUG)",
+        "VYM":     "Dividend ETF (VYM)",
+        "IMAE.AS": "iShares Core MSCI Europe (IMAE.AS)",
+        "VGK":     "Vanguard FTSE Europe (VGK)",
+        "EXSA.DE": "iShares STOXX Europe 600 (EXSA.DE)",
+        "IWDA.AS": "iShares MSCI World (IWDA.AS)",
+        "VT":      "Vanguard Total World (VT)",
     }
 
 
 def get_reits():
     return {
-        "Vanguard Real Estate ETF (VNQ)":   "VNQ",
-        "Real Estate Select Sector (XLRE)": "XLRE",
-        "Prologis (PLD)":                   "PLD",
-        "American Tower (AMT)":             "AMT",
-        "Equinix (EQIX)":                   "EQIX",
-        "Simon Property Group (SPG)":       "SPG",
-        "Realty Income (O)":                "O",
-        "Welltower (WELL)":                 "WELL",
-        "Public Storage (PSA)":             "PSA",
-        "Digital Realty (DLR)":             "DLR",
-        "CBRE Group (CBRE)":                "CBRE",
-        "AvalonBay Communities (AVB)":      "AVB",
+        "VNQ":   "Vanguard Real Estate ETF (VNQ)",
+        "XLRE":  "Real Estate Select Sector (XLRE)",
+        "PLD":   "Prologis (PLD)",
+        "AMT":   "American Tower (AMT)",
+        "EQIX":  "Equinix (EQIX)",
+        "SPG":   "Simon Property Group (SPG)",
+        "O":     "Realty Income (O)",
+        "WELL":  "Welltower (WELL)",
+        "PSA":   "Public Storage (PSA)",
+        "DLR":   "Digital Realty (DLR)",
+        "CBRE":  "CBRE Group (CBRE)",
+        "AVB":   "AvalonBay Communities (AVB)",
     }
 
 
 def get_bonds():
     return {
-        "iShares Core US Aggregate Bond (AGG)":  "AGG",
-        "Vanguard Total Bond Market (BND)":      "BND",
-        "iShares 20+ Year Treasury (TLT)":       "TLT",
-        "iShares 1-3 Year Treasury (SHY)":       "SHY",
-        "iShares 7-10 Year Treasury (IEF)":      "IEF",
-        "iShares Invest. Grade Corp (LQD)":      "LQD",
-        "iShares High Yield Corp (HYG)":         "HYG",
-        "Vanguard Interm. Treasury (VGIT)":      "VGIT",
-        "Vanguard Long-Term Treasury (VGLT)":    "VGLT",
-        "iShares TIPS Bond (TIP)":               "TIP",
+        "AGG":   "iShares Core US Aggregate Bond (AGG)",
+        "BND":   "Vanguard Total Bond Market (BND)",
+        "TLT":   "iShares 20+ Year Treasury (TLT)",
+        "SHY":   "iShares 1-3 Year Treasury (SHY)",
+        "IEF":   "iShares 7-10 Year Treasury (IEF)",
+        "LQD":   "iShares Invest. Grade Corp (LQD)",
+        "HYG":   "iShares High Yield Corp (HYG)",
+        "VGIT":  "Vanguard Interm. Treasury (VGIT)",
+        "VGLT":  "Vanguard Long-Term Treasury (VGLT)",
+        "TIP":   "iShares TIPS Bond (TIP)",
     }
 
 
 def get_emerging_markets():
     return {
-        "iShares MSCI Emerging Markets (EEM)":   "EEM",
-        "Vanguard FTSE Emerging Markets (VWO)":  "VWO",
-        "iShares MSCI Japan (EWJ)":              "EWJ",
-        "iShares MSCI Brazil (EWZ)":             "EWZ",
-        "iShares China Large-Cap (FXI)":         "FXI",
-        "iShares MSCI India (INDA)":             "INDA",
-        "iShares MSCI China (MCHI)":             "MCHI",
-        "iShares MSCI Taiwan (EWT)":             "EWT",
-        "iShares MSCI South Korea (EWY)":        "EWY",
-        "Vanguard FTSE Developed ex-US (VEA)":   "VEA",
+        "EEM":   "iShares MSCI Emerging Markets (EEM)",
+        "VWO":   "Vanguard FTSE Emerging Markets (VWO)",
+        "EWJ":   "iShares MSCI Japan (EWJ)",
+        "EWZ":   "iShares MSCI Brazil (EWZ)",
+        "FXI":   "iShares China Large-Cap (FXI)",
+        "INDA":  "iShares MSCI India (INDA)",
+        "MCHI":  "iShares MSCI China (MCHI)",
+        "EWT":   "iShares MSCI Taiwan (EWT)",
+        "EWY":   "iShares MSCI South Korea (EWY)",
+        "VEA":   "Vanguard FTSE Developed ex-US (VEA)",
     }
 
 

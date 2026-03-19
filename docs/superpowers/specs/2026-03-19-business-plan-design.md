@@ -4,9 +4,9 @@
 
 Market Dashboard is an open-source, real-time stock portfolio tracker targeting European cross-border retail investors. It combines professional-grade analytics (Monte Carlo simulations, risk metrics, correlation analysis) with true multi-currency support and a privacy-first, self-hostable architecture.
 
-**Business model**: Open Core — the full product is free and open-source (AGPL v3) for self-hosting, with a hosted SaaS version offering free and paid tiers. Revenue comes from Pro subscriptions at 8 EUR/month.
+**Business model**: Open Core — the full product is free and open-source (AGPL v3) for self-hosting, with a hosted SaaS version offering free, paid subscription, and one-time lifetime tiers. Revenue comes from a mix of Pro subscriptions (8 EUR/month) and Lifetime purchases (149 EUR one-time).
 
-**Target**: 500-1,500 paying users within 3 years, generating 5,700-76,800 EUR annual revenue as a nights-and-weekends side business.
+**Target**: 300-800 paying users within 3 years, generating 5,000-50,000 EUR annual revenue as a nights-and-weekends side business.
 
 ---
 
@@ -17,7 +17,7 @@ Market Dashboard is an open-source, real-time stock portfolio tracker targeting 
 - ~90 million retail investors in Europe (Eurostat/ESMA estimates, growing post-COVID)
 - ~15-20 million actively manage multi-market portfolios
 - Serviceable Addressable Market (SAM): ~2-3 million who use digital portfolio tools and invest across borders
-- Serviceable Obtainable Market (SOM): 5,000-15,000 total users over 3 years, 500-1,500 paying
+- Serviceable Obtainable Market (SOM): 3,000-10,000 total users over 3 years, 300-800 paying
 
 ### Target Segments
 
@@ -54,12 +54,12 @@ Professional-grade analytics (Monte Carlo, risk, diagnostics) + true multi-curre
 
 | | Free (self-hosted) | Starter (hosted) | Pro (hosted) | Lifetime (hosted) |
 |---|---|---|---|---|
-| **Price** | 0 EUR forever | 0 EUR | 8 EUR/month or 79 EUR/year | 49 EUR one-time |
+| **Price** | 0 EUR forever | 0 EUR | 8 EUR/month or 79 EUR/year | 149 EUR one-time |
 | **Positions** | Unlimited | 10 | Unlimited | Unlimited |
-| **Portfolios** | Unlimited | 1 | 5 | 5 |
-| **Monte Carlo** | Full | No | Full | Full |
+| **Portfolios** | Unlimited | 1 | 5 | 3 |
+| **Monte Carlo** | Full | 3 runs/month | Full | Full |
 | **Excel export** | Full | No | Full | Full |
-| **Risk analytics** | Full | Basic (volatility only) | Full | Full |
+| **Risk analytics** | Full | Basic + limited Monte Carlo | Full | Full |
 | **Data refresh** | Self-managed | 30 min | 15 min | 15 min |
 | **Support** | GitHub issues | GitHub issues | Email, 48h | GitHub issues |
 
