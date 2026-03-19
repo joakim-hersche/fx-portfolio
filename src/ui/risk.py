@@ -482,7 +482,7 @@ async def build_risk_tab(portfolio: dict, currency: str) -> None:
     has_corr = len(tickers) >= 2
 
     # ── Row 1: Attribution + Risk Metrics side by side ──────────────
-    with ui.element("div").classes("risk-grid"):
+    with ui.element("div").classes("risk-grid").style("margin-bottom:var(--grid-gap);"):
         with ui.column().classes("w-full"):
             _render_performance_attribution(portfolio_df, price_data_1y, portfolio_color_map, base_currency=currency)
         with ui.column().classes("w-full"):
