@@ -220,6 +220,7 @@ async def index(request: Request):
             def _open_about():
                 with ui.dialog() as dlg, ui.card().style(
                     f"min-width:380px; max-width:480px; background:{BG_CARD}; border:1px solid {BORDER};"
+                    f" border-radius:10px; padding:20px;"
                 ):
                     ui.label("Market Dashboard").style(
                         f"font-size:16px; font-weight:700; color:{TEXT_PRIMARY}; margin-bottom:4px;"
@@ -245,8 +246,11 @@ async def index(request: Request):
                         'assumption — confidence bands for those assets will understate real tail risk.</p>'
                         '</div>'
                     )
-                    with ui.row().classes("w-full justify-end"):
-                        ui.button("Close", on_click=dlg.close).props("flat")
+                    with ui.row().classes("w-full justify-end").style("margin-top:12px;"):
+                        ui.button("Close", on_click=dlg.close).props("flat no-caps").style(
+                            f"border:1px solid {BORDER_SUBTLE};border-radius:6px;color:{TEXT_MUTED};"
+                            f"font-size:11px;padding:6px 16px;text-transform:none;"
+                        )
                 dlg.open()
 
             ui.button(icon="info", on_click=_open_about).props(

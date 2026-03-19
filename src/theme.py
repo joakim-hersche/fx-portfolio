@@ -534,6 +534,13 @@ body, .q-page, .nicegui-content {
   .q-header { padding-top: env(safe-area-inset-top); }
 }
 
+/* Dialog styling — match dashboard dark theme */
+.q-dialog__backdrop { background: rgba(0,0,0,0.6) !important; }
+.q-dialog .q-card {
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5) !important;
+}
+.q-dialog .q-card .q-btn { min-height: 0 !important; }
+
 /* Allocation bar chart — custom hover tooltip */
 .alloc-bar { position: relative; }
 .alloc-tip {

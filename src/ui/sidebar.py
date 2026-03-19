@@ -362,16 +362,33 @@ def build_sidebar(
     positions_list()
 
     # ── Confirmation dialog for remove ─────────────────────
+    _dlg_card_style = (
+        f"min-width:280px;max-width:340px;background:{BG_CARD};"
+        f"border:1px solid {BORDER};border-radius:10px;padding:20px;"
+    )
+    _dlg_cancel_style = (
+        f"border:1px solid {BORDER_SUBTLE};border-radius:6px;color:{TEXT_MUTED};"
+        f"font-size:11px;padding:6px 16px;text-transform:none;"
+    )
+    _dlg_danger_style = (
+        f"background:rgba(220,38,38,0.15);border:1px solid rgba(220,38,38,0.3);"
+        f"border-radius:6px;color:#FCA5A5;font-size:11px;padding:6px 16px;text-transform:none;"
+    )
+    _dlg_accent_style = (
+        f"background:{ACCENT_DARK};border:1px solid rgba(59,130,246,0.3);"
+        f"border-radius:6px;color:#93C5FD;font-size:11px;padding:6px 16px;text-transform:none;"
+    )
+
     def _confirm_remove(ticker: str):
         lots = portfolio.get(ticker, [])
-        with ui.dialog() as dialog, ui.card().style(f"min-width:260px;background:{BG_CARD};"):
-            ui.label(f"Remove {ticker}?").style("font-weight:600;font-size:14px;")
-            if len(lots) == 1:
-                ui.label("This will remove the position.").style("font-size:12px;")
-            else:
-                ui.label(f"This will remove all {len(lots)} lots.").style("font-size:12px;")
-            with ui.row().classes("w-full justify-end gap-2"):
-                ui.button("Cancel", on_click=dialog.close).props("flat")
+        with ui.dialog() as dialog, ui.card().style(_dlg_card_style):
+            ui.label(f"Remove {ticker}?").style(
+                f"font-weight:600;font-size:14px;color:{TEXT_PRIMARY};margin-bottom:4px;"
+            )
+            msg = "This will remove the position." if len(lots) == 1 else f"This will remove all {len(lots)} lots."
+            ui.label(msg).style(f"font-size:12px;color:{TEXT_MUTED};line-height:1.5;")
+            with ui.row().classes("w-full justify-end gap-2").style("margin-top:12px;"):
+                ui.button("Cancel", on_click=dialog.close).props("flat no-caps").style(_dlg_cancel_style)
 
                 async def do_remove(d=dialog, t=ticker):
                     removed_lots = portfolio.pop(t)
@@ -401,7 +418,7 @@ def build_sidebar(
                     with ui.notification(f"Removed {t}", timeout=5):
                         ui.button("Undo", on_click=_undo).props("flat dense")
 
-                ui.button("Remove", on_click=do_remove, color="red").props("flat")
+                ui.button("Remove", on_click=do_remove).props("flat no-caps").style(_dlg_danger_style)
         dialog.open()
 
     # ── Bottom action icons ────────────────────────────────
@@ -456,11 +473,15 @@ def build_sidebar(
         ui.download(json.dumps(portfolio, indent=2).encode(), "portfolio.json")
 
     def on_load_sample():
-        with ui.dialog() as dialog, ui.card().style(f"min-width:260px;background:{BG_CARD};"):
-            ui.label("Load Sample Portfolio?").style("font-weight:600;font-size:14px;")
-            ui.label("This replaces your current portfolio.").style(f"font-size:12px;color:{TEXT_MUTED};")
-            with ui.row().classes("w-full justify-end gap-2"):
-                ui.button("Cancel", on_click=dialog.close).props("flat")
+        with ui.dialog() as dialog, ui.card().style(_dlg_card_style):
+            ui.label("Load Sample Portfolio?").style(
+                f"font-weight:600;font-size:14px;color:{TEXT_PRIMARY};margin-bottom:4px;"
+            )
+            ui.label("This replaces your current portfolio with example data.").style(
+                f"font-size:12px;color:{TEXT_MUTED};line-height:1.5;"
+            )
+            with ui.row().classes("w-full justify-end gap-2").style("margin-top:12px;"):
+                ui.button("Cancel", on_click=dialog.close).props("flat no-caps").style(_dlg_cancel_style)
 
                 async def do_load(d=dialog):
                     with open(_SAMPLE_PATH) as f:
@@ -476,18 +497,22 @@ def build_sidebar(
                         await on_mutation["fn"]()
                     positions_list.refresh()
 
-                ui.button("Load Sample", on_click=do_load, color="blue").props("flat")
+                ui.button("Load Sample", on_click=do_load).props("flat no-caps").style(_dlg_accent_style)
         dialog.open()
 
     def on_clear_all():
         if not portfolio:
             ui.notify("Portfolio is already empty.", type="info")
             return
-        with ui.dialog() as dialog, ui.card().style(f"min-width:260px;background:{BG_CARD};"):
-            ui.label("Clear All Positions?").style("font-weight:600;font-size:14px;")
-            ui.label("This cannot be undone.").style(f"font-size:12px;color:{TEXT_MUTED};")
-            with ui.row().classes("w-full justify-end gap-2"):
-                ui.button("Cancel", on_click=dialog.close).props("flat")
+        with ui.dialog() as dialog, ui.card().style(_dlg_card_style):
+            ui.label("Clear All Positions?").style(
+                f"font-weight:600;font-size:14px;color:{TEXT_PRIMARY};margin-bottom:4px;"
+            )
+            ui.label("This will delete all positions. This cannot be undone.").style(
+                f"font-size:12px;color:{TEXT_MUTED};line-height:1.5;"
+            )
+            with ui.row().classes("w-full justify-end gap-2").style("margin-top:12px;"):
+                ui.button("Cancel", on_click=dialog.close).props("flat no-caps").style(_dlg_cancel_style)
 
                 async def do_clear(d=dialog):
                     portfolio.clear()
@@ -500,7 +525,7 @@ def build_sidebar(
                         await on_mutation["fn"]()
                     positions_list.refresh()
 
-                ui.button("Clear All", on_click=do_clear, color="red").props("flat")
+                ui.button("Clear All", on_click=do_clear).props("flat no-caps").style(_dlg_danger_style)
         dialog.open()
 
     _icon_style = (
