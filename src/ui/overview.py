@@ -197,8 +197,6 @@ async def build_overview_tab(
 
     ui.html(f'<div class="kpi-row">{card_1}{card_2}{card_3}{card_4}</div>').classes("w-full")
 
-    ui.html('<hr class="content-divider">').classes("w-full")
-
     # ── Allocation + Comparison side by side ───────────────
     with ui.element("div").classes("charts-row w-full").style("width:100%;"):
         # Allocation chart
@@ -268,7 +266,7 @@ async def build_overview_tab(
 
     # Other tabs preview — clickable cards that navigate to each tab
     with ui.element("div").classes("w-full").style(
-        f"padding-top:var(--grid-gap);border-top:1px solid {BORDER_SUBTLE};width:100%;"
+        f"padding-top:var(--grid-gap);width:100%;"
     ):
         ui.html(f'<div style="font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:{TEXT_DIM};margin-bottom:8px;">Other tabs</div>')
         with ui.element("div").classes("preview-grid w-full").style("width:100%;"):
