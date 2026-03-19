@@ -220,9 +220,11 @@ def build_sidebar(
     # ── Add Position logic ─────────────────────────────────
     async def on_add_position():
         add_btn.disable()
+        spinner = ui.spinner("dots", size="sm")
         try:
             await _on_add_position_inner()
         finally:
+            spinner.delete()
             add_btn.enable()
 
     async def _on_add_position_inner():
