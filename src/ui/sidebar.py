@@ -79,8 +79,8 @@ def build_sidebar(
 
     # ── Unified Search Bar ─────────────────────────────────
     ui.html(
-        f'<div style="font-size:9px;font-weight:600;color:{TEXT_DIM};letter-spacing:0.04em;'
-        f'text-transform:uppercase;margin-bottom:2px;">Add Position</div>'
+        f'<div style="font-size:10px;font-weight:700;color:{TEXT_MUTED};letter-spacing:0.04em;'
+        f'text-transform:uppercase;margin-bottom:4px;">Add Position</div>'
     )
     search_select = ui.select(
         options=all_tickers,
@@ -96,6 +96,10 @@ def build_sidebar(
     search_select.add_slot(
         "no-option",
         f'<div style="padding:8px 12px;font-size:11px;color:{TEXT_DIM};">No matching tickers found</div>'
+    )
+    search_select.add_slot(
+        "prepend",
+        '<q-icon name="search" style="font-size:16px;opacity:0.5;" />'
     )
 
     # After each input keystroke, auto-highlight the first filtered option
