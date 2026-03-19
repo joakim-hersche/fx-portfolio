@@ -204,6 +204,111 @@ def build_portfolio_df(portfolio: dict, base_currency: str) -> pd.DataFrame:
     return df
 
 
+def build_contribution_timeline(portfolio: dict, base_currency: str) -> pd.DataFrame:
+    """Build a daily DataFrame with cumulative cost basis and portfolio market value.
+
+    Returns DataFrame indexed by date with columns:
+        - "Contributed": cumulative cost basis over time
+        - "Portfolio Value": portfolio market value over time
+    """
+    from src.data_fetch import fetch_price_history_long
+
+    if not portfolio:
+        return pd.DataFrame()
+
+    today_str = str(pd.Timestamp.today().date())
+
+    # Collect all lots with their dates and cost info
+    lots_info: list[dict] = []
+    tickers_needed: set[str] = set()
+    for ticker, lots in portfolio.items():
+        for lot in lots:
+            purchase_date = lot.get("purchase_date")
+            if not purchase_date or purchase_date == "Manual":
+                purchase_date = today_str
+            shares = lot["shares"]
+            buy_price = lot.get("buy_price", 0)
+            buy_fx_rate = lot.get("buy_fx_rate", 1.0)
+            cost = shares * buy_price * buy_fx_rate
+            lots_info.append({
+                "ticker": ticker,
+                "date": purchase_date,
+                "shares": shares,
+                "cost": cost,
+            })
+            tickers_needed.add(ticker)
+
+    if not lots_info:
+        return pd.DataFrame()
+
+    # Fetch price histories in parallel
+    tickers_list = list(tickers_needed)
+    with ThreadPoolExecutor(max_workers=min(10, len(tickers_list))) as ex:
+        hist_results = dict(ex.map(
+            lambda t: (t, fetch_price_history_long(t)), tickers_list
+        ))
+
+    # Determine date range
+    all_dates = [lot["date"] for lot in lots_info]
+    start_date = pd.Timestamp(min(all_dates))
+    end_date = pd.Timestamp.today()
+
+    # Build cumulative cost basis series
+    cost_events = pd.Series(dtype=float)
+    for lot in lots_info:
+        dt = pd.Timestamp(lot["date"])
+        if dt in cost_events.index:
+            cost_events[dt] += lot["cost"]
+        else:
+            cost_events[dt] = lot["cost"]
+    cost_events = cost_events.sort_index()
+
+    # Build daily date range
+    date_range = pd.date_range(start=start_date, end=end_date, freq="B")
+    if date_range.empty:
+        return pd.DataFrame()
+
+    # Cumulative contributions
+    contributed = cost_events.reindex(date_range, fill_value=0).cumsum()
+
+    # Portfolio value: sum of (shares * price * fx_rate) for each lot active on that date
+    # Group lots by ticker for efficiency
+    from collections import defaultdict
+    ticker_lots: dict[str, list[dict]] = defaultdict(list)
+    for lot in lots_info:
+        ticker_lots[lot["ticker"]].append(lot)
+
+    portfolio_value = pd.Series(0.0, index=date_range)
+
+    for ticker, lots in ticker_lots.items():
+        hist = hist_results.get(ticker)
+        if hist is None or hist.empty or "Close" not in hist.columns:
+            continue
+
+        prices = hist["Close"].dropna()
+        prices = prices.reindex(date_range, method="ffill")
+
+        # Get FX rate for this ticker
+        ticker_ccy = get_ticker_currency(ticker)
+        fx_rate, _ = get_fx_rate(ticker_ccy, base_currency)
+
+        for lot in lots:
+            lot_date = pd.Timestamp(lot["date"])
+            # Only count this lot's value from its purchase date onwards
+            mask = date_range >= lot_date
+            lot_value = prices * lot["shares"] * fx_rate
+            lot_value = lot_value.where(mask, 0)
+            portfolio_value += lot_value.fillna(0)
+
+    result = pd.DataFrame({
+        "Contributed": contributed,
+        "Portfolio Value": portfolio_value,
+    })
+    # Drop rows where both are zero (before first purchase)
+    result = result.loc[(result != 0).any(axis=1)]
+    return result
+
+
 def fetch_buy_price(ticker: str, purchase_date: str) -> tuple[float, str] | None:
     """
     Fetch closing price on or just after a given purchase date.
