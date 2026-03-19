@@ -26,7 +26,7 @@ orjson_wrapper._orjson_converter = _patched_converter
 # HTML with CSS classes (kpi-row, chart-card, etc.) that must render unsanitized.
 # This is safe because user-controlled input (ticker names, company names) is
 # validated at the input boundary (see _is_valid_ticker) and escaped in JS
-# contexts (see json.dumps in nicegui_positions.py). The HTML content itself
+# contexts (see json.dumps in src/ui/positions.py). The HTML content itself
 # is hardcoded application markup, not user-supplied.
 _original_html_init = ui.html.__init__
 def _unsanitized_html_init(self, content='', **kwargs):
@@ -40,20 +40,17 @@ from src.ui.positions import build_positions_tab
 from src.ui.risk import build_risk_tab
 from src.data_fetch import fetch_company_name, load_stock_options
 from src.fx import CURRENCY_SYMBOLS
-from src.portfolio import build_portfolio_df, fetch_buy_price
+from src.portfolio import build_portfolio_df
 from src.stocks import TICKER_COLORS
 from src.ui.guide import build_guide_tab
 from src.ui.overview import build_overview_tab, export_excel
 from src.ui.shared import load_portfolio, save_portfolio, get_storage_secret
 from src.ui.sidebar import build_sidebar
 from src.theme import (
-    ACCENT, ACCENT_DARK, BG_CARD, BG_INPUT, BG_MAIN, BG_SIDEBAR, BG_TOPBAR,
+    ACCENT, BG_CARD, BG_INPUT, BG_MAIN, BG_SIDEBAR, BG_TOPBAR,
     BORDER, BORDER_INPUT, GLOBAL_CSS,
-    TEXT_DIM, TEXT_FAINT, TEXT_GHOST, TEXT_MUTED, TEXT_PRIMARY,
+    TEXT_DIM, TEXT_MUTED, TEXT_PRIMARY,
 )
-
-import logging as _logging
-_log = _logging.getLogger(__name__)
 
 # ── Static files (PWA assets) ─────────────────────────────
 _STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
@@ -69,8 +66,6 @@ def _build_color_map(portfolio: dict) -> dict[str, str]:
         t: TICKER_COLORS.get(t, CHART_COLORS[i % len(CHART_COLORS)])
         for i, t in enumerate(portfolio.keys())
     }
-
-
 
 # ── PWA meta tags ──────────────────────────────────────────
 _PWA_HEAD = """
@@ -334,7 +329,7 @@ async def index(request: Request):
         _tab_containers: dict[str, ui.column] = {}
         _tab_built: dict[str, bool] = {}
 
-        with ui.tab_panels(tabs, value=initial_tab).classes("w-full flex-grow") as tab_panels:
+        with ui.tab_panels(tabs, value=initial_tab).classes("w-full flex-grow"):
             for name in _TAB_NAMES:
                 with ui.tab_panel(tab_map[name]):
                     _tab_containers[name] = ui.column().classes("w-full")
