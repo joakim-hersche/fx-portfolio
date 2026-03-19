@@ -48,8 +48,8 @@ def _make_dividend_series(dates_and_amounts):
 
 
 @patch("src.portfolio.yf.Ticker")
-@patch("src.portfolio.get_fx_rate", return_value=1.0)
-@patch("src.portfolio.get_historical_fx_rate", return_value=1.0)
+@patch("src.portfolio.get_fx_rate", return_value=(1.0, True))
+@patch("src.portfolio.get_historical_fx_rate", return_value=(1.0, True))
 def test_dividend_timeline_monthly_bucketing(mock_hist_fx, mock_fx, mock_ticker):
     from src.portfolio import build_dividend_timeline
 
@@ -71,8 +71,8 @@ def test_dividend_timeline_monthly_bucketing(mock_hist_fx, mock_fx, mock_ticker)
 
 
 @patch("src.portfolio.yf.Ticker")
-@patch("src.portfolio.get_fx_rate", return_value=1.0)
-@patch("src.portfolio.get_historical_fx_rate", return_value=1.0)
+@patch("src.portfolio.get_fx_rate", return_value=(1.0, True))
+@patch("src.portfolio.get_historical_fx_rate", return_value=(1.0, True))
 def test_dividend_timeline_empty_portfolio(mock_hist_fx, mock_fx, mock_ticker):
     from src.portfolio import build_dividend_timeline
     result = build_dividend_timeline({}, "USD")
@@ -87,7 +87,16 @@ Expected: FAIL — `build_dividend_timeline` not defined
 
 - [ ] **Step 3: Implement `build_dividend_timeline()`**
 
-Append to `src/portfolio.py` after the `build_portfolio_df()` function:
+First, update the import line in `src/portfolio.py` (line 8) from:
+```python
+from src.fx import get_ticker_currency, get_fx_rate
+```
+to:
+```python
+from src.fx import get_ticker_currency, get_fx_rate, get_historical_fx_rate
+```
+
+Then append to `src/portfolio.py` after the `build_portfolio_df()` function:
 
 ```python
 def build_dividend_timeline(portfolio: dict, base_currency: str) -> pd.DataFrame:
@@ -101,7 +110,7 @@ def build_dividend_timeline(portfolio: dict, base_currency: str) -> pd.DataFrame
 
     rows = []
     for ticker, lots in portfolio.items():
-        from_currency = detect_currency(ticker)
+        from_currency = get_ticker_currency(ticker)  # returns e.g. "USD", "GBX", "EUR"
         for lot in lots:
             pd_date = lot.get("purchase_date")
             if not pd_date or pd_date == "Manual":
@@ -129,7 +138,7 @@ def build_dividend_timeline(portfolio: dict, base_currency: str) -> pd.DataFrame
                     if fx_from == base_currency:
                         amount_base = amount_native
                     else:
-                        fx_rate = get_historical_fx_rate(fx_from, base_currency, div_date.strftime("%Y-%m-%d"))
+                        fx_rate = get_historical_fx_rate(fx_from, base_currency, div_date.strftime("%Y-%m-%d"))  # returns float directly
                         amount_base = amount_native * fx_rate
 
                     month_str = div_date.strftime("%Y-%m")
@@ -182,7 +191,7 @@ import plotly.graph_objects as go
 from nicegui import ui
 
 from src.data_fetch import fetch_fundamentals, fetch_company_name
-from src.fx import detect_currency, get_fx_rate
+from src.fx import get_ticker_currency, get_fx_rate, get_historical_fx_rate
 from src.portfolio import build_dividend_timeline, build_portfolio_df
 from src.theme import (
     BG_CARD, BG_PILL, TEXT_PRIMARY, TEXT_SECONDARY, TEXT_FAINT,
@@ -282,7 +291,7 @@ def _compute_projected_annual(portfolio: dict, fundamentals: dict, base_currency
         shares = sum(lot["shares"] for lot in lots)
         amount_native = div_rate * shares
 
-        from_currency = detect_currency(ticker)
+        from_currency = get_ticker_currency(ticker)  # returns e.g. "USD", "GBX", "EUR"
         if from_currency == "GBX":
             amount_native /= 100
             from_currency = "GBP"
@@ -421,12 +430,13 @@ def _render_dividend_calendar(portfolio: dict, fundamentals: dict, color_map: di
                 est_amount = latest_div * total_shares
 
                 # FX conversion
-                from_ccy = detect_currency(ticker)
+                from_ccy = get_ticker_currency(ticker)
                 if from_ccy == "GBX":
                     est_amount /= 100
                     from_ccy = "GBP"
                 if from_ccy != currency:
-                    est_amount *= get_fx_rate(from_ccy, currency)
+                    fx_rate, _ = get_fx_rate(from_ccy, currency)
+                    est_amount *= fx_rate
 
                 payment_schedule[ticker] = {m: est_amount for m in set(months)}
             except Exception:
@@ -517,12 +527,13 @@ def _render_income_table(portfolio: dict, fundamentals: dict, color_map: dict, n
 
             if div_rate and div_rate > 0:
                 annual_income_native = div_rate * total_shares
-                from_ccy = detect_currency(ticker)
+                from_ccy = get_ticker_currency(ticker)
                 if from_ccy == "GBX":
                     annual_income_native /= 100
                     from_ccy = "GBP"
                 if from_ccy != currency:
-                    annual_income_native *= get_fx_rate(from_ccy, currency)
+                    fx_rate, _ = get_fx_rate(from_ccy, currency)
+                    annual_income_native *= fx_rate
 
                 yield_on_cost = (div_rate / avg_buy * 100) if avg_buy > 0 else 0
                 rows_data.append({
