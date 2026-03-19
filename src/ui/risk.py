@@ -355,21 +355,268 @@ def _render_unified_table(
         ''')
 
 
+# ── Flat (non-expandable) Portfolio Analytics Table ─────────────────────────
+
+def _render_flat_table(
+    portfolio_df: pd.DataFrame,
+    analytics_df: pd.DataFrame,
+    fund_rows: list[dict],
+    price_data_1y: dict[str, pd.DataFrame],
+    currency_symbol: str,
+    color_map: dict[str, str] | None = None,
+    base_currency: str = "USD",
+) -> None:
+    """Render a single wide table with all performance, risk, and valuation columns."""
+    with ui.column().classes("chart-card w-full"):
+        ui.html(
+            f'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">'
+            f'<div style="font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:{TEXT_MUTED};">Portfolio Analytics</div>'
+            f'</div>'
+        )
+
+        _section_intro(
+            "<b>Performance</b> \u2014 weight, 1-year price return, portfolio contribution, "
+            "and relative performance vs. the S&P 500 (adjusted for currency).<br>"
+            "<b>Risk</b> \u2014 annualised volatility, worst peak-to-trough drop, "
+            "return-per-unit-of-risk score, and market sensitivity (beta).<br>"
+            "<b>Valuation</b> \u2014 price/earnings ratio, dividend yield, "
+            "52-week price range with current position, and latest market price."
+        )
+
+        if portfolio_df.empty:
+            ui.html(
+                f'<p style="color:{TEXT_DIM}; font-size:12px;">'
+                f'No data available for portfolio analytics.</p>'
+            )
+            return
+
+        # ── Compute per-ticker aggregated data ──
+        ticker_data = (
+            portfolio_df.groupby("Ticker")
+            .agg({"Total Value": "sum", "Weight (%)": "sum", "Return (%)": "first"})
+            .reset_index()
+        )
+
+        for idx, row in ticker_data.iterrows():
+            ticker = row["Ticker"]
+            group = portfolio_df[portfolio_df["Ticker"] == ticker]
+            if len(group) > 1:
+                total_cost = (group["Buy Price"] * group["Shares"]).sum()
+                total_value = group["Total Value"].sum()
+                total_divs = group["Dividends"].sum()
+                if total_cost > 0:
+                    ticker_data.at[idx, "Return (%)"] = round(
+                        (total_value + total_divs - total_cost) / total_cost * 100, 2
+                    )
+
+        # SPY 1-year return
+        spy_hist = price_data_1y.get("__spy__", pd.DataFrame())
+        spy_return = None
+        if not spy_hist.empty and "Close" in spy_hist.columns:
+            spy_close = spy_hist["Close"].dropna()
+            if len(spy_close) >= 2:
+                spy_return_usd = (spy_close.iloc[-1] / spy_close.iloc[0] - 1) * 100
+                if base_currency != "USD":
+                    try:
+                        import yfinance as yf
+                        fx_pair = f"USD{base_currency}=X"
+                        fx_hist = yf.Ticker(fx_pair).history(period="1y")
+                        if not fx_hist.empty and "Close" in fx_hist.columns:
+                            fx_close = fx_hist["Close"].dropna()
+                            if len(fx_close) >= 2:
+                                fx_change = (fx_close.iloc[-1] / fx_close.iloc[0] - 1) * 100
+                                spy_return = ((1 + spy_return_usd / 100) * (1 + fx_change / 100) - 1) * 100
+                            else:
+                                spy_return = spy_return_usd
+                        else:
+                            spy_return = spy_return_usd
+                    except Exception:
+                        spy_return = spy_return_usd
+                else:
+                    spy_return = spy_return_usd
+
+        # 1-year price returns per ticker
+        ticker_1y_return: dict[str, float] = {}
+        for t in ticker_data["Ticker"]:
+            hist = price_data_1y.get(t, pd.DataFrame())
+            if not hist.empty and "Close" in hist.columns:
+                close = hist["Close"].dropna()
+                if len(close) >= 2:
+                    ticker_1y_return[t] = round((close.iloc[-1] / close.iloc[0] - 1) * 100, 2)
+
+        # Analytics and fundamentals lookups
+        analytics_map: dict[str, dict] = {}
+        if not analytics_df.empty:
+            for _, arow in analytics_df.iterrows():
+                analytics_map[arow["Ticker"]] = {
+                    "Volatility": arow.get("Volatility"),
+                    "Max Drawdown": arow.get("Max Drawdown"),
+                    "Sharpe Ratio": arow.get("Sharpe Ratio"),
+                    "Beta": arow.get("Beta"),
+                }
+
+        fund_map: dict[str, dict] = {}
+        for frow in fund_rows:
+            fund_map[frow["Ticker"]] = frow
+
+        # ── Build table rows ──
+        rows_html = ""
+        for _, row in ticker_data.iterrows():
+            ticker = row["Ticker"]
+            weight = row["Weight (%)"]
+            pos_return = ticker_1y_return.get(ticker, row["Return (%)"])
+            contribution = round(weight * pos_return / 100, 2) if pd.notna(pos_return) else None
+
+            vs_bench = None
+            if pos_return is not None and spy_return is not None:
+                vs_bench = round(pos_return - spy_return, 2)
+
+            dot_color = (color_map or {}).get(ticker, "")
+            dot_html = (
+                f'<div style="width:8px;height:8px;border-radius:50%;background:{dot_color};flex-shrink:0;display:inline-block;margin-right:6px;vertical-align:middle;"></div>'
+                if dot_color else ""
+            )
+
+            ret_cls = "td-pos" if pos_return and pos_return > 0 else "td-neg" if pos_return and pos_return < 0 else ""
+            contrib_cls = "td-pos" if contribution and contribution > 0 else "td-neg" if contribution and contribution < 0 else ""
+            bench_cls = "td-pos" if vs_bench and vs_bench > 0 else "td-neg" if vs_bench and vs_bench < 0 else ""
+
+            # Risk data
+            a = analytics_map.get(ticker, {})
+            vol = a.get("Volatility")
+            dd = a.get("Max Drawdown")
+            sharpe = a.get("Sharpe Ratio")
+            beta = a.get("Beta")
+
+            vol_cls = _color_class(vol, [
+                (lambda v: v <= 20, "td-pos"),
+                (lambda v: v <= 35, "td-amb"),
+                (lambda v: True, "td-neg"),
+            ])
+            dd_cls = _color_class(dd, [
+                (lambda v: v >= -20, "td-pos"),
+                (lambda v: v >= -40, "td-amb"),
+                (lambda v: True, "td-neg"),
+            ])
+            sharpe_cls = _color_class(sharpe, [
+                (lambda v: v >= 1, "td-pos"),
+                (lambda v: v >= 0, "td-amb"),
+                (lambda v: True, "td-neg"),
+            ])
+
+            # Fundamentals data
+            f_data = fund_map.get(ticker, {})
+            pe = f_data.get("P/E Ratio")
+            div_yield = f_data.get("Div Yield (%)")
+            low = f_data.get("1-Year Low")
+            high = f_data.get("1-Year High")
+            position = f_data.get("1-Year Position")
+            current = f_data.get("Current Price")
+
+            if position is not None:
+                position = min(position, 100.0)
+
+            # 52-week range bar (compact)
+            if low is not None and high is not None and position is not None:
+                range_html = (
+                    f'<span style="display:inline-flex;align-items:center;gap:3px;min-width:90px;">'
+                    f'<span style="font-size:9px;color:{TEXT_DIM};">{currency_symbol}{low:.0f}</span>'
+                    f'<span class="range-bar-bg" style="width:60px;display:inline-block;">'
+                    f'<span class="range-bar-fill" style="left:0;width:100%;"></span>'
+                    f'<span class="range-bar-dot" style="left:{position}%;"></span>'
+                    f'</span>'
+                    f'<span style="font-size:9px;color:{TEXT_DIM};">{currency_symbol}{high:.0f}</span>'
+                    f'</span>'
+                )
+            else:
+                range_html = "\u2014"
+
+            current_html = f'{currency_symbol}{current:.0f}' if current is not None else "\u2014"
+
+            rows_html += (
+                f'<tr>'
+                f'<td><div class="td-ticker">{dot_html}{ticker}</div></td>'
+                f'<td class="right">{weight:.0f}%</td>'
+                f'<td class="{ret_cls} right">{_fmt(pos_return, "{:+.1f}%")}</td>'
+                f'<td class="{contrib_cls} right">{_fmt(contribution, "{:+.1f}%")}</td>'
+                f'<td class="{bench_cls} right">{_fmt(vs_bench, "{:+.1f}%")}</td>'
+                f'<td class="{vol_cls} right">{_fmt(vol, "{:.0f}%")}</td>'
+                f'<td class="{dd_cls} right">{_fmt(dd, "{:.0f}%")}</td>'
+                f'<td class="{sharpe_cls} right">{_fmt(sharpe, "{:.1f}")}</td>'
+                f'<td class="right">{_fmt(beta, "{:.1f}")}</td>'
+                f'<td class="right">{_fmt(pe, "{:.0f}\u00d7")}</td>'
+                f'<td class="right">{_fmt(div_yield, "{:.1f}%")}</td>'
+                f'<td>{range_html}</td>'
+                f'<td class="right">{current_html}</td>'
+                f'</tr>'
+            )
+
+        ui.html(f'''
+        <div class="table-wrap" style="overflow-x:auto;">
+        <table style="min-width:900px;">
+            <thead>
+              <tr>
+                <th rowspan="2">Ticker</th>
+                <th colspan="4" style="text-align:center;border-bottom:1px solid rgba(255,255,255,0.07);">Performance</th>
+                <th colspan="4" style="text-align:center;border-bottom:1px solid rgba(255,255,255,0.07);">Risk</th>
+                <th colspan="4" style="text-align:center;border-bottom:1px solid rgba(255,255,255,0.07);">Valuation</th>
+              </tr>
+              <tr>
+                <th class="right">Weight</th>
+                <th class="right">1Y Ret</th>
+                <th class="right">Contrib</th>
+                <th class="right">vs SPY</th>
+                <th class="right">Vol</th>
+                <th class="right">Drop</th>
+                <th class="right">R/R</th>
+                <th class="right">Beta</th>
+                <th class="right">P/E</th>
+                <th class="right">Yield</th>
+                <th>52-Wk Range</th>
+                <th class="right">Price</th>
+              </tr>
+            </thead>
+            <tbody>{rows_html}</tbody>
+        </table>
+        </div>
+        ''')
+
+
 # ── Correlation Heatmap ─────────────────────────────────────────────────────
 
 def _corr_color(val: float) -> str:
-    """Map a correlation value to a background color."""
+    """Map correlation to a continuous blue-to-red gradient."""
+    # Clamp to [-1, 1]
+    val = max(-1.0, min(1.0, val))
+
     if val < 0:
-        return "#14B8A6"   # teal — inverse/hedge
-    if val < 0.2:
-        return "#3B82F6"   # blue — low
-    if val < 0.4:
-        return "#6366F1"   # indigo — low-moderate
-    if val < 0.6:
-        return "#8B5CF6"   # purple — moderate
-    if val < 0.8:
-        return "#D97706"   # amber — high
-    return "#DC2626"       # red — very high
+        # Negative: teal (#14B8A6) to dark (#1C1D26), scaled by magnitude
+        t = abs(val)  # 0 to 1
+        r = int(0x1C + (0x14 - 0x1C) * t)
+        g = int(0x1D + (0xB8 - 0x1D) * t)
+        b = int(0x26 + (0xA6 - 0x26) * t)
+        return f"#{r:02x}{g:02x}{b:02x}"
+
+    # Positive: interpolate through blue -> indigo -> purple -> amber -> red
+    stops = [
+        (0.0, (0x3B, 0x82, 0xF6)),  # blue
+        (0.33, (0x63, 0x66, 0xF1)),  # indigo
+        (0.66, (0x8B, 0x5C, 0xF6)),  # purple
+        (0.85, (0xD9, 0x77, 0x06)),  # amber
+        (1.0, (0xDC, 0x26, 0x26)),   # red
+    ]
+
+    for i in range(len(stops) - 1):
+        t0, c0 = stops[i]
+        t1, c1 = stops[i + 1]
+        if val <= t1:
+            t = (val - t0) / (t1 - t0) if t1 > t0 else 0
+            r = int(c0[0] + (c1[0] - c0[0]) * t)
+            g = int(c0[1] + (c1[1] - c0[1]) * t)
+            b = int(c0[2] + (c1[2] - c0[2]) * t)
+            return f"#{r:02x}{g:02x}{b:02x}"
+
+    return "#DC2626"
 
 
 def _render_correlation_heatmap(price_data: dict, tickers: list) -> None:
@@ -536,8 +783,8 @@ async def build_risk_tab(portfolio: dict, currency: str) -> None:
 
     has_corr = len(tickers) >= 2
 
-    # ── Unified table (replaces Attribution + Risk + Fundamentals) ──
-    _render_unified_table(
+    # ── Flat table (all columns visible, no expand/collapse) ──
+    _render_flat_table(
         portfolio_df, analytics_df, fund_rows, price_data_1y,
         currency_symbol, portfolio_color_map, base_currency=currency,
     )
