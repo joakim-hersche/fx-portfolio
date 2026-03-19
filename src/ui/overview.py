@@ -293,6 +293,8 @@ async def build_comparison(
             fx_switch = ui.switch("FX-adjusted", value=False).style(f"font-size:12px;color:{TEXT_MUTED};")
 
     chart_container = ui.column().classes("w-full")
+    with chart_container:
+        ui.spinner('dots', size='xl').classes('self-center').style('padding:40px 0;')
 
     async def update_chart():
         chart_container.clear()
