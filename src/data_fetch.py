@@ -52,11 +52,13 @@ def fetch_fundamentals(ticker: str) -> dict:
     """Fetch P/E, dividend yield, and 1-year range. Cached for 24 hours."""
     try:
         info = yf.Ticker(ticker).info
-        current  = info.get("currentPrice") or info.get("regularMarketPrice")
-        low_1y   = info.get("fiftyTwoWeekLow")
-        high_1y  = info.get("fiftyTwoWeekHigh")
-        pe       = info.get("trailingPE")
-        div_rate = info.get("dividendRate")  # annual dividend per share, native currency
+        current      = info.get("currentPrice") or info.get("regularMarketPrice")
+        low_1y       = info.get("fiftyTwoWeekLow")
+        high_1y      = info.get("fiftyTwoWeekHigh")
+        pe           = info.get("trailingPE")
+        div_rate     = info.get("dividendRate")  # annual dividend per share, native currency
+        sector       = info.get("sector", None)
+        target_price = info.get("targetMeanPrice", None)
 
         # Prefer computing yield from dividendRate/price — more reliable than dividendYield
         # which yfinance returns inconsistently (sometimes decimal fraction, sometimes percent).
@@ -81,8 +83,9 @@ def fetch_fundamentals(ticker: str) -> dict:
         # (pence) but currentPrice in GBP, so divide by 100 to make units consistent.
         ticker_ccy = get_ticker_currency(ticker)
         if ticker_ccy == "GBX":
-            low_1y  = low_1y  / 100 if low_1y  else None
-            high_1y = high_1y / 100 if high_1y else None
+            low_1y       = low_1y       / 100 if low_1y       else None
+            high_1y      = high_1y      / 100 if high_1y      else None
+            target_price = target_price / 100 if target_price else None
 
         position = None
         if current and low_1y and high_1y and high_1y > low_1y:
@@ -95,6 +98,9 @@ def fetch_fundamentals(ticker: str) -> dict:
             "1-Year High":    round(high_1y, 2)    if high_1y else None,
             "1-Year Position": position,
             "Current Price":  round(current, 2)    if current else None,
+            "Sector":         sector if sector else "Unknown",
+            "Target Price":   round(target_price, 2) if target_price else None,
+            "Dividend Rate":  div_rate,
         }
     except Exception:
         return {}
