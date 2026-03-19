@@ -32,3 +32,6 @@ demo_raw/
 
 # macOS
 .DS_Store
+
+# Internal planning infrastructure
+docs/superpowers/
