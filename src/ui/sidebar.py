@@ -12,7 +12,7 @@ from nicegui import run, ui
 from src.charts import CHART_COLORS
 from src.fx import CURRENCY_SYMBOLS, get_fx_rate, get_historical_fx_rate, get_ticker_currency
 from src.portfolio import fetch_buy_price
-from src.theme import ACCENT_DARK, BG_CARD, BORDER, BORDER_INPUT, TEXT_DIM, TEXT_MUTED, TEXT_PRIMARY
+from src.theme import ACCENT_DARK, BG_CARD, BG_PILL, BORDER, BORDER_INPUT, BORDER_SUBTLE, TEXT_DIM, TEXT_MUTED, TEXT_PRIMARY
 from src.ui.shared import load_portfolio, save_portfolio
 
 # ── Sample portfolio path ──
@@ -260,41 +260,38 @@ def build_sidebar(
     def positions_list():
         if portfolio:
             tickers = list(portfolio.keys())
-            for i, ticker in enumerate(tickers):
-                color = (shared.get("portfolio_color_map") or {}).get(ticker, CHART_COLORS[i % len(CHART_COLORS)])
-                lots = portfolio[ticker]
-                total_shares = sum(lot.get("shares", 0) for lot in lots)
-                mkt_value = (shared.get("ticker_values") or {}).get(ticker)
-                # Show dollar value if available, otherwise share count
-                if mkt_value is not None:
-                    value_text = f"{shared['currency_symbol']}{mkt_value:,.0f}"
-                else:
-                    value_text = f"{total_shares:g} shares"
-                company_name = shared.get("name_map", {}).get(ticker, ticker)
-                with ui.row().classes("w-full items-center position-row").style(
-                    "gap:6px;"
-                ):
-                    ui.html(
-                        f'<div style="width:8px;height:8px;border-radius:50%;background:{color};flex-shrink:0;"></div>'
-                    )
-                    with ui.column().classes("flex-grow").style("gap:0;"):
-                        ui.label(ticker).style(
-                            f"font-size:12px;font-weight:600;color:{TEXT_PRIMARY};line-height:1.2;"
+            with ui.column().classes("w-full").style("gap:4px;"):
+                for i, ticker in enumerate(tickers):
+                    color = (shared.get("portfolio_color_map") or {}).get(ticker, CHART_COLORS[i % len(CHART_COLORS)])
+                    lots = portfolio[ticker]
+                    total_shares = sum(lot.get("shares", 0) for lot in lots)
+                    mkt_value = (shared.get("ticker_values") or {}).get(ticker)
+                    if mkt_value is not None:
+                        value_text = f"{shared['currency_symbol']}{mkt_value:,.0f}"
+                    else:
+                        value_text = f"{total_shares:g} shares"
+                    company_name = shared.get("name_map", {}).get(ticker, ticker)
+                    _t = ticker
+                    with ui.element("div").style(
+                        f"display:flex;align-items:center;gap:8px;width:100%;"
+                        f"background:{BG_PILL};border:1px solid {BORDER_SUBTLE};"
+                        f"border-radius:6px;padding:6px 8px;box-sizing:border-box;"
+                    ):
+                        ui.html(
+                            f'<div style="width:6px;height:6px;border-radius:50%;background:{color};flex-shrink:0;"></div>'
                         )
-                        ui.label(company_name).classes("pos-name").style(
-                            f"font-size:10px;color:{TEXT_DIM};line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100px;"
-                        ).props(f'title="{company_name}"')
-                    ui.label(value_text).style(
-                        f"font-size:11px;font-weight:500;color:{TEXT_MUTED};text-align:right;"
-                    )
-                    # Remove button
-                    _t = ticker  # capture for closure
-                    ui.button(
-                        icon="close",
-                        on_click=lambda _, t=_t: _confirm_remove(t),
-                    ).props(f'flat dense round size=xs aria-label="Remove {_t}"').style(
-                        f"color:{TEXT_DIM}; min-width:0; padding:2px;"
-                    )
+                        ui.html(
+                            f'<div style="flex:1;min-width:0;overflow:hidden;">'
+                            f'<div style="font-size:11px;font-weight:600;color:{TEXT_PRIMARY};line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="{company_name}">'
+                            f'{ticker} <span style="font-weight:400;color:{TEXT_DIM};">{value_text}</span></div>'
+                            f'</div>'
+                        )
+                        ui.button(
+                            icon="close",
+                            on_click=lambda _, t=_t: _confirm_remove(t),
+                        ).props(f'flat dense round size=xs aria-label="Remove {_t}"').style(
+                            f"color:{TEXT_DIM};min-width:0;padding:0;width:18px;height:18px;font-size:12px;"
+                        )
         else:
             ui.html(
                 f'<div style="font-size:11px;color:{TEXT_DIM};padding:8px 4px;">'
