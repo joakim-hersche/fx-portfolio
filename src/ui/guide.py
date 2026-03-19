@@ -9,7 +9,7 @@ def build_guide_tab():
     """Plain-language explanations of every dashboard feature."""
     with ui.column().classes("w-full").style(f"gap:var(--grid-gap);color:{TEXT_PRIMARY}"):
 
-        with ui.element("div").classes("chart-card"):
+        with ui.element("div").classes("chart-card w-full"):
             ui.label("Getting Started").classes("text-lg font-bold").style(f"color:{TEXT_PRIMARY}")
             ui.markdown(
                 "Pick a stock market from the sidebar, search for a company, "
@@ -18,7 +18,7 @@ def build_guide_tab():
                 "bought at different dates."
             ).classes("text-sm").style(f"color:{TEXT_SECONDARY}")
 
-        with ui.element("div").classes("chart-card"):
+        with ui.element("div").classes("chart-card w-full"):
             ui.label("The Numbers at the Top (KPI Cards)").classes("text-lg font-bold").style(f"color:{TEXT_PRIMARY}")
             ui.markdown("""| Metric | What it means |
 |--------|--------------|
@@ -27,7 +27,7 @@ def build_guide_tab():
 | **Total Return** | The difference between what your portfolio is worth today (including any dividends received) and what you originally paid. The percentage below it is that same number as a fraction of your total investment. |
 | **Positions** | How many different stocks you own. If you bought the same stock twice, that counts as one position but two purchases. |""").classes("text-sm").style(f"color:{TEXT_SECONDARY}")
 
-        with ui.element("div").classes("chart-card"):
+        with ui.element("div").classes("chart-card w-full"):
             ui.label("Charts").classes("text-lg font-bold").style(f"color:{TEXT_PRIMARY}")
             ui.markdown("""- **Portfolio Allocation** — a bar chart showing what percentage of your money is in each stock. \
 If one bar is much longer than the rest, your portfolio is concentrated — a big move in that stock affects everything.
@@ -36,7 +36,7 @@ A stock at 130 has grown 30%; a stock at 85 has fallen 15%. Use the time range b
 - **Price History** — the actual price chart for each stock. The orange dashed line is what you paid; \
 the grey dashed line marks the date you bought it. If the price line is above the orange line, you are in profit on that position.""").classes("text-sm").style(f"color:{TEXT_SECONDARY}")
 
-        with ui.element("div").classes("chart-card"):
+        with ui.element("div").classes("chart-card w-full"):
             ui.label("Risk & Analytics").classes("text-lg font-bold").style(f"color:{TEXT_PRIMARY}")
             ui.markdown("""These are standard measures used by professional investors. You do not need to understand all of them, but here is what the key ones mean:
 
@@ -55,7 +55,7 @@ this year's profit. Lower can mean cheaper; higher can mean the market expects f
 - **Dividend Yield** — the annual dividend payment as a percentage of the stock price. A 3% yield means you \
 receive roughly 3% of your investment back as cash each year.""").classes("text-sm").style(f"color:{TEXT_SECONDARY}")
 
-        with ui.element("div").classes("chart-card"):
+        with ui.element("div").classes("chart-card w-full"):
             ui.label("Monte Carlo Simulation (the Fan Charts)").classes("text-lg font-bold").style(f"color:{TEXT_PRIMARY}")
             ui.markdown("""Imagine replaying the stock market 1,000 times. Each replay uses the stock's real historical \
 behaviour — how much it typically moves each day — but shuffles the order of good and bad days randomly. \
@@ -76,7 +76,7 @@ this is what tail risk actually costs on average.
 **Position Outlook** does the same thing for a single stock. The probability figure tells you: out of 1,000 replays, \
 how many ended above your buy price?""").classes("text-sm").style(f"color:{TEXT_SECONDARY}")
 
-        with ui.element("div").classes("chart-card"):
+        with ui.element("div").classes("chart-card w-full"):
             ui.label("Model Diagnostics — When to Be Sceptical").classes("text-lg font-bold").style(f"color:{TEXT_PRIMARY}")
             ui.markdown("""The simulation assumes that daily price changes follow a bell curve (normal distribution) and \
 are independent from one day to the next. These assumptions are often wrong for real stocks:
