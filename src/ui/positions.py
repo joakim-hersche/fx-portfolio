@@ -316,10 +316,10 @@ def _build_price_history(
                     label="Stock",
                 ).props("dense outlined").style("min-width:180px;font-size:12px;")
 
-                range_options = {"3M": 3, "6M": 6, "1Y": 12, "2Y": 24, "Max": None}
+                range_options = {"Since Purchase": -1, "3M": 3, "6M": 6, "1Y": 12, "2Y": 24, "Max": None}
                 range_toggle = ui.toggle(
                     list(range_options.keys()),
-                    value="6M",
+                    value="Since Purchase",
                 ).props("dense size=sm no-caps").style("font-size:11px;")
 
                 fx_switch = ui.switch("Currency-adjusted", value=False).style(
@@ -387,13 +387,19 @@ def _build_price_history(
 
         # Determine the start date
         if range_months is None:
-            # "Since purchase" — use earliest purchase date for this ticker
+            # "Max" — show full history
+            effective_from = hist_converted.index[0]
+        elif range_months == -1:
+            # "Since purchase" — start 2 months before earliest purchase
             purchase_dates = [
                 pd.Timestamp(lot["purchase_date"])
                 for lot in lots
                 if lot.get("purchase_date")
             ]
-            effective_from = min(purchase_dates) if purchase_dates else hist_converted.index[0]
+            if purchase_dates:
+                effective_from = min(purchase_dates) - pd.DateOffset(months=2)
+            else:
+                effective_from = hist_converted.index[0]
         else:
             effective_from = pd.Timestamp.today() - pd.DateOffset(months=range_months)
 
