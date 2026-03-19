@@ -310,7 +310,7 @@ body, .q-page, .nicegui-content {
 }
 
 /* ── Responsive grid classes ─────────────────────────── */
-.risk-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--grid-gap); width: 100%%; align-items: stretch; }
+.risk-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--grid-gap); width: 100%%; align-items: stretch; margin-bottom: calc(var(--grid-gap) - 8px); }
 .risk-grid > * { display: flex; flex-direction: column; }
 .risk-grid > * > .chart-card { flex: 1; display: flex; flex-direction: column; }
 .metric-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--grid-gap); width: 100%%; }
