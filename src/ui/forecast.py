@@ -778,6 +778,17 @@ async def build_diagnostics_tab(portfolio: dict, currency: str) -> None:
         _empty_state("Add positions to your portfolio to see diagnostics.")
         return
 
+    ui.html(
+        f'<div style="background:{BG_PILL};border:1px solid {BORDER};border-radius:8px;'
+        f'padding:12px 16px;margin-bottom:8px;">'
+        f'<div style="font-size:12px;color:{TEXT_MUTED};line-height:1.6;">'
+        f'<b style="color:{TEXT_PRIMARY};">For most users:</b> check the '
+        f'<b style="color:{TEXT_PRIMARY};">Reliability</b> column in the table below. '
+        f'"Good" means the model is trustworthy for that position. '
+        f'The rest of this tab is for advanced users who want to verify the simulation assumptions.'
+        f'</div></div>'
+    )
+
     _section_intro(
         "Validates whether the Monte Carlo model's assumptions hold for your positions. "
         "The backtest checks calibration against actual history; the diagnostics test normality "
