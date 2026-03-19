@@ -160,6 +160,10 @@ def build_sidebar(
                 ).classes("w-full").style("font-size:11px;")
         price_row.set_visibility(False)
 
+        ui.html(
+            f'<div style="font-size:9px;color:{TEXT_DIM};margin:-2px 0 2px 0;">'
+            'Price is fetched automatically from the purchase date.</div>'
+        )
         manual_checkbox = ui.checkbox("Enter price manually", value=False).style(
             f"font-size:10px;color:{TEXT_DIM};"
         )
