@@ -678,12 +678,6 @@ def build_sidebar(
             ).props('flat dense round size=sm aria-label="Import"').style(_icon_style).tooltip("Import Portfolio")
             ui.html(f'<div style="{_icon_label_style}">Import</div>')
 
-        with ui.column().classes("items-center").style("gap:0;"):
-            ui.button(
-                icon="download", on_click=on_export,
-            ).props('flat dense round size=sm aria-label="Export"').style(_icon_style).tooltip("Export Portfolio")
-            ui.html(f'<div style="{_icon_label_style}">Export</div>')
-
         ui.html(f'<div style="width:1px;height:24px;background:{BORDER_SUBTLE};"></div>')
 
         with ui.column().classes("items-center").style("gap:0;"):

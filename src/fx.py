@@ -7,7 +7,7 @@ from src.cache import short_cache, long_cache
 
 _log = logging.getLogger(__name__)
 
-CURRENCY_SYMBOLS = {"USD": "$", "CHF": "CHF ", "EUR": "€", "GBP": "£", "SEK": "kr "}
+CURRENCY_SYMBOLS = {"USD": "$", "EUR": "€", "GBP": "£", "CHF": "CHF "}
 
 
 def normalize_gbx(value, currency: str):
