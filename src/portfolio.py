@@ -344,10 +344,6 @@ def build_dividend_timeline(
     rows: list[dict] = []
 
     for ticker, lots in portfolio.items():
-        total_shares = sum(lot["shares"] for lot in lots)
-        if total_shares <= 0:
-            continue
-
         ticker_ccy = get_ticker_currency(ticker)
         gbx = ticker_ccy == "GBX"
 
@@ -364,12 +360,20 @@ def build_dividend_timeline(
                 date_str = str(date.date()) if hasattr(date, "date") else str(date)[:10]
                 month_key = date_str[:7]  # "YYYY-MM"
 
+                # Only count shares from lots purchased on or before this dividend date
+                shares_held = sum(
+                    lot["shares"] for lot in lots
+                    if lot.get("purchase_date") and lot["purchase_date"] <= date_str
+                )
+                if shares_held <= 0:
+                    continue
+
                 if ticker_ccy == base_currency:
                     fx = 1.0
                 else:
                     fx = get_historical_fx_rate(ticker_ccy, base_currency, date_str)
 
-                converted = amount * fx * total_shares
+                converted = amount * fx * shares_held
                 rows.append({"month": month_key, "ticker": ticker, "amount": round(converted, 2)})
         except Exception:
             continue
