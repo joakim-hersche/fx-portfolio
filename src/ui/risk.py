@@ -787,17 +787,32 @@ def _render_sector_breakdown(
             labels=labels,
             parents=parents,
             values=values,
-            marker=dict(colors=colors, line=dict(width=2, color="#1C1D26")),
+            marker=dict(
+                colors=colors,
+                line=dict(width=2, color="#1C1D26"),
+            ),
             textinfo="label+percent parent",
             textfont=dict(size=13, color="white", family="Inter, sans-serif"),
             hovertemplate="<b>%{label}</b><br>Weight: %{value:.1f}%<extra></extra>",
+            hoverlabel=dict(
+                bgcolor="#1C1D26",
+                bordercolor="#1E293B",
+                font=dict(color="#F1F5F9", size=11, family="Inter, sans-serif"),
+            ),
             branchvalues="remainder",
+            tiling=dict(pad=3),
+            pathbar=dict(visible=False),
         ))
 
         fig.update_layout(
             margin=dict(t=0, l=0, r=0, b=0),
             paper_bgcolor="rgba(0,0,0,0)",
             plot_bgcolor="rgba(0,0,0,0)",
+            modebar=dict(
+                bgcolor="rgba(0,0,0,0)",
+                color="#64748B",
+                activecolor="#3B82F6",
+            ),
         )
 
         ui.plotly(fig).classes("w-full")
@@ -944,7 +959,7 @@ def _render_rebalancing_calculator(portfolio_df: pd.DataFrame, currency_symbol: 
             f"border-radius:6px;padding:0 4px;"
         )
         with ui.row().classes("w-full items-end").style("gap:10px;flex-wrap:wrap;margin-bottom:10px;"):
-            with ui.column().style("gap:2px;"):
+            with ui.element("div").style("display:flex;flex-direction:column;gap:2px;"):
                 ui.html(
                     f'<span style="font-size:9px;font-weight:600;color:{TEXT_DIM};'
                     f'text-transform:uppercase;letter-spacing:0.06em;">Deposit</span>'
@@ -961,7 +976,7 @@ def _render_rebalancing_calculator(portfolio_df: pd.DataFrame, currency_symbol: 
             for _, row in ticker_data.iterrows():
                 ticker = row["Ticker"]
                 current_w = row["Weight (%)"]
-                with ui.column().style("gap:2px;"):
+                with ui.element("div").style("display:flex;flex-direction:column;gap:2px;"):
                     ui.html(
                         f'<span style="font-size:9px;font-weight:700;color:{TEXT_SECONDARY};">'
                         f'{ticker} <span style="font-weight:400;color:{TEXT_DIM};">{current_w:.0f}%</span></span>'
