@@ -553,22 +553,7 @@ def _render_flat_table(
 
         ui.html(f'''
         <div class="table-wrap" style="overflow-x:auto;">
-        <table style="min-width:1000px;table-layout:fixed;">
-            <colgroup>
-              <col style="width:8%;">
-              <col style="width:6%;">
-              <col style="width:7%;">
-              <col style="width:7%;">
-              <col style="width:6%;">
-              <col style="width:7%;">
-              <col style="width:7%;">
-              <col style="width:7%;">
-              <col style="width:5%;">
-              <col style="width:6%;">
-              <col style="width:6%;">
-              <col style="width:18%;">
-              <col style="width:7%;">
-            </colgroup>
+        <table style="min-width:900px;">
             <thead>
               <tr>
                 <th rowspan="2">Ticker</th>
