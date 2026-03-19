@@ -45,7 +45,7 @@ A stock with 25% volatility typically swings about 25% up or down in a year.
 - **Worst Drop (Max Drawdown)** — the biggest peak-to-trough fall in the past year. If it says -35%, \
 the stock lost 35% from its highest point before recovering.
 - **Return/Risk Score (Sharpe Ratio)** — how much return you earn per unit of risk. Above 1 is good, \
-above 2 is excellent, below 0 means the stock lost money.
+above 2 is excellent, below 0 means the return was worse than a risk-free savings rate.
 - **Market Sensitivity (Beta)** — how much the stock moves relative to the overall market (S&P 500). \
 Beta of 1.0 means it moves in lockstep. Above 1.0 means it swings more; below 1.0 means it is calmer.
 - **Correlation** — whether two stocks tend to go up and down together (close to 1.0) or move independently \
@@ -69,7 +69,7 @@ If the fan is wide, there is a lot of uncertainty. If it is narrow, the stock ha
 
 **Portfolio Outlook** adds two extra metrics:
 - **VaR (Value at Risk) 95%** — in the worst 5% of replays, the portfolio lost at least this much. \
-Think of it as a "bad month" scenario.
+Think of it as a loss threshold that only 5% of simulated outcomes exceeded.
 - **CVaR (Expected Shortfall) 95%** — the average loss in those worst 5% of replays. Always worse than VaR; \
 this is what tail risk actually costs on average.
 

@@ -121,6 +121,7 @@ async def build_income_tab(
     )
 
     # Projected annual income from Dividend Rate * shares * FX
+    # dividendRate is in financialCurrency (not necessarily the trading currency)
     projected_annual = 0.0
     for ticker, lots in portfolio.items():
         total_shares = sum(lot["shares"] for lot in lots)
@@ -128,16 +129,14 @@ async def build_income_tab(
         div_rate = fund.get("Dividend Rate")
         if not div_rate or div_rate <= 0:
             continue
-        ticker_ccy = get_ticker_currency(ticker)
-        fx_rate, _ = get_fx_rate(ticker_ccy, currency)
-        # GBX: div_rate is in pence, fx_rate already handles /100
+        div_ccy = fund.get("Financial Currency") or get_ticker_currency(ticker)
+        fx_rate, _ = get_fx_rate(div_ccy, currency)
         projected_annual += div_rate * total_shares * fx_rate
 
     total_value = df.groupby("Ticker")["Total Value"].sum().sum()
     portfolio_yield = (projected_annual / total_value * 100) if total_value > 0 else 0.0
 
     # ── KPI Cards ─────────────────────────────────────────
-    yield_color = GREEN if portfolio_yield >= 2.0 else TEXT_PRIMARY
     ui.html(f"""
         <div class="kpi-row" style="grid-template-columns:1fr 1fr 1fr;">
             <div class="kpi-card">
@@ -146,17 +145,23 @@ async def build_income_tab(
                 <div class="kpi-sub">Dividends received last 12 months</div>
             </div>
             <div class="kpi-card">
-                <div class="kpi-label">Projected Annual Income</div>
+                <div class="kpi-label">Projected Annual Income*</div>
                 <div class="kpi-value">{_fmt_currency(projected_annual, currency_symbol)}</div>
-                <div class="kpi-sub">Based on current dividend rates</div>
+                <div class="kpi-sub">Assumes current rates continue</div>
             </div>
             <div class="kpi-card">
-                <div class="kpi-label">Portfolio Yield</div>
-                <div class="kpi-value" style="color:{yield_color};">{portfolio_yield:.2f}%</div>
+                <div class="kpi-label">Forward Dividend Yield</div>
+                <div class="kpi-value">{portfolio_yield:.2f}%</div>
                 <div class="kpi-sub">Projected income / portfolio value</div>
             </div>
         </div>
     """).classes("w-full")
+
+    ui.html(
+        f'<p style="font-size:10px;color:{TEXT_FAINT};margin:4px 0 0 0;">'
+        '*Projected figures assume current dividend rates continue. '
+        'Companies may cut, suspend, or increase dividends at any time.</p>'
+    ).classes("w-full")
 
     # ── Income Growth Chart ───────────────────────────────
     _build_income_chart(timeline, portfolio_color_map, currency_symbol)
@@ -196,7 +201,7 @@ def _build_income_chart(
 ) -> None:
     """Stacked monthly bar chart with a 3-month rolling average trend line."""
     if not timeline:
-        with ui.element("div").classes("chart-card"):
+        with ui.column().classes("chart-card w-full"):
             ui.html('<div class="chart-title">Income Growth</div>')
             ui.html(f'<p style="font-size:12px;color:{TEXT_MUTED};padding:20px 0;">No dividend history available.</p>')
         return
@@ -219,6 +224,7 @@ def _build_income_chart(
             "name": ticker,
             "type": "bar",
             "marker": {"color": color_map.get(ticker, "#3B82F6")},
+            "hovertemplate": f"<b>{ticker}</b><br>%{{x}}<br>{currency_symbol}%{{y:,.2f}}<extra></extra>",
         })
 
     # 3-month rolling average
@@ -238,6 +244,7 @@ def _build_income_chart(
             "mode": "lines",
             "line": {"color": TEXT_PRIMARY, "width": 2, "dash": "dot"},
             "yaxis": "y",
+            "hovertemplate": f"<b>3M Avg</b><br>%{{x}}<br>{currency_symbol}%{{y:,.2f}}<extra></extra>",
         })
 
     layout = {
@@ -247,25 +254,37 @@ def _build_income_chart(
         "font": {"family": "Inter, sans-serif", "size": 11, "color": TEXT_MUTED},
         "margin": {"l": 50, "r": 20, "t": 10, "b": 40},
         "xaxis": {
-            "gridcolor": "rgba(255,255,255,0.05)",
-            "tickfont": {"size": 10},
+            "gridcolor": "rgba(255,255,255,0.04)",
+            "tickfont": {"size": 10, "color": "#CBD5E1"},
         },
         "yaxis": {
-            "gridcolor": "rgba(255,255,255,0.05)",
-            "tickfont": {"size": 10},
+            "gridcolor": "rgba(255,255,255,0.04)",
+            "tickfont": {"size": 10, "color": "#CBD5E1"},
             "tickprefix": currency_symbol,
         },
         "legend": {
             "orientation": "h",
-            "y": -0.2,
-            "font": {"size": 10},
+            "yanchor": "bottom", "y": 1.02,
+            "xanchor": "left", "x": 0,
+            "font": {"size": 10, "color": "#94A3B8"},
+            "bgcolor": "rgba(0,0,0,0)",
         },
-        "hoverlabel": {"font": {"family": "Inter, sans-serif", "size": 11}},
+        "hoverlabel": {
+            "bgcolor": "#1C1D26",
+            "bordercolor": "#1E293B",
+            "font": {"family": "Inter, sans-serif", "size": 11, "color": "#F1F5F9"},
+            "namelength": -1,
+        },
+        "modebar": {
+            "bgcolor": "rgba(0,0,0,0)",
+            "color": "#64748B",
+            "activecolor": "#94A3B8",
+        },
     }
 
-    with ui.element("div").classes("chart-card"):
+    with ui.column().classes("chart-card w-full"):
         ui.html('<div class="chart-title">Income Growth</div>')
-        ui.plotly({"data": traces, "layout": layout}).classes("w-full").style("height:350px;")
+        ui.plotly({"data": traces, "layout": layout}).classes("w-full")
 
 
 def _build_dividend_calendar(
@@ -280,13 +299,14 @@ def _build_dividend_calendar(
 
     # Analyse historical payment months per ticker
     ticker_months: dict[str, list[int]] = defaultdict(list)
-    ticker_last_amount: dict[str, float] = {}
+    ticker_last_amount: dict[str, tuple[str, float]] = {}  # ticker -> (month_key, amount)
     for r in timeline:
         month_num = int(r["month"][5:7])
         ticker_months[r["ticker"]].append(month_num)
-        # Track latest amount per ticker for projection
-        if r["ticker"] not in ticker_last_amount or r["month"] > ticker_last_amount.get("_month", ""):
-            ticker_last_amount[r["ticker"]] = r["amount"]
+        # Track latest payment per ticker (by month key)
+        prev = ticker_last_amount.get(r["ticker"])
+        if prev is None or r["month"] > prev[0]:
+            ticker_last_amount[r["ticker"]] = (r["month"], r["amount"])
 
     # Build next 12 months
     future_months = []
@@ -296,12 +316,13 @@ def _build_dividend_calendar(
 
     # For each ticker, infer which future months will have payments
     calendar_data: dict[str, dict[str, str]] = {}  # ticker -> {month_key: amount_str}
+    calendar_amounts: dict[str, dict[str, float]] = {}  # ticker -> {month_key: numeric amount}
     has_any_data = False
 
     for ticker in tickers:
         payments = ticker_months.get(ticker, [])
         if len(payments) < 2:
-            calendar_data[ticker] = None  # Insufficient history
+            calendar_data[ticker] = None
             continue
 
         freq = _infer_frequency(payments)
@@ -311,22 +332,31 @@ def _build_dividend_calendar(
 
         # Which months does this ticker typically pay in?
         typical_months = sorted(set(payments))
-        last_amount = ticker_last_amount.get(ticker, 0)
-        per_payment = round(last_amount / max(len(set(payments)), 1), 2) if last_amount else 0
+        last_entry = ticker_last_amount.get(ticker)
+        per_payment = round(last_entry[1], 2) if last_entry else 0
 
         projected: dict[str, str] = {}
+        amounts: dict[str, float] = {}
         for y, m in future_months:
             key = f"{y}-{m:02d}"
-            if m in typical_months:
-                projected[key] = _fmt_currency(per_payment, currency_symbol) if per_payment > 0 else "--"
+            if m in typical_months and per_payment > 0:
+                projected[key] = _fmt_currency(per_payment, currency_symbol)
+                amounts[key] = per_payment
                 has_any_data = True
             else:
                 projected[key] = ""
+                amounts[key] = 0.0
         calendar_data[ticker] = projected
+        calendar_amounts[ticker] = amounts
 
     # Render as HTML table
-    with ui.element("div").classes("chart-card"):
+    with ui.column().classes("chart-card w-full"):
         ui.html('<div class="chart-title">Dividend Calendar (12-Month Forward)</div>')
+        ui.html(
+            f'<p style="font-size:11px;color:{TEXT_DIM};margin:0 0 8px 0;">'
+            'Estimated from historical payment patterns. Companies may change '
+            'dividend dates and amounts at any time. Not a confirmed schedule.</p>'
+        )
 
         if not has_any_data and all(v is None for v in calendar_data.values()):
             ui.html(
@@ -364,6 +394,23 @@ def _build_dividend_calendar(
                     cells += f'<td class="right" style="{style}">{val}</td>'
             rows_html.append(f"<tr>{ticker_cell}{cells}</tr>")
 
+        # Totals row
+        total_cells = ""
+        for y, m in future_months:
+            key = f"{y}-{m:02d}"
+            month_total = sum(
+                calendar_amounts.get(t, {}).get(key, 0.0) for t in tickers
+            )
+            if month_total > 0:
+                total_cells += f'<td class="right" style="color:{TEXT_PRIMARY};font-weight:700;">{_fmt_currency(month_total, currency_symbol)}</td>'
+            else:
+                total_cells += f'<td class="right" style="color:{TEXT_FAINT};">\u2014</td>'
+        rows_html.append(
+            f'<tr style="border-top:2px solid {BORDER};">'
+            f'<td style="color:{TEXT_PRIMARY};font-weight:700;">Total</td>'
+            f'{total_cells}</tr>'
+        )
+
         table_html = f"""
         <div class="table-wrap" style="margin-top:10px;">
             <table>
@@ -384,7 +431,7 @@ def _build_income_table(
     color_map: dict[str, str],
 ) -> None:
     """Per-position income table: annual income, yield, yield-on-cost."""
-    with ui.element("div").classes("chart-card"):
+    with ui.column().classes("chart-card w-full"):
         ui.html('<div class="chart-title">Per-Position Income</div>')
 
         rows_html = []
@@ -401,8 +448,8 @@ def _build_income_table(
             total_value = ticker_df["Total Value"].sum()
             cost_basis = (ticker_df["Buy Price"] * ticker_df["Shares"]).sum()
 
-            ticker_ccy = get_ticker_currency(ticker)
-            fx_rate, _ = get_fx_rate(ticker_ccy, currency)
+            div_ccy = fund.get("Financial Currency") or get_ticker_currency(ticker)
+            fx_rate, _ = get_fx_rate(div_ccy, currency)
 
             if div_rate and div_rate > 0:
                 annual_income = div_rate * total_shares * fx_rate
@@ -415,8 +462,8 @@ def _build_income_table(
             income_str = _fmt_currency(annual_income, currency_symbol)
             yield_str = f"{div_yield:.2f}%" if div_yield else "--"
             yoc_str = f"{yield_on_cost:.2f}%" if yield_on_cost > 0 else "--"
-            yield_color = GREEN if div_yield and div_yield >= 2.0 else TEXT_SECONDARY
-            yoc_color = GREEN if yield_on_cost >= 2.0 else TEXT_SECONDARY
+            yield_color = TEXT_SECONDARY
+            yoc_color = TEXT_SECONDARY
 
             rows_html.append(f"""
                 <tr>
@@ -450,8 +497,8 @@ def _build_income_table(
             total_cost += cost_basis
             total_val += ticker_df["Total Value"].sum()
             if div_rate and div_rate > 0:
-                ticker_ccy = get_ticker_currency(ticker)
-                fx_rate, _ = get_fx_rate(ticker_ccy, currency)
+                div_ccy = fund.get("Financial Currency") or get_ticker_currency(ticker)
+                fx_rate, _ = get_fx_rate(div_ccy, currency)
                 total_annual += div_rate * total_shares * fx_rate
 
         total_yield = (total_annual / total_val * 100) if total_val > 0 else 0
