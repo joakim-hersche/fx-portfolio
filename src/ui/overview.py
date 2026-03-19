@@ -214,14 +214,24 @@ async def build_overview_tab(
                 bar_width = (pct / max_pct * 100) if max_pct > 0 else 0
                 color = portfolio_color_map.get(ticker, "#3B82F6")
                 company = name_map.get(ticker, ticker)
-                tooltip = f"{company} ({ticker})&#10;{currency_symbol}{val:,.0f} · {pct:.1f}%"
                 bar_rows += (
-                    f'<div style="display:flex;align-items:center;gap:8px;line-height:1.4;position:relative;" title="{tooltip}">'
+                    f'<div class="alloc-bar" style="display:flex;align-items:center;gap:8px;line-height:1.4;position:relative;">'
                     f'<div style="width:64px;font-size:11px;font-weight:600;color:{TEXT_SECONDARY};flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{ticker}</div>'
                     f'<div style="flex:1;height:{bar_h}px;background:rgba(255,255,255,0.04);border-radius:4px;overflow:hidden;cursor:pointer;">'
                     f'<div style="width:{bar_width:.1f}%;height:100%;background:{color};border-radius:4px;transition:opacity 0.15s;"></div>'
                     f'</div>'
                     f'<div style="width:36px;font-size:11px;color:{TEXT_DIM};text-align:right;flex-shrink:0;">{pct:.0f}%</div>'
+                    f'<div class="alloc-tip">'
+                    f'<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">'
+                    f'<div style="width:8px;height:8px;border-radius:2px;background:{color};flex-shrink:0;"></div>'
+                    f'<span style="font-weight:600;color:{TEXT_PRIMARY};font-size:11px;">{ticker}</span>'
+                    f'<span style="color:{TEXT_DIM};font-size:10px;">{company}</span>'
+                    f'</div>'
+                    f'<div style="display:flex;gap:12px;font-size:11px;">'
+                    f'<span style="color:{TEXT_PRIMARY};font-weight:600;">{currency_symbol}{val:,.0f}</span>'
+                    f'<span style="color:{TEXT_MUTED};">{pct:.1f}%</span>'
+                    f'</div>'
+                    f'</div>'
                     f'</div>'
                 )
 
