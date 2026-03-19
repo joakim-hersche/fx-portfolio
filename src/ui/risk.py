@@ -1,7 +1,7 @@
 """Risk & Analytics tab for the NiceGUI dashboard.
 
-Renders risk metrics, correlation heatmap, and fundamentals tables
-using NiceGUI widgets and Plotly charts.
+Renders a unified portfolio analytics table with expandable detail rows,
+plus a correlation heatmap, using NiceGUI widgets and Plotly charts.
 """
 
 import numpy as np
@@ -26,6 +26,7 @@ from src.theme import (
     TEXT_FAINT,
     TEXT_SECONDARY,
     BG_CARD,
+    BG_PILL,
     BORDER,
     BORDER_SUBTLE,
     BG_TOPBAR,
@@ -74,30 +75,164 @@ def _color_class(value, thresholds: list[tuple]) -> str:
     return ""
 
 
-# ── Risk Metrics Table ───────────────────────────────────────────────────────
+# ── Unified Portfolio Analytics Table ────────────────────────────────────────
 
-def _render_risk_table(analytics_df: pd.DataFrame, color_map: dict[str, str] | None = None) -> None:
-    """Render the per-ticker risk metrics as a styled HTML table."""
+def _render_unified_table(
+    portfolio_df: pd.DataFrame,
+    analytics_df: pd.DataFrame,
+    fund_rows: list[dict],
+    price_data_1y: dict[str, pd.DataFrame],
+    currency_symbol: str,
+    color_map: dict[str, str] | None = None,
+    base_currency: str = "USD",
+) -> None:
+    """Render a single expandable table combining performance, risk, and fundamentals."""
     with ui.column().classes("chart-card w-full"):
-        _section_header("Risk Metrics")
-        _section_intro(
-            "\u2022 <b>Volatility</b> \u2014 how much the price typically swings in a year. "
-            "25% means it moves roughly \u00b125% over 12 months. Higher = more unpredictable.<br>"
-            "\u2022 <b>Worst Drop</b> \u2014 the biggest fall from a peak in the past year. "
-            "\u221235% means it dropped 35% from its highest point before recovering.<br>"
-            "\u2022 <b>Return/Risk Score</b> \u2014 how much return you earned per unit of risk. "
-            "Above 1 is good; above 2 is excellent; below 0 means the risk was not rewarded.<br>"
-            "\u2022 <b>Market Sensitivity</b> \u2014 how much this stock moves when the S&P 500 moves. "
-            "1.0 = moves exactly with the market; 1.5 = moves 50% more; 0.5 = half as much."
+        # Header with subtitle
+        ui.html(
+            f'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">'
+            f'<div style="font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:{TEXT_MUTED};">Portfolio Analytics</div>'
+            f'<div style="font-size:10px;color:{TEXT_DIM};">Click a row for risk &amp; valuation details</div>'
+            f'</div>'
         )
 
-        rows_html = ""
-        for _, row in analytics_df.iterrows():
+        # Combined intro text
+        _section_intro(
+            "<b>Performance</b> \u2014 weight, 1-year price return, portfolio contribution, "
+            "and relative performance vs. the S&P 500 (adjusted for currency).<br>"
+            "<b>Risk</b> \u2014 annualised volatility, worst peak-to-trough drop, "
+            "return-per-unit-of-risk score, and market sensitivity (beta).<br>"
+            "<b>Valuation</b> \u2014 price/earnings ratio, dividend yield, "
+            "52-week price range with current position, and latest market price."
+        )
+
+        if portfolio_df.empty:
+            ui.html(
+                f'<p style="color:{TEXT_DIM}; font-size:12px;">'
+                f'No data available for portfolio analytics.</p>'
+            )
+            return
+
+        # ── Compute per-ticker aggregated data (from _render_performance_attribution) ──
+        ticker_data = (
+            portfolio_df.groupby("Ticker")
+            .agg({"Total Value": "sum", "Weight (%)": "sum", "Return (%)": "first"})
+            .reset_index()
+        )
+
+        # For multi-lot tickers, compute a weighted return
+        for idx, row in ticker_data.iterrows():
             ticker = row["Ticker"]
-            vol = row.get("Volatility")
-            dd = row.get("Max Drawdown")
-            sharpe = row.get("Sharpe Ratio")
-            beta = row.get("Beta")
+            group = portfolio_df[portfolio_df["Ticker"] == ticker]
+            if len(group) > 1:
+                total_cost = (group["Buy Price"] * group["Shares"]).sum()
+                total_value = group["Total Value"].sum()
+                total_divs = group["Dividends"].sum()
+                if total_cost > 0:
+                    ticker_data.at[idx, "Return (%)"] = round(
+                        (total_value + total_divs - total_cost) / total_cost * 100, 2
+                    )
+
+        # Compute SPY 1-year return from price data, adjusted for FX
+        spy_hist = price_data_1y.get("__spy__", pd.DataFrame())
+        spy_return = None
+        if not spy_hist.empty and "Close" in spy_hist.columns:
+            spy_close = spy_hist["Close"].dropna()
+            if len(spy_close) >= 2:
+                spy_return_usd = (spy_close.iloc[-1] / spy_close.iloc[0] - 1) * 100
+                if base_currency != "USD":
+                    # Adjust for USD->base_currency FX change over the same period
+                    try:
+                        import yfinance as yf
+                        fx_pair = f"USD{base_currency}=X"
+                        fx_hist = yf.Ticker(fx_pair).history(period="1y")
+                        if not fx_hist.empty and "Close" in fx_hist.columns:
+                            fx_close = fx_hist["Close"].dropna()
+                            if len(fx_close) >= 2:
+                                fx_change = (fx_close.iloc[-1] / fx_close.iloc[0] - 1) * 100
+                                spy_return = ((1 + spy_return_usd / 100) * (1 + fx_change / 100) - 1) * 100
+                            else:
+                                spy_return = spy_return_usd
+                        else:
+                            spy_return = spy_return_usd
+                    except Exception:
+                        spy_return = spy_return_usd
+                else:
+                    spy_return = spy_return_usd
+
+        # Compute 1-year price return per ticker from price history
+        ticker_1y_return: dict[str, float] = {}
+        for t in ticker_data["Ticker"]:
+            hist = price_data_1y.get(t, pd.DataFrame())
+            if not hist.empty and "Close" in hist.columns:
+                close = hist["Close"].dropna()
+                if len(close) >= 2:
+                    ticker_1y_return[t] = round((close.iloc[-1] / close.iloc[0] - 1) * 100, 2)
+
+        # ── Build analytics and fundamentals lookups ──
+        analytics_map: dict[str, dict] = {}
+        if not analytics_df.empty:
+            for _, arow in analytics_df.iterrows():
+                analytics_map[arow["Ticker"]] = {
+                    "Volatility": arow.get("Volatility"),
+                    "Max Drawdown": arow.get("Max Drawdown"),
+                    "Sharpe Ratio": arow.get("Sharpe Ratio"),
+                    "Beta": arow.get("Beta"),
+                }
+
+        fund_map: dict[str, dict] = {}
+        for frow in fund_rows:
+            fund_map[frow["Ticker"]] = frow
+
+        num_tickers = len(ticker_data)
+        auto_expand = num_tickers == 1
+
+        # ── Build table rows ──
+        rows_html = ""
+        for _, row in ticker_data.iterrows():
+            ticker = row["Ticker"]
+            safe_id = ticker.replace(".", "_")
+            weight = row["Weight (%)"]
+            pos_return = ticker_1y_return.get(ticker, row["Return (%)"])
+            contribution = round(weight * pos_return / 100, 2) if pd.notna(pos_return) else None
+
+            vs_bench = None
+            if pos_return is not None and spy_return is not None:
+                vs_bench = round(pos_return - spy_return, 2)
+
+            dot_color = (color_map or {}).get(ticker, "")
+            dot_html = (
+                f'<div style="width:8px;height:8px;border-radius:50%;background:{dot_color};flex-shrink:0;display:inline-block;margin-right:6px;vertical-align:middle;"></div>'
+                if dot_color else ""
+            )
+
+            ret_cls = "td-pos" if pos_return and pos_return > 0 else "td-neg" if pos_return and pos_return < 0 else ""
+            contrib_cls = "td-pos" if contribution and contribution > 0 else "td-neg" if contribution and contribution < 0 else ""
+            bench_cls = "td-pos" if vs_bench and vs_bench > 0 else "td-neg" if vs_bench and vs_bench < 0 else ""
+
+            chevron = "\u25BC" if auto_expand else "\u25B6"
+
+            rows_html += (
+                f'<tr onclick="toggleDetail(\'{safe_id}\')" style="cursor:pointer;">'
+                f'<td><div class="td-ticker">{dot_html}'
+                f'<span id="chev-{safe_id}" style="font-size:8px;margin-right:5px;color:{TEXT_DIM};">{chevron}</span>'
+                f'{ticker}</div></td>'
+                f'<td class="right">{weight:.1f}%</td>'
+                f'<td class="{ret_cls} right">{_fmt(pos_return, "{:+.1f}%")}</td>'
+                f'<td class="{contrib_cls} right">{_fmt(contribution, "{:+.2f}%")}</td>'
+                f'<td class="{bench_cls} right">{_fmt(vs_bench, "{:+.1f}%")}</td>'
+                f'</tr>'
+            )
+
+            # ── Detail sub-row ──
+            detail_display = "table-row" if auto_expand else "none"
+
+            # Risk data
+            a = analytics_map.get(ticker, {})
+            vol = a.get("Volatility")
+            dd = a.get("Max Drawdown")
+            sharpe = a.get("Sharpe Ratio")
+            beta = a.get("Beta")
 
             vol_cls = _color_class(vol, [
                 (lambda v: v <= 20, "td-pos"),
@@ -115,31 +250,106 @@ def _render_risk_table(analytics_df: pd.DataFrame, color_map: dict[str, str] | N
                 (lambda v: True, "td-neg"),
             ])
 
-            dot_color = (color_map or {}).get(ticker, "")
-            dot_html = (
-                f'<div style="width:8px;height:8px;border-radius:50%;background:{dot_color};flex-shrink:0;display:inline-block;margin-right:6px;vertical-align:middle;"></div>'
-                if dot_color else ""
+            # Fundamentals data
+            f_data = fund_map.get(ticker, {})
+            pe = f_data.get("P/E Ratio")
+            div_yield = f_data.get("Div Yield (%)")
+            low = f_data.get("1-Year Low")
+            high = f_data.get("1-Year High")
+            position = f_data.get("1-Year Position")
+            current = f_data.get("Current Price")
+
+            if position is not None:
+                position = min(position, 100.0)
+
+            # Build 52-week range bar
+            if low is not None and high is not None and position is not None:
+                range_html = (
+                    f'<span style="display:inline-flex;align-items:center;gap:4px;min-width:120px;">'
+                    f'<span style="font-size:10px;color:{TEXT_DIM};">{currency_symbol}{low:.0f}</span>'
+                    f'<span class="range-bar-bg" style="width:80px;display:inline-block;">'
+                    f'<span class="range-bar-fill" style="left:0;width:100%;"></span>'
+                    f'<span class="range-bar-dot" style="left:{position}%;"></span>'
+                    f'</span>'
+                    f'<span style="font-size:10px;color:{TEXT_DIM};">{currency_symbol}{high:.0f}</span>'
+                    f'</span>'
+                )
+            else:
+                range_html = "\u2014"
+
+            current_html = f'{currency_symbol}{current:.2f}' if current is not None else "\u2014"
+
+            def _kv(label: str, value_str: str, cls: str = "") -> str:
+                color_style = ""
+                if cls == "td-pos":
+                    color_style = f"color:{GREEN};"
+                elif cls == "td-neg":
+                    color_style = f"color:{RED};"
+                elif cls == "td-amb":
+                    color_style = f"color:{AMBER};"
+                return (
+                    f'<span style="margin-right:14px;white-space:nowrap;">'
+                    f'<span style="color:{TEXT_DIM};font-size:11px;">{label}</span> '
+                    f'<span style="font-size:11px;font-weight:600;{color_style}">{value_str}</span>'
+                    f'</span>'
+                )
+
+            risk_line = (
+                _kv("Vol", _fmt(vol, "{:.1f}%"), vol_cls)
+                + _kv("Drop", _fmt(dd, "{:.1f}%"), dd_cls)
+                + _kv("R/R", _fmt(sharpe, "{:.2f}"), sharpe_cls)
+                + _kv("Beta", _fmt(beta, "{:.2f}"))
+            )
+
+            value_line = (
+                _kv("P/E", _fmt(pe, "{:.1f}\u00d7"))
+                + _kv("Yield", _fmt(div_yield, "{:.2f}%"))
+                + f'<span style="margin-right:14px;white-space:nowrap;">'
+                f'<span style="color:{TEXT_DIM};font-size:11px;">52-Wk</span> '
+                f'{range_html}'
+                f'</span>'
+                + _kv("Now", current_html)
             )
 
             rows_html += (
-                f'<tr>'
-                f'<td><div class="td-ticker">{dot_html}{ticker}</div></td>'
-                f'<td class="{vol_cls} right">{_fmt(vol, "{:.1f}%")}</td>'
-                f'<td class="{dd_cls} right">{_fmt(dd, "{:.1f}%")}</td>'
-                f'<td class="{sharpe_cls} right">{_fmt(sharpe, "{:.2f}")}</td>'
-                f'<td class="right">{_fmt(beta, "{:.2f}")}</td>'
+                f'<tr id="detail-{safe_id}" style="display:{detail_display};">'
+                f'<td colspan="5" style="background:{BG_PILL};padding:10px 14px;border-top:none;">'
+                f'<div style="display:flex;flex-direction:column;gap:6px;">'
+                f'<div style="font-size:11px;">Risk: {risk_line}</div>'
+                f'<div style="font-size:11px;">Value: {value_line}</div>'
+                f'</div>'
+                f'</td>'
                 f'</tr>'
             )
 
+        # ── JS toggle function ──
+        toggle_js = '''
+        <script>
+        function toggleDetail(id) {
+            var detailRow = document.getElementById('detail-' + id);
+            var chevron = document.getElementById('chev-' + id);
+            if (!detailRow) return;
+            if (detailRow.style.display === 'none' || detailRow.style.display === '') {
+                detailRow.style.display = 'table-row';
+                if (chevron) chevron.textContent = '\u25BC';
+            } else {
+                detailRow.style.display = 'none';
+                if (chevron) chevron.textContent = '\u25B6';
+            }
+        }
+        </script>
+        '''
+
         ui.html(f'''
+        {toggle_js}
         <div class="table-wrap">
         <table>
             <thead><tr>
                 <th scope="col">Ticker</th>
-                <th scope="col" class="right">Volatility (%)</th>
-                <th scope="col" class="right">Worst Drop (%)</th>
-                <th scope="col" class="right">Return / Risk Score</th>
-                <th scope="col" class="right">Beta (vs S&amp;P)</th>
+                <th scope="col" class="right">Weight %</th>
+                <th scope="col" class="right">1Y Return</th>
+                <th scope="col" class="right">Contribution</th>
+                <th scope="col" class="right">vs SPY</th>
             </tr></thead>
             <tbody>{rows_html}</tbody>
         </table>
@@ -197,226 +407,6 @@ def _render_correlation_heatmap(price_data: dict, tickers: list) -> None:
                     )
 
 
-# ── Fundamentals Table ───────────────────────────────────────────────────────
-
-def _render_fundamentals_table(fund_rows: list, currency_symbol: str, color_map: dict[str, str] | None = None) -> None:
-    """Render the fundamentals (P/E, Div Yield, 52-week range) as a styled HTML table."""
-    with ui.column().classes("chart-card w-full"):
-        _section_header("Valuation & Price Range")
-        _section_intro(
-            "\u2022 <b>P/E Ratio</b> \u2014 how much investors pay relative to what the company earns. "
-            "A P/E of 20 means you pay 20\u00d7 the company\u2019s annual earnings per share. "
-            "Lower can mean better value, but varies widely by industry.<br>"
-            "\u2022 <b>Div. Yield</b> \u2014 the annual cash payment as a % of the current price. "
-            "3% means every $100 invested pays $3/year directly to you, regardless of whether "
-            "the stock price moves.<br>"
-            "\u2022 <b>52-Week Range</b> \u2014 the cheapest and most expensive the stock has been "
-            "over the past 12 months, shown as a visual bar with the current price marked.<br>"
-            "\u2022 <b>Current</b> \u2014 the latest market price for each position."
-        )
-
-        if not fund_rows:
-            ui.html(
-                f'<p style="color:{TEXT_DIM}; font-size:12px;">'
-                f'No fundamentals data available.</p>'
-            )
-            return
-
-        rows_html = ""
-        for row in fund_rows:
-            ticker = row.get("Ticker", "")
-            pe = row.get("P/E Ratio")
-            div_yield = row.get("Div Yield (%)")
-            low = row.get("1-Year Low")
-            high = row.get("1-Year High")
-            position = row.get("1-Year Position")
-            current = row.get("Current Price")
-
-            # Clamp position to 100%
-            if position is not None:
-                position = min(position, 100.0)
-
-            # Build 52-Week Range cell with visual bar
-            if low is not None and high is not None and position is not None:
-                range_cell = (
-                    f'<td style="min-width:180px;padding-right:14px;">'
-                    f'<div style="display:flex;align-items:center;gap:4px;">'
-                    f'<span style="font-size:10px;color:{TEXT_DIM};">{currency_symbol}{low:.0f}</span>'
-                    f'<div class="range-bar-bg" style="flex:1;">'
-                    f'<div class="range-bar-fill" style="left:0;width:100%;"></div>'
-                    f'<div class="range-bar-dot" style="left:{position}%;"></div>'
-                    f'</div>'
-                    f'<span style="font-size:10px;color:{TEXT_DIM};">{currency_symbol}{high:.0f}</span>'
-                    f'</div></td>'
-                )
-            else:
-                range_cell = '<td>\u2014</td>'
-
-            # Current price cell
-            if current is not None:
-                current_cell = f'<td class="right" style="font-weight:600;">{currency_symbol}{current:.2f}</td>'
-            else:
-                current_cell = '<td class="right">\u2014</td>'
-
-            dot_color = (color_map or {}).get(ticker, "")
-            dot_html = (
-                f'<div style="width:8px;height:8px;border-radius:50%;background:{dot_color};flex-shrink:0;display:inline-block;margin-right:6px;vertical-align:middle;"></div>'
-                if dot_color else ""
-            )
-
-            rows_html += (
-                f'<tr>'
-                f'<td><div class="td-ticker">{dot_html}{ticker}</div></td>'
-                f'<td class="right">{_fmt(pe, "{:.1f}\u00d7")}</td>'
-                f'<td class="right">{_fmt(div_yield, "{:.2f}%")}</td>'
-                f'{range_cell}'
-                f'{current_cell}'
-                f'</tr>'
-            )
-
-        ui.html(f'''
-        <div class="table-wrap">
-        <table>
-            <thead><tr>
-                <th scope="col">Ticker</th>
-                <th scope="col" class="right">P/E Ratio</th>
-                <th scope="col" class="right">Div. Yield</th>
-                <th scope="col">52-Week Range</th>
-                <th scope="col" class="right">Current</th>
-            </tr></thead>
-            <tbody>{rows_html}</tbody>
-        </table>
-        </div>
-        ''')
-
-
-# ── Performance Attribution ────────────────────────────────────────────────
-
-def _render_performance_attribution(
-    portfolio_df: pd.DataFrame,
-    price_data_1y: dict[str, pd.DataFrame],
-    color_map: dict[str, str] | None = None,
-    base_currency: str = "USD",
-) -> None:
-    """Render the Performance Attribution table matching the design proposal."""
-    with ui.column().classes("chart-card w-full"):
-        ui.html(
-            f'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">'
-            f'<div style="font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:{TEXT_MUTED};">Performance Attribution</div>'
-            f'<div style="font-size:10px;color:{TEXT_DIM};">Period: 1 Year</div>'
-            f'</div>'
-        )
-
-        if portfolio_df.empty:
-            ui.html(
-                f'<p style="color:{TEXT_DIM}; font-size:12px;">'
-                f'No data available for performance attribution.</p>'
-            )
-            return
-
-        # Compute per-ticker aggregated data
-        ticker_data = (
-            portfolio_df.groupby("Ticker")
-            .agg({"Total Value": "sum", "Weight (%)": "sum", "Return (%)": "first"})
-            .reset_index()
-        )
-
-        # For multi-lot tickers, compute a weighted return
-        for idx, row in ticker_data.iterrows():
-            ticker = row["Ticker"]
-            group = portfolio_df[portfolio_df["Ticker"] == ticker]
-            if len(group) > 1:
-                total_cost = (group["Buy Price"] * group["Shares"]).sum()
-                total_value = group["Total Value"].sum()
-                total_divs = group["Dividends"].sum()
-                if total_cost > 0:
-                    ticker_data.at[idx, "Return (%)"] = round(
-                        (total_value + total_divs - total_cost) / total_cost * 100, 2
-                    )
-
-        # Compute SPY 1-year return from price data, adjusted for FX
-        spy_hist = price_data_1y.get("__spy__", pd.DataFrame())
-        spy_return = None
-        if not spy_hist.empty and "Close" in spy_hist.columns:
-            spy_close = spy_hist["Close"].dropna()
-            if len(spy_close) >= 2:
-                spy_return_usd = (spy_close.iloc[-1] / spy_close.iloc[0] - 1) * 100
-                if base_currency != "USD":
-                    # Adjust for USD->base_currency FX change over the same period
-                    try:
-                        import yfinance as yf
-                        fx_pair = f"USD{base_currency}=X"
-                        fx_hist = yf.Ticker(fx_pair).history(period="1y")
-                        if not fx_hist.empty and "Close" in fx_hist.columns:
-                            fx_close = fx_hist["Close"].dropna()
-                            if len(fx_close) >= 2:
-                                fx_change = (fx_close.iloc[-1] / fx_close.iloc[0] - 1) * 100
-                                spy_return = ((1 + spy_return_usd / 100) * (1 + fx_change / 100) - 1) * 100
-                            else:
-                                spy_return = spy_return_usd
-                        else:
-                            spy_return = spy_return_usd
-                    except Exception:
-                        spy_return = spy_return_usd
-                else:
-                    spy_return = spy_return_usd
-
-        # Compute 1-year price return per ticker from price history (more accurate than portfolio return)
-        ticker_1y_return: dict[str, float] = {}
-        for t in ticker_data["Ticker"]:
-            hist = price_data_1y.get(t, pd.DataFrame())
-            if not hist.empty and "Close" in hist.columns:
-                close = hist["Close"].dropna()
-                if len(close) >= 2:
-                    ticker_1y_return[t] = round((close.iloc[-1] / close.iloc[0] - 1) * 100, 2)
-
-        rows_html = ""
-        for _, row in ticker_data.iterrows():
-            ticker = row["Ticker"]
-            weight = row["Weight (%)"]
-            pos_return = ticker_1y_return.get(ticker, row["Return (%)"])
-            contribution = round(weight * pos_return / 100, 2) if pd.notna(pos_return) else None
-
-            vs_bench = None
-            if pos_return is not None and spy_return is not None:
-                vs_bench = round(pos_return - spy_return, 2)
-
-            dot_color = (color_map or {}).get(ticker, "")
-            dot_html = (
-                f'<div style="width:8px;height:8px;border-radius:50%;background:{dot_color};flex-shrink:0;display:inline-block;margin-right:6px;vertical-align:middle;"></div>'
-                if dot_color else ""
-            )
-
-            ret_cls = "td-pos" if pos_return and pos_return > 0 else "td-neg" if pos_return and pos_return < 0 else ""
-            contrib_cls = "td-pos" if contribution and contribution > 0 else "td-neg" if contribution and contribution < 0 else ""
-            bench_cls = "td-pos" if vs_bench and vs_bench > 0 else "td-neg" if vs_bench and vs_bench < 0 else ""
-
-            rows_html += (
-                f'<tr>'
-                f'<td><div class="td-ticker">{dot_html}{ticker}</div></td>'
-                f'<td class="right">{weight:.1f}%</td>'
-                f'<td class="{ret_cls} right">{_fmt(pos_return, "{:+.1f}%")}</td>'
-                f'<td class="{contrib_cls} right">{_fmt(contribution, "{:+.2f}%")}</td>'
-                f'<td class="{bench_cls} right">{_fmt(vs_bench, "{:+.1f}%")}</td>'
-                f'</tr>'
-            )
-
-        ui.html(f'''
-        <div class="table-wrap">
-        <table>
-            <thead><tr>
-                <th scope="col">Ticker</th>
-                <th scope="col" class="right">Weight %</th>
-                <th scope="col" class="right">Position Return %</th>
-                <th scope="col" class="right">Contribution %</th>
-                <th scope="col" class="right">vs. SPY</th>
-            </tr></thead>
-            <tbody>{rows_html}</tbody>
-        </table>
-        </div>
-        ''')
-
-
 # ── Public entry point ───────────────────────────────────────────────────────
 
 async def build_risk_tab(portfolio: dict, currency: str) -> None:
@@ -440,10 +430,7 @@ async def build_risk_tab(portfolio: dict, currency: str) -> None:
         return
 
     _section_intro(
-        "A deeper look at how risky your positions are and how efficiently "
-        "they\u2019ve rewarded that risk. All figures are based on the past 12 months "
-        "of daily price data. This section uses financial industry-standard "
-        "metrics \u2014 each one is explained below its table."
+        "Portfolio risk, performance, and valuation metrics based on 12 months of daily price data."
     )
 
     # ── Fetch data (off the event loop) ──────────────────────────────────
@@ -503,18 +490,11 @@ async def build_risk_tab(portfolio: dict, currency: str) -> None:
 
     has_corr = len(tickers) >= 2
 
-    # ── Row 1: Attribution + Risk Metrics side by side ──────────────
-    with ui.element("div").classes("risk-grid"):
-        with ui.column().classes("w-full"):
-            _render_performance_attribution(portfolio_df, price_data_1y, portfolio_color_map, base_currency=currency)
-        with ui.column().classes("w-full"):
-            if not analytics_df.empty:
-                _render_risk_table(analytics_df, portfolio_color_map)
+    # ── Unified table (replaces Attribution + Risk + Fundamentals) ──
+    _render_unified_table(
+        portfolio_df, analytics_df, fund_rows, price_data_1y,
+        currency_symbol, portfolio_color_map, base_currency=currency,
+    )
 
-    # ── Row 2: Correlation + Fundamentals side by side ──────────────
-    with ui.element("div").classes("risk-grid"):
-        with ui.column().classes("w-full"):
-            if has_corr:
-                _render_correlation_heatmap(price_data_1y, tickers)
-        with ui.column().classes("w-full"):
-            _render_fundamentals_table(fund_rows, currency_symbol, portfolio_color_map)
+    if has_corr:
+        _render_correlation_heatmap(price_data_1y, tickers)
