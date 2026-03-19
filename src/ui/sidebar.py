@@ -546,28 +546,38 @@ def build_sidebar(
         dialog.open()
 
     _icon_style = (
-        f"color:{TEXT_DIM};min-width:0;width:32px;height:28px;"
+        f"color:{TEXT_DIM};min-width:0;width:auto;height:auto;"
         f"border:1px solid {BORDER_SUBTLE};border-radius:5px;"
+        f"padding:4px 8px;"
     )
+    _icon_label_style = f"font-size:8px;color:{TEXT_DIM};margin-top:1px;"
 
-    with ui.row().classes("w-full items-center justify-center").style("gap:4px;"):
-        ui.button(
-            icon="upload",
-            on_click=lambda: ui.run_javascript(
-                f'document.getElementById("c{import_upload.id}").querySelector("input").click()'
-            ),
-        ).props('flat dense round size=sm aria-label="Import"').style(_icon_style).tooltip("Import Portfolio")
+    with ui.row().classes("w-full items-center justify-center").style("gap:8px;"):
+        with ui.column().classes("items-center").style("gap:0;"):
+            ui.button(
+                icon="upload",
+                on_click=lambda: ui.run_javascript(
+                    f'document.getElementById("c{import_upload.id}").querySelector("input").click()'
+                ),
+            ).props('flat dense round size=sm aria-label="Import"').style(_icon_style).tooltip("Import Portfolio")
+            ui.html(f'<div style="{_icon_label_style}">Import</div>')
 
-        ui.button(
-            icon="download", on_click=on_export,
-        ).props('flat dense round size=sm aria-label="Export"').style(_icon_style).tooltip("Export Portfolio")
+        with ui.column().classes("items-center").style("gap:0;"):
+            ui.button(
+                icon="download", on_click=on_export,
+            ).props('flat dense round size=sm aria-label="Export"').style(_icon_style).tooltip("Export Portfolio")
+            ui.html(f'<div style="{_icon_label_style}">Export</div>')
 
-        ui.html(f'<div style="width:1px;height:16px;background:{BORDER_SUBTLE};"></div>')
+        ui.html(f'<div style="width:1px;height:24px;background:{BORDER_SUBTLE};"></div>')
 
-        ui.button(
-            icon="dataset", on_click=on_load_sample,
-        ).props('flat dense round size=sm aria-label="Sample"').style(_icon_style).tooltip("Load Sample")
+        with ui.column().classes("items-center").style("gap:0;"):
+            ui.button(
+                icon="science", on_click=on_load_sample,
+            ).props('flat dense round size=sm aria-label="Sample"').style(_icon_style).tooltip("Load Sample")
+            ui.html(f'<div style="{_icon_label_style}">Sample</div>')
 
-        ui.button(
-            icon="delete_outline", on_click=on_clear_all,
-        ).props('flat dense round size=sm aria-label="Clear"').style(_icon_style).tooltip("Clear All")
+        with ui.column().classes("items-center").style("gap:0;"):
+            ui.button(
+                icon="delete_outline", on_click=on_clear_all,
+            ).props('flat dense round size=sm aria-label="Clear"').style(_icon_style).tooltip("Clear All")
+            ui.html(f'<div style="{_icon_label_style}">Clear</div>')
