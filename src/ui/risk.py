@@ -798,7 +798,7 @@ def _render_sector_breakdown(
         if n == 1:
             s, d = sorted_sectors[0]
             grid_html = (
-                f'<div style="height:100%;min-height:160px;">'
+                f'<div style="height:100%;">'
                 f'{_cell(s, d, sector_colors[s])}'
                 f'</div>'
             )
@@ -807,7 +807,7 @@ def _render_sector_breakdown(
             s1, d1 = sorted_sectors[1]
             w0 = max(30, min(70, round(d0["weight"] / (d0["weight"] + d1["weight"]) * 100)))
             grid_html = (
-                f'<div style="display:grid;grid-template-columns:{w0}fr {100-w0}fr;gap:3px;height:100%;min-height:160px;">'
+                f'<div style="display:grid;grid-template-columns:{w0}fr {100-w0}fr;gap:3px;height:100%;">'
                 f'{_cell(s0, d0, sector_colors[s0])}'
                 f'{_cell(s1, d1, sector_colors[s1])}'
                 f'</div>'
@@ -849,7 +849,7 @@ def _render_sector_breakdown(
                     i += 1
 
             grid_html = (
-                f'<div style="display:grid;grid-template-columns:{left_w}fr {right_w}fr;gap:3px;height:100%;min-height:160px;">'
+                f'<div style="display:grid;grid-template-columns:{left_w}fr {right_w}fr;gap:3px;height:100%;">'
                 f'{_cell(s0, d0, sector_colors[s0])}'
                 f'<div style="display:flex;flex-direction:column;gap:3px;">'
                 f'{right_cells}'
@@ -857,7 +857,7 @@ def _render_sector_breakdown(
                 f'</div>'
             )
 
-        ui.html(grid_html).classes("w-full").style("flex:1;min-height:160px;")
+        ui.html(grid_html).classes("w-full").style("aspect-ratio:1;width:100%;")
 
 
 # ── Rebalancing Calculator (drift bars) ──────────────────────────────────────
