@@ -212,8 +212,8 @@ def _build_positions_table(
                 f"<td style=\"{row_style}\" class=\"right\">{_fmt_currency(row['Current Price'], currency_symbol)}</td>",
                 f"<td style=\"{row_style}\" class=\"right\">{_fmt_currency(row['Total Value'], currency_symbol)}</td>",
                 f"<td style=\"{row_style}\" class=\"right\">{_fmt_currency(row['Dividends'], currency_symbol)}</td>",
-                f"<td style=\"{row_style}\" class=\"{daily_cls} right\">{_fmt_currency(daily_pnl, currency_symbol)}</td>",
-                f"<td style=\"{row_style}\" class=\"{ret_cls} right\">{_fmt_return(ret_pct)}</td>",
+                f"<td style=\"{row_style}\" class=\"{daily_cls} right\">{'+' if pd.notna(daily_pnl) and daily_pnl > 0 else ''}{_fmt_currency(daily_pnl, currency_symbol) if pd.notna(daily_pnl) else '—'}</td>",
+                f"<td style=\"{row_style}\" class=\"{ret_cls} right\">{_fmt_return(ret_pct) if pd.notna(ret_pct) else '—'}</td>",
                 f"<td style=\"{row_style}\" class=\"right\">{row['Weight (%)']:.2f}%</td>",
             ]
 
@@ -256,7 +256,7 @@ def _build_positions_table(
             f'<td style="{ts}" class="right">\u2014</td>'
             f'<td style="font-weight:700;color:{TEXT_PRIMARY};" class="right">{_fmt_currency(total_value, currency_symbol)}</td>'
             f'<td style="{ts}" class="right">{_fmt_currency(total_divs, currency_symbol)}</td>'
-            f'<td class="{total_daily_cls} right">{_fmt_currency(total_daily, currency_symbol)}</td>'
+            f'<td class="{total_daily_cls} right">{"+" if total_daily > 0 else ""}{_fmt_currency(total_daily, currency_symbol)}</td>'
             f'<td class="right"><span class="kpi-badge {"badge-green" if total_ret_pct >= 0 else "badge-red"}" style="font-size:11px;">{"▲" if total_ret_pct >= 0 else "▼"} {_fmt_return(total_ret_pct)}</span></td>'
             f'<td style="{ts}" class="right">100.00%</td>'
             f'</tr>'
