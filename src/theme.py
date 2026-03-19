@@ -94,6 +94,7 @@ body, .q-page, .nicegui-content {
     padding-top: 12px;
 }
 .q-tabs { background: %(BG_MAIN)s !important; border-bottom: none !important; padding: 6px 0 !important; }
+.tab-bar-wrapper { position: sticky; top: 48px; z-index: 10; background: %(BG_MAIN)s; border-bottom: 1px solid %(BORDER)s; }
 .q-tabs__content { justify-content: center !important; }
 .q-tab { flex: 0 0 auto !important; align-self: center !important; border-bottom: 1px solid %(BORDER)s !important; }
 .q-tab { text-transform: none !important; font-family: 'Inter', sans-serif !important; font-size: 12px !important; font-weight: 500 !important; letter-spacing: 0.01em !important; color: %(TEXT_FAINT)s !important; }
@@ -330,6 +331,9 @@ body, .q-page, .nicegui-content {
 .metric-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--grid-gap); width: 100%%; }
 .metric-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--grid-gap); width: 100%%; }
 .preview-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: var(--grid-gap); width: 100%%; }
+.risk-triple { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--grid-gap); width: 100%%; align-items: stretch; }
+.risk-triple > * { display: flex; flex-direction: column; min-width: 0; }
+.risk-triple .chart-card { flex: 1; display: flex; flex-direction: column; }
 .diag-row { display: flex; gap: var(--grid-gap); align-items: stretch !important; flex-wrap: wrap; width: 100%%; }
 .diag-row > * { flex: 1; min-width: 280px; }
 .diag-row > * { align-self: stretch !important; }
@@ -344,6 +348,7 @@ body, .q-page, .nicegui-content {
 /* ── Responsive: Tablet (< 1024px) ────────────────────── */
 @media (max-width: 1023px) {
   .charts-row { grid-template-columns: 1fr; gap: 12px; }
+  .risk-triple { grid-template-columns: 1fr; gap: 12px; }
   .risk-grid { grid-template-columns: 1fr; }
   .metric-grid-4 { grid-template-columns: repeat(2, 1fr); }
   .metric-grid-3 { grid-template-columns: repeat(2, 1fr); }
