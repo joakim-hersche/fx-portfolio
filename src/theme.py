@@ -380,6 +380,10 @@ body, .q-page, .nicegui-content {
   .preview-grid { grid-template-columns: 1fr; }
   .diag-row > * { min-width: 0; flex-basis: 100%%; }
 
+  .q-drawer__backdrop {
+    background: rgba(0, 0, 0, 0.5) !important;
+  }
+
   .tab-bar-wrapper {
     position: relative;
     width: 100%%;
