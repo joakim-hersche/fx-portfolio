@@ -181,9 +181,9 @@ def _build_positions_table(
             "Share (%)": "What percentage of your total portfolio this position represents by value.",
         }
         header_cells = "".join(
-            f'<th scope="col" class="right th-tip" data-tip="{_col_tips[c]}">{c}</th>'
+            f'<th scope="col" class="right th-tip" title="{_col_tips[c]}">{c}</th>'
             if c in _col_tips and c in right_cols
-            else f'<th scope="col" class="th-tip" data-tip="{_col_tips[c]}">{c}</th>'
+            else f'<th scope="col" class="th-tip" title="{_col_tips[c]}">{c}</th>'
             if c in _col_tips
             else f'<th scope="col" class="right">{c}</th>'
             if c in right_cols

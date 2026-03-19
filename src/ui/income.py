@@ -533,9 +533,9 @@ def _build_income_table(
                     <tr>
                         <th>Ticker</th>
                         <th class="right">Shares</th>
-                        <th class="right th-tip" data-tip="Estimated yearly dividend income from this position, in your base currency.">Annual Income</th>
-                        <th class="right th-tip" data-tip="Annual dividend as a % of the current stock price. Higher = more cash income per dollar invested today.">Yield</th>
-                        <th class="right th-tip" data-tip="Annual dividend as a % of what you originally paid. Shows how your income compares to your purchase price, not today's price.">Yield on Cost</th>
+                        <th class="right th-tip" title="Estimated yearly dividend income from this position, in your base currency.">Annual Income</th>
+                        <th class="right th-tip" title="Annual dividend as a % of the current stock price. Higher = more cash income per dollar invested today.">Yield</th>
+                        <th class="right th-tip" title="Annual dividend as a % of what you originally paid. Shows how your income compares to your purchase price, not today's price.">Yield on Cost</th>
                     </tr>
                 </thead>
                 <tbody>

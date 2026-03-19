@@ -300,7 +300,7 @@ def _render_unified_table(
                     color_style = f"color:{AMBER};"
                 return (
                     f'<span style="margin-right:14px;white-space:nowrap;">'
-                    f'<span class="th-tip" data-tip="{tip}" style="color:{TEXT_DIM};font-size:11px;">{label}</span> '
+                    f'<span class="th-tip" title="{tip}" style="color:{TEXT_DIM};font-size:11px;">{label}</span> '
                     f'<span style="font-size:11px;font-weight:600;{color_style}">{value_str}</span>'
                     f'</span>'
                 )
@@ -357,10 +357,10 @@ def _render_unified_table(
         <table>
             <thead><tr>
                 <th scope="col">Ticker</th>
-                <th scope="col" class="right th-tip" data-tip="What percentage of your total portfolio value this position represents.">Weight %</th>
-                <th scope="col" class="right th-tip" data-tip="How much this stock's price changed over the past 12 months.">1Y Return</th>
-                <th scope="col" class="right th-tip" data-tip="How much this position contributed to your overall portfolio return, based on its weight.">Contribution</th>
-                <th scope="col" class="right th-tip" data-tip="Performance compared to the S&amp;P 500 index over the same period. Positive = beat the market.">vs SPY</th>
+                <th scope="col" class="right th-tip" title="What percentage of your total portfolio value this position represents.">Weight %</th>
+                <th scope="col" class="right th-tip" title="How much this stock's price changed over the past 12 months.">1Y Return</th>
+                <th scope="col" class="right th-tip" title="How much this position contributed to your overall portfolio return, based on its weight.">Contribution</th>
+                <th scope="col" class="right th-tip" title="Performance compared to the S&amp;P 500 index over the same period. Positive = beat the market.">vs SPY</th>
             </tr></thead>
             <tbody>{rows_html}</tbody>
         </table>
@@ -577,13 +577,13 @@ def _render_flat_table(
                 <th class="right">1Y Return</th>
                 <th class="right">Contribution</th>
                 <th class="right">vs S&amp;P</th>
-                <th class="right th-tip" style="border-left:1px solid rgba(255,255,255,0.07);" data-tip="How much the price swings day to day, as a yearly %. Higher = more unpredictable.">Volatility</th>
-                <th class="right th-tip" data-tip="Biggest peak-to-trough fall in the past year. Shows the worst losing streak.">Worst Drop</th>
-                <th class="right th-tip" data-tip="Return per unit of risk (Sharpe Ratio). Above 1 is good, above 2 is excellent, below 0 means you lost money.">Return/Risk</th>
-                <th class="right th-tip" data-tip="How much this stock moves relative to the S&amp;P 500. 1.0 = same swings, above 1 = more volatile, below 1 = calmer.">Beta</th>
-                <th class="right th-tip" style="border-left:1px solid rgba(255,255,255,0.07);" data-tip="Price-to-Earnings ratio. How many years of current profits you pay for the stock. Lower can mean cheaper, higher can mean expected growth.">P/E Ratio</th>
-                <th class="right th-tip" data-tip="Annual dividend payment as a % of the stock price. Higher = more cash income from holding.">Div Yield</th>
-                <th class="th-tip" data-tip="The lowest and highest price in the past 52 weeks. The dot shows where the current price sits.">52-Week Range</th>
+                <th class="right th-tip" style="border-left:1px solid rgba(255,255,255,0.07);" title="How much the price swings day to day, as a yearly %. Higher = more unpredictable.">Volatility</th>
+                <th class="right th-tip" title="Biggest peak-to-trough fall in the past year. Shows the worst losing streak.">Worst Drop</th>
+                <th class="right th-tip" title="Return per unit of risk (Sharpe Ratio). Above 1 is good, above 2 is excellent, below 0 means you lost money.">Return/Risk</th>
+                <th class="right th-tip" title="How much this stock moves relative to the S&amp;P 500. 1.0 = same swings, above 1 = more volatile, below 1 = calmer.">Beta</th>
+                <th class="right th-tip" style="border-left:1px solid rgba(255,255,255,0.07);" title="Price-to-Earnings ratio. How many years of current profits you pay for the stock. Lower can mean cheaper, higher can mean expected growth.">P/E Ratio</th>
+                <th class="right th-tip" title="Annual dividend payment as a % of the stock price. Higher = more cash income from holding.">Div Yield</th>
+                <th class="th-tip" title="The lowest and highest price in the past 52 weeks. The dot shows where the current price sits.">52-Week Range</th>
                 <th class="right">Current</th>
               </tr>
             </thead>
@@ -718,12 +718,11 @@ def _render_correlation_heatmap(price_data: dict, tickers: list) -> None:
                     )
 
 
-# ── Sector Breakdown Chart ────────────────────────────────────────────────────
+# ── Sector Breakdown ──────────────────────────────────────────────────────────
 
-# Neutral blues/purples/teals palette for sector bars
 _SECTOR_COLORS = [
-    "#1E40AF", "#0E7490", "#6D28D9", "#0369A1", "#4F46E5",
-    "#0F766E", "#1D4ED8", "#7C3AED", "#0891B2", "#3730A3",
+    "#3B82F6", "#0EA5E9", "#6366F1", "#10B981", "#F59E0B",
+    "#EC4899", "#8B5CF6", "#14B8A6", "#0E7490", "#D97706",
 ]
 
 
@@ -731,102 +730,107 @@ def _render_sector_breakdown(
     fund_rows: list[dict],
     portfolio_df: pd.DataFrame,
 ) -> None:
-    """Render a horizontal bar chart showing portfolio weight by sector."""
+    """Sector concentration: stacked bar + grouped legend with tickers."""
     with ui.column().classes("chart-card w-full"):
-        _section_header("Sector Breakdown")
-        _section_intro(
-            "Shows which industries your money is spread across. "
-            "If one sector dominates, a downturn in that industry affects your whole portfolio. "
-            "ETFs and crypto default to \u201cUnknown\u201d."
+        ui.html(
+            f'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">'
+            f'<div style="font-size:10px;font-weight:700;letter-spacing:0.12em;'
+            f'text-transform:uppercase;color:{TEXT_MUTED};">Sector Exposure</div>'
+            f'<div style="font-size:10px;color:{TEXT_DIM};">by portfolio weight</div>'
+            f'</div>'
         )
 
         if not fund_rows or portfolio_df.empty:
-            ui.html(
-                f'<p style="color:{TEXT_DIM}; font-size:12px;">'
-                f'No sector data available.</p>'
-            )
+            ui.html(f'<p style="color:{TEXT_DIM};font-size:12px;">No sector data available.</p>')
             return
 
-        # Build a ticker -> sector mapping from fund_rows
+        # Build sector -> tickers mapping with weights
         ticker_sector: dict[str, str] = {
             r["Ticker"]: r.get("Sector", "Unknown") for r in fund_rows
         }
+        ticker_weights = portfolio_df.groupby("Ticker")["Weight (%)"].sum().to_dict()
 
-        # Aggregate weights by ticker first (portfolio_df has per-lot rows)
-        ticker_weights = (
-            portfolio_df.groupby("Ticker")["Weight (%)"].sum().to_dict()
-        )
-
-        # Sum weights per sector
-        sector_weights: dict[str, float] = {}
+        sector_data: dict[str, dict] = {}  # sector -> {weight, tickers}
         for ticker, weight in ticker_weights.items():
             sector = ticker_sector.get(ticker, "Unknown")
-            sector_weights[sector] = sector_weights.get(sector, 0.0) + weight
+            if sector not in sector_data:
+                sector_data[sector] = {"weight": 0.0, "tickers": []}
+            sector_data[sector]["weight"] += weight
+            sector_data[sector]["tickers"].append((ticker, weight))
 
-        # Sort descending by weight
-        sorted_sectors = sorted(sector_weights.items(), key=lambda x: x[1], reverse=True)
-
+        sorted_sectors = sorted(sector_data.items(), key=lambda x: x[1]["weight"], reverse=True)
         if not sorted_sectors:
-            ui.html(
-                f'<p style="color:{TEXT_DIM}; font-size:12px;">'
-                f'No sector data available.</p>'
-            )
+            ui.html(f'<p style="color:{TEXT_DIM};font-size:12px;">No sector data available.</p>')
             return
 
-        max_pct = max(w for _, w in sorted_sectors) if sorted_sectors else 1
-        bar_h = 14
+        # Assign colors
+        sector_colors = {s: _SECTOR_COLORS[i % len(_SECTOR_COLORS)] for i, (s, _) in enumerate(sorted_sectors)}
 
-        bar_rows = ""
-        for i, (sector, pct) in enumerate(sorted_sectors):
-            bar_width = (pct / max_pct * 100) if max_pct > 0 else 0
-            color = _SECTOR_COLORS[i % len(_SECTOR_COLORS)]
-            bar_rows += (
-                f'<div style="display:flex;align-items:center;gap:8px;line-height:1.4;">'
-                f'<div style="width:120px;font-size:11px;font-weight:600;color:{TEXT_SECONDARY};'
+        # ── Stacked horizontal bar ──
+        segments = ""
+        for sector, data in sorted_sectors:
+            w = data["weight"]
+            color = sector_colors[sector]
+            tickers_str = ", ".join(t for t, _ in data["tickers"])
+            segments += (
+                f'<div title="{sector}: {w:.1f}% ({tickers_str})" '
+                f'style="width:{w:.1f}%;height:100%;background:{color};'
+                f'transition:opacity 0.15s;min-width:2px;"></div>'
+            )
+
+        ui.html(
+            f'<div style="width:100%;height:20px;border-radius:6px;overflow:hidden;'
+            f'display:flex;gap:2px;background:rgba(255,255,255,0.04);margin-bottom:14px;">'
+            f'{segments}</div>'
+        )
+
+        # ── Legend rows: sector name, bar, percentage, tickers ──
+        legend = ""
+        for sector, data in sorted_sectors:
+            color = sector_colors[sector]
+            w = data["weight"]
+            ticker_tags = " ".join(
+                f'<span style="font-size:9px;color:{TEXT_DIM};background:{BG_PILL};'
+                f'padding:1px 5px;border-radius:3px;border:1px solid {BORDER_SUBTLE};">{t}</span>'
+                for t, _ in sorted(data["tickers"], key=lambda x: x[1], reverse=True)
+            )
+            legend += (
+                f'<div style="display:flex;align-items:center;gap:8px;">'
+                f'<div style="width:8px;height:8px;border-radius:2px;background:{color};flex-shrink:0;"></div>'
+                f'<div style="width:110px;font-size:11px;font-weight:600;color:{TEXT_SECONDARY};'
                 f'flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" '
                 f'title="{sector}">{sector}</div>'
-                f'<div style="flex:1;height:{bar_h}px;background:rgba(255,255,255,0.04);'
-                f'border-radius:4px;overflow:hidden;">'
-                f'<div style="width:{bar_width:.1f}%;height:100%;background:{color};'
-                f'border-radius:4px;"></div>'
-                f'</div>'
-                f'<div style="width:36px;font-size:11px;color:{TEXT_DIM};text-align:right;'
-                f'flex-shrink:0;">{pct:.0f}%</div>'
+                f'<div style="width:34px;font-size:11px;font-weight:600;color:{TEXT_PRIMARY};'
+                f'text-align:right;flex-shrink:0;">{w:.0f}%</div>'
+                f'<div style="display:flex;gap:3px;flex-wrap:wrap;margin-left:4px;">{ticker_tags}</div>'
                 f'</div>'
             )
 
         ui.html(
-            f'<div style="display:flex;flex-direction:column;gap:6px;">'
-            f'{bar_rows}'
-            f'</div>'
+            f'<div style="display:flex;flex-direction:column;gap:7px;">{legend}</div>'
         )
 
 
 # ── Rebalancing Calculator ────────────────────────────────────────────────────
 
 def _render_rebalancing_calculator(portfolio_df: pd.DataFrame, currency_symbol: str) -> None:
-    """Render an interactive buy-only rebalancing calculator."""
+    """Buy-only rebalancing calculator with inline target editing."""
     with ui.column().classes("chart-card w-full"):
-        _section_header("Rebalancing Calculator")
-        _section_intro(
-            "Helps you decide what to buy next. Set a target percentage for each stock "
-            "(how much of your portfolio you <i>want</i> it to be), enter how much money "
-            "you are adding, and the calculator tells you which stocks to buy to get closer "
-            "to your targets. It will never suggest selling."
+        ui.html(
+            f'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">'
+            f'<div style="font-size:10px;font-weight:700;letter-spacing:0.12em;'
+            f'text-transform:uppercase;color:{TEXT_MUTED};">Rebalancing Calculator</div>'
+            f'<div style="font-size:10px;color:{TEXT_DIM};">buy-only</div>'
+            f'</div>'
         )
         ui.html(
-            f'<div style="background:rgba(217,119,6,0.1);border:1px solid rgba(217,119,6,0.3);'
-            f'border-radius:6px;padding:8px 12px;margin-bottom:8px;">'
-            f'<span style="color:{AMBER};font-size:11px;">'
-            'This is a mechanical calculation, not a recommendation. '
-            'Consult a qualified adviser before making investment decisions.</span></div>'
+            f'<div style="font-size:11px;color:{TEXT_DIM};margin-bottom:10px;">'
+            f'Set targets and a deposit amount to see what to buy. '
+            f'<span style="color:{AMBER};">Not a recommendation.</span></div>'
         )
 
         if portfolio_df.empty:
-            ui.html(
-                f'<p style="color:{TEXT_DIM}; font-size:12px;">'
-                f'No positions to rebalance.</p>'
-            )
+            ui.html(f'<p style="color:{TEXT_DIM};font-size:12px;">No positions to rebalance.</p>')
             return
 
         # Aggregate to ticker level
@@ -836,7 +840,6 @@ def _render_rebalancing_calculator(portfolio_df: pd.DataFrame, currency_symbol: 
             .reset_index()
         )
 
-        # State containers
         target_weights: dict[str, float] = {
             row["Ticker"]: round(row["Weight (%)"], 2)
             for _, row in ticker_data.iterrows()
@@ -845,25 +848,22 @@ def _render_rebalancing_calculator(portfolio_df: pd.DataFrame, currency_symbol: 
         output_container = None
 
         def _recalculate():
-            """Recalculate rebalancing suggestions."""
             if output_container is None:
                 return
             output_container.clear()
 
             deposit = deposit_ref["value"] or 0.0
-
             with output_container:
                 if deposit <= 0:
                     ui.html(
-                        f'<p style="color:{TEXT_DIM}; font-size:12px; margin-top:8px;">'
-                        f'Enter a deposit amount to see buy suggestions.</p>'
+                        f'<div style="color:{TEXT_DIM};font-size:11px;padding:8px 0;">'
+                        f'Enter a deposit amount above.</div>'
                     )
                     return
 
                 total_value = ticker_data["Total Value"].sum()
                 new_total = total_value + deposit
 
-                # Compute drift and buy-only allocation
                 suggestions = []
                 for _, row in ticker_data.iterrows():
                     ticker = row["Ticker"]
@@ -871,24 +871,17 @@ def _render_rebalancing_calculator(portfolio_df: pd.DataFrame, currency_symbol: 
                     target_pct = target_weights.get(ticker, current_pct)
                     current_value = row["Total Value"]
                     price = row["Current Price"]
-
                     target_value = new_total * target_pct / 100
                     deficit = target_value - current_value
                     drift = target_pct - (current_value / new_total * 100)
-
                     suggestions.append({
-                        "Ticker": ticker,
-                        "Current %": current_pct,
-                        "Target %": target_pct,
-                        "Drift": drift,
-                        "Deficit": max(deficit, 0),  # buy-only
-                        "Price": price,
+                        "Ticker": ticker, "Current %": current_pct,
+                        "Target %": target_pct, "Drift": drift,
+                        "Deficit": max(deficit, 0), "Price": price,
                     })
 
-                # Sort by deficit descending (most underweight first)
                 suggestions.sort(key=lambda s: s["Deficit"], reverse=True)
 
-                # Allocate deposit to most underweight positions, whole shares
                 remaining = deposit
                 actions: list[dict] = []
                 for s in suggestions:
@@ -901,7 +894,6 @@ def _render_rebalancing_calculator(portfolio_df: pd.DataFrame, currency_symbol: 
                     remaining -= amount
                     actions.append({**s, "Shares to Buy": shares, "Amount": amount})
 
-                # Second pass: allocate remaining to most underweight that can buy at least 1 share
                 if remaining > 0:
                     for a in actions:
                         if remaining <= 0:
@@ -914,96 +906,96 @@ def _render_rebalancing_calculator(portfolio_df: pd.DataFrame, currency_symbol: 
                                 a["Amount"] += extra * price
                                 remaining -= extra * price
 
-                # Build output table
-                rows_html = ""
+                # Compact result cards per ticker
+                cards = ""
                 for a in actions:
-                    drift_val = a["Drift"]
-                    drift_cls = "td-pos" if drift_val > 0.5 else ("td-neg" if drift_val < -0.5 else "")
                     shares = a["Shares to Buy"]
-                    action_text = f"+{shares} shares" if shares > 0 else "\u2014"
-                    action_cls = "td-pos" if shares > 0 else ""
-                    amount_text = f"{currency_symbol}{a['Amount']:.2f}" if shares > 0 else "\u2014"
-
-                    rows_html += (
-                        f'<tr>'
-                        f'<td><div class="td-ticker">{a["Ticker"]}</div></td>'
-                        f'<td class="right">{a["Current %"]:.1f}%</td>'
-                        f'<td class="right">{a["Target %"]:.1f}%</td>'
-                        f'<td class="{drift_cls} right">{drift_val:+.1f}%</td>'
-                        f'<td class="{action_cls}">{action_text}</td>'
-                        f'<td class="right">{amount_text}</td>'
-                        f'</tr>'
+                    if shares <= 0:
+                        continue
+                    drift_val = a["Drift"]
+                    drift_color = GREEN if drift_val > 0.5 else (RED if drift_val < -0.5 else TEXT_DIM)
+                    cards += (
+                        f'<div style="background:{BG_PILL};border:1px solid {BORDER_SUBTLE};'
+                        f'border-radius:8px;padding:10px 12px;display:flex;align-items:center;'
+                        f'justify-content:space-between;gap:10px;">'
+                        f'<div style="display:flex;align-items:center;gap:8px;">'
+                        f'<span style="font-size:12px;font-weight:700;color:{TEXT_PRIMARY};">{a["Ticker"]}</span>'
+                        f'<span style="font-size:11px;color:{drift_color};font-weight:600;">{drift_val:+.1f}%</span>'
+                        f'</div>'
+                        f'<div style="display:flex;align-items:center;gap:12px;">'
+                        f'<span style="font-size:12px;font-weight:700;color:{GREEN};">+{shares}</span>'
+                        f'<span style="font-size:11px;color:{TEXT_DIM};">{currency_symbol}{a["Amount"]:,.0f}</span>'
+                        f'</div>'
+                        f'</div>'
                     )
 
-                unallocated = remaining
-                footer = ""
-                if unallocated > 0.01:
-                    footer = (
-                        f'<div style="font-size:11px;color:{TEXT_DIM};margin-top:6px;">'
-                        f'Unallocated: {currency_symbol}{unallocated:.2f} '
-                        f'(not enough for a whole share)</div>'
+                if not cards:
+                    ui.html(
+                        f'<div style="color:{TEXT_DIM};font-size:11px;padding:8px 0;">'
+                        f'All positions are at or above target.</div>'
+                    )
+                    return
+
+                ui.html(f'<div style="display:flex;flex-direction:column;gap:4px;">{cards}</div>')
+
+                if remaining > 0.01:
+                    ui.html(
+                        f'<div style="font-size:10px;color:{TEXT_DIM};margin-top:4px;">'
+                        f'{currency_symbol}{remaining:.2f} unallocated (not enough for a whole share)</div>'
                     )
 
-                ui.html(f'''
-                <div style="overflow-x:auto;">
-                <div class="table-wrap" style="margin-top:8px;">
-                <table>
-                    <thead><tr>
-                        <th scope="col">Ticker</th>
-                        <th scope="col" class="right">Current %</th>
-                        <th scope="col" class="right">Target %</th>
-                        <th scope="col" class="right">Drift</th>
-                        <th scope="col">Suggested</th>
-                        <th scope="col" class="right">Amount</th>
-                    </tr></thead>
-                    <tbody>{rows_html}</tbody>
-                </table>
-                </div>
-                </div>
-                {footer}
-                ''')
-
-        # ── Input controls ──────────────────────────────
-        with ui.row().classes("w-full").style("gap:16px;align-items:flex-end;flex-wrap:wrap;"):
-            # Deposit field
+        # ── Deposit input ──
+        with ui.row().classes("w-full items-end").style("gap:12px;margin-bottom:10px;"):
             with ui.column().style("gap:2px;"):
-                ui.html(f'<span style="font-size:10px;font-weight:500;color:{TEXT_DIM};">Next Deposit ({currency_symbol})</span>')
+                ui.html(
+                    f'<span style="font-size:10px;font-weight:600;color:{TEXT_DIM};">'
+                    f'Deposit ({currency_symbol})</span>'
+                )
                 deposit_input = ui.number(
-                    value=0, min=0, format="%.2f",
-                ).style("width:140px;")
+                    value=0, min=0, format="%.0f",
+                ).style("width:120px;")
 
                 def _on_deposit(e):
                     deposit_ref["value"] = e.value or 0.0
                     _recalculate()
                 deposit_input.on("update:model-value", _on_deposit)
 
-        # Target weight inputs
+        # ── Inline target weights: ticker + current vs target ──
         ui.html(
-            f'<div style="font-size:10px;font-weight:500;color:{TEXT_DIM};margin-top:10px;">'
-            f'Target Weights</div>'
+            f'<div style="display:flex;gap:16px;font-size:9px;color:{TEXT_DIM};'
+            f'margin-bottom:4px;padding-left:2px;">'
+            f'<span style="width:52px;">Ticker</span>'
+            f'<span style="width:44px;text-align:right;">Now</span>'
+            f'<span style="flex:1;text-align:center;">Target %</span>'
+            f'</div>'
         )
-        with ui.row().classes("w-full").style("gap:10px;flex-wrap:wrap;"):
-            for _, row in ticker_data.iterrows():
-                ticker = row["Ticker"]
-                with ui.column().style("gap:2px;"):
-                    ui.html(
-                        f'<span style="font-size:10px;font-weight:600;color:{TEXT_SECONDARY};">'
-                        f'{ticker}</span>'
-                    )
-                    inp = ui.number(
-                        value=round(row["Weight (%)"], 2),
-                        min=0, max=100, step=0.5, format="%.1f",
-                        suffix="%",
-                    ).style("width:90px;")
+        for _, row in ticker_data.iterrows():
+            ticker = row["Ticker"]
+            current_w = row["Weight (%)"]
+            with ui.row().classes("w-full items-center").style("gap:8px;margin-bottom:2px;"):
+                ui.html(
+                    f'<span style="width:52px;font-size:11px;font-weight:700;'
+                    f'color:{TEXT_PRIMARY};flex-shrink:0;">{ticker}</span>'
+                )
+                ui.html(
+                    f'<span style="width:44px;font-size:11px;color:{TEXT_DIM};'
+                    f'text-align:right;flex-shrink:0;">{current_w:.0f}%</span>'
+                )
+                inp = ui.number(
+                    value=round(row["Weight (%)"], 1),
+                    min=0, max=100, step=0.5, format="%.1f",
+                    suffix="%",
+                ).style("flex:1;min-width:70px;max-width:120px;")
 
-                    def _make_handler(t):
-                        def handler(e):
-                            target_weights[t] = e.value if e.value is not None else 0.0
-                            _recalculate()
-                        return handler
-                    inp.on("update:model-value", _make_handler(ticker))
+                def _make_handler(t):
+                    def handler(e):
+                        target_weights[t] = e.value if e.value is not None else 0.0
+                        _recalculate()
+                    return handler
+                inp.on("update:model-value", _make_handler(ticker))
 
-        output_container = ui.column().classes("w-full")
+        # ── Results ──
+        output_container = ui.column().classes("w-full").style("margin-top:8px;")
         _recalculate()
 
 

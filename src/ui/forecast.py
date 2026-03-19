@@ -582,12 +582,12 @@ def _render_backtest(
         <table>
             <thead><tr>
                 <th scope="col">Ticker</th>
-                <th scope="col" class="th-tip" data-tip="How often the actual price stayed inside the model's 80% confidence band. Should be close to 80% if the model is accurate.">Hit Rate 80% CI</th>
-                <th scope="col" class="th-tip" data-tip="How often the actual price stayed inside the 50% confidence band. Should be close to 50%.">Hit Rate 50% CI</th>
-                <th scope="col" class="th-tip" data-tip="Measures how 'fat' the tails of the return distribution are. Above 3 means extreme moves happen more often than expected.">Kurtosis</th>
-                <th scope="col" class="th-tip" data-tip="Whether returns lean more to one side. Negative = more large drops, positive = more large gains.">Skewness</th>
-                <th scope="col" class="th-tip" data-tip="Yes means this stock has unusually extreme price swings. The simulation will understate how bad a bad day can really be.">Fat-tailed</th>
-                <th scope="col" class="th-tip" data-tip="Overall model quality for this stock. Well-calibrated = trustworthy bands. Poorly-calibrated = take the fan chart with a grain of salt.">Reliability</th>
+                <th scope="col" class="th-tip" title="How often the actual price stayed inside the model's 80% confidence band. Should be close to 80% if the model is accurate.">Hit Rate 80% CI</th>
+                <th scope="col" class="th-tip" title="How often the actual price stayed inside the 50% confidence band. Should be close to 50%.">Hit Rate 50% CI</th>
+                <th scope="col" class="th-tip" title="Measures how 'fat' the tails of the return distribution are. Above 3 means extreme moves happen more often than expected.">Kurtosis</th>
+                <th scope="col" class="th-tip" title="Whether returns lean more to one side. Negative = more large drops, positive = more large gains.">Skewness</th>
+                <th scope="col" class="th-tip" title="Yes means this stock has unusually extreme price swings. The simulation will understate how bad a bad day can really be.">Fat-tailed</th>
+                <th scope="col" class="th-tip" title="Overall model quality for this stock. Well-calibrated = trustworthy bands. Poorly-calibrated = take the fan chart with a grain of salt.">Reliability</th>
             </tr></thead>
             <tbody>{rows_html}</tbody>
         </table>
@@ -708,8 +708,8 @@ def _render_model_diagnostics(
             <table>
                 <thead><tr>
                     <th scope="col">Ticker</th>
-                    <th scope="col" class="th-tip" data-tip="Jarque-Bera test: checks if daily returns follow a bell curve. Pass = normal, Fail = fat tails or skew (extreme days happen more than expected).">Normality (JB)</th>
-                    <th scope="col" class="th-tip" data-tip="Ljung-Box test: checks if today's return is related to recent days. Pass = independent, Fail = there is momentum or mean-reversion the model ignores.">Independence (LB)</th>
+                    <th scope="col" class="th-tip" title="Jarque-Bera test: checks if daily returns follow a bell curve. Pass = normal, Fail = fat tails or skew (extreme days happen more than expected).">Normality (JB)</th>
+                    <th scope="col" class="th-tip" title="Ljung-Box test: checks if today's return is related to recent days. Pass = independent, Fail = there is momentum or mean-reversion the model ignores.">Independence (LB)</th>
                     <th scope="col">Verdict</th>
                 </tr></thead>
                 <tbody>{rows_html}</tbody>
