@@ -795,10 +795,12 @@ def _render_sector_breakdown(
             )
 
         # ── Layout strategy: biggest sector on left full-height, rest stack right ──
+        _sq = "width:100%;aspect-ratio:1;"
+
         if n == 1:
             s, d = sorted_sectors[0]
             grid_html = (
-                f'<div style="height:100%;">'
+                f'<div style="{_sq}">'
                 f'{_cell(s, d, sector_colors[s])}'
                 f'</div>'
             )
@@ -807,26 +809,22 @@ def _render_sector_breakdown(
             s1, d1 = sorted_sectors[1]
             w0 = max(30, min(70, round(d0["weight"] / (d0["weight"] + d1["weight"]) * 100)))
             grid_html = (
-                f'<div style="display:grid;grid-template-columns:{w0}fr {100-w0}fr;gap:3px;height:100%;">'
+                f'<div style="display:grid;grid-template-columns:{w0}fr {100-w0}fr;gap:3px;{_sq}">'
                 f'{_cell(s0, d0, sector_colors[s0])}'
                 f'{_cell(s1, d1, sector_colors[s1])}'
                 f'</div>'
             )
         else:
-            # First sector takes left column, rest stack on the right
             s0, d0 = sorted_sectors[0]
             rest = sorted_sectors[1:]
-            # Left column width proportional to first sector weight, clamped
             left_w = max(30, min(60, round(d0["weight"])))
             right_w = 100 - left_w
-            # Right side: split into rows; pair small sectors together
             right_cells = ""
             rest_total = sum(d["weight"] for _, d in rest)
             i = 0
             while i < len(rest):
                 s, d = rest[i]
                 w_frac = d["weight"] / rest_total if rest_total > 0 else 1.0 / len(rest)
-                # If next sector is also small, put them side by side
                 if i + 1 < len(rest) and d["weight"] < 20 and rest[i + 1][1]["weight"] < 20:
                     s2, d2 = rest[i + 1]
                     pair_total = d["weight"] + d2["weight"]
@@ -849,7 +847,7 @@ def _render_sector_breakdown(
                     i += 1
 
             grid_html = (
-                f'<div style="display:grid;grid-template-columns:{left_w}fr {right_w}fr;gap:3px;height:100%;">'
+                f'<div style="display:grid;grid-template-columns:{left_w}fr {right_w}fr;gap:3px;{_sq}">'
                 f'{_cell(s0, d0, sector_colors[s0])}'
                 f'<div style="display:flex;flex-direction:column;gap:3px;">'
                 f'{right_cells}'
@@ -857,7 +855,7 @@ def _render_sector_breakdown(
                 f'</div>'
             )
 
-        ui.html(grid_html).classes("w-full").style("aspect-ratio:1;width:100%;")
+        ui.html(grid_html)
 
 
 # ── Rebalancing Calculator (drift bars) ──────────────────────────────────────
@@ -866,16 +864,16 @@ def _render_rebalancing_calculator(portfolio_df: pd.DataFrame, currency_symbol: 
     """Buy-only rebalancing calculator with drift-bar visualisation."""
     with ui.column().classes("chart-card w-full"):
         ui.html(
-            f'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">'
+            f'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">'
             f'<div style="font-size:10px;font-weight:700;letter-spacing:0.12em;'
             f'text-transform:uppercase;color:{TEXT_MUTED};">Rebalancing Calculator</div>'
             f'<div style="font-size:10px;color:{TEXT_DIM};">buy-only</div>'
             f'</div>'
         )
-        ui.html(
-            f'<div style="font-size:11px;color:{TEXT_DIM};margin-bottom:10px;">'
-            f'Set targets and a deposit amount to see what to buy. '
-            f'<span style="color:{AMBER};">Not a recommendation.</span></div>'
+
+        _section_intro(
+            "Set target weights and a deposit amount. "
+            "<span style=\"color:" + AMBER + ";\">Not a recommendation.</span>"
         )
 
         if portfolio_df.empty:
@@ -903,8 +901,8 @@ def _render_rebalancing_calculator(portfolio_df: pd.DataFrame, currency_symbol: 
             with container:
                 deposit = deposit_ref["value"] or 0.0
 
-                # ── Drift bars (always shown) ──
                 action_map: dict[str, dict] = {}
+                remaining = 0.0
                 if deposit > 0:
                     total_value = ticker_data["Total Value"].sum()
                     new_total = total_value + deposit
@@ -948,7 +946,7 @@ def _render_rebalancing_calculator(portfolio_df: pd.DataFrame, currency_symbol: 
                                     a["Amount"] += extra * price
                                     remaining -= extra * price
 
-                # Render drift bar rows
+                # Drift bar rows
                 bars_html = ""
                 for _, row in ticker_data.iterrows():
                     t = row["Ticker"]
@@ -959,35 +957,30 @@ def _render_rebalancing_calculator(portfolio_df: pd.DataFrame, currency_symbol: 
                     amount = a.get("Amount", 0.0)
 
                     if abs(tgt - cur) < 0.5:
-                        border_color = ACCENT
-                        opacity = "0.7"
+                        border_color = ACCENT; opacity = "0.7"
                     elif tgt > cur:
-                        border_color = GREEN
-                        opacity = "0.5"
+                        border_color = GREEN; opacity = "0.5"
                     else:
-                        border_color = AMBER
-                        opacity = "0.5"
+                        border_color = AMBER; opacity = "0.5"
 
-                    buy_html = ""
-                    if shares > 0:
-                        buy_html = (
-                            f'<span style="font-size:10px;font-weight:700;color:{GREEN};'
-                            f'flex-shrink:0;white-space:nowrap;">'
-                            f'+{shares} ({currency_symbol}{amount:,.0f})</span>'
-                        )
+                    buy_html = (
+                        f'<span style="font-size:10px;font-weight:700;color:{GREEN};'
+                        f'white-space:nowrap;">+{shares} ({currency_symbol}{amount:,.0f})</span>'
+                        if shares > 0 else ""
+                    )
 
                     bars_html += (
-                        f'<div style="margin-bottom:6px;">'
-                        f'<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;">'
-                        f'<span style="font-size:10px;font-weight:600;color:{TEXT_SECONDARY};'
+                        f'<div style="margin-bottom:8px;">'
+                        f'<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">'
+                        f'<span style="font-size:11px;font-weight:700;color:{TEXT_PRIMARY};'
                         f'width:48px;flex-shrink:0;">{t}</span>'
                         f'<span style="font-size:9px;color:{TEXT_DIM};">'
                         f'{cur:.0f}% \u2192 {tgt:.0f}%</span>'
                         f'<span style="flex:1;"></span>'
                         f'{buy_html}'
                         f'</div>'
-                        f'<div style="height:10px;background:rgba(255,255,255,0.06);border-radius:4px;'
-                        f'overflow:visible;position:relative;">'
+                        f'<div style="height:8px;background:rgba(255,255,255,0.06);border-radius:4px;'
+                        f'position:relative;">'
                         f'<div style="position:absolute;left:0;width:{min(cur, 100):.1f}%;height:100%;'
                         f'background:{TEXT_DIM};border-radius:4px;opacity:{opacity};"></div>'
                         f'<div style="position:absolute;left:0;width:{min(tgt, 100):.1f}%;height:100%;'
@@ -1000,54 +993,75 @@ def _render_rebalancing_calculator(portfolio_df: pd.DataFrame, currency_symbol: 
 
                 if deposit > 0 and remaining > 0.01:
                     ui.html(
-                        f'<div style="font-size:10px;color:{TEXT_DIM};margin-top:4px;">'
+                        f'<div style="font-size:10px;color:{TEXT_DIM};margin-top:2px;">'
                         f'{currency_symbol}{remaining:.2f} unallocated</div>'
                     )
 
-        # ── Deposit input ──
-        with ui.row().classes("w-full items-end").style("gap:12px;margin-bottom:10px;"):
-            with ui.column().style("gap:2px;"):
-                ui.html(
-                    f'<span style="font-size:10px;font-weight:600;color:{TEXT_DIM};">'
-                    f'Deposit ({currency_symbol})</span>'
-                )
-                deposit_input = ui.number(
-                    value=0, min=0, format="%.0f",
-                ).style("width:120px;")
+        # ── Deposit ──
+        with ui.row().classes("w-full items-center").style("gap:8px;margin-bottom:8px;"):
+            ui.html(
+                f'<span style="font-size:11px;font-weight:600;color:{TEXT_SECONDARY};">'
+                f'Deposit</span>'
+            )
+            deposit_input = ui.number(
+                value=0, min=0, format="%.0f", prefix=currency_symbol,
+            ).props("dense borderless").style(
+                f"width:100px;background:{BG_PILL};border:1px solid {BORDER_SUBTLE};"
+                f"border-radius:6px;padding:0 8px;"
+            )
 
-                def _on_deposit(e):
-                    deposit_ref["value"] = e.value or 0.0
-                    _recalculate()
-                deposit_input.on_value_change( _on_deposit)
+            def _on_deposit(e):
+                deposit_ref["value"] = e.value or 0.0
+                _recalculate()
+            deposit_input.on_value_change(_on_deposit)
 
-        # ── Per-ticker target inputs ──
+        # ── Targets ──
+        ui.html(
+            f'<div style="border-top:1px solid {BORDER_SUBTLE};margin:4px 0 8px 0;"></div>'
+        )
+        ui.html(
+            f'<div style="display:flex;justify-content:space-between;margin-bottom:6px;">'
+            f'<span style="font-size:9px;font-weight:600;color:{TEXT_DIM};'
+            f'text-transform:uppercase;letter-spacing:0.08em;">Targets</span>'
+            f'<span style="font-size:9px;color:{TEXT_DIM};">current \u2192 target</span>'
+            f'</div>'
+        )
         for _, row in ticker_data.iterrows():
             ticker = row["Ticker"]
             current_w = row["Weight (%)"]
-            with ui.row().classes("w-full items-center").style("gap:6px;margin-bottom:2px;"):
+            with ui.row().classes("w-full items-center").style("gap:6px;margin-bottom:3px;"):
                 ui.html(
                     f'<span style="width:48px;font-size:11px;font-weight:700;'
                     f'color:{TEXT_PRIMARY};flex-shrink:0;">{ticker}</span>'
                 )
                 ui.html(
-                    f'<span style="font-size:9px;color:{TEXT_DIM};flex-shrink:0;">'
-                    f'{current_w:.0f}% \u2192</span>'
+                    f'<span style="font-size:10px;color:{TEXT_DIM};width:32px;'
+                    f'text-align:right;flex-shrink:0;">{current_w:.0f}%</span>'
+                )
+                ui.html(
+                    f'<span style="font-size:9px;color:{TEXT_DIM};flex-shrink:0;">\u2192</span>'
                 )
                 inp = ui.number(
                     value=round(current_w, 1),
                     min=0, max=100, step=0.5, format="%.1f",
                     suffix="%",
-                ).props("dense").style("width:70px;flex-shrink:0;")
+                ).props("dense borderless").style(
+                    f"width:68px;flex-shrink:0;background:{BG_PILL};"
+                    f"border:1px solid {BORDER_SUBTLE};border-radius:6px;padding:0 6px;"
+                )
 
                 def _make_handler(t):
                     def handler(e):
                         target_weights[t] = e.value if e.value is not None else 0.0
                         _recalculate()
                     return handler
-                inp.on_value_change( _make_handler(ticker))
+                inp.on_value_change(_make_handler(ticker))
 
-        # ── Result area (drift bars + buy suggestions) ──
-        result_container["ref"] = ui.column().classes("w-full").style("margin-top:8px;")
+        # ── Drift bars + buy suggestions ──
+        ui.html(
+            f'<div style="border-top:1px solid {BORDER_SUBTLE};margin:8px 0 10px 0;"></div>'
+        )
+        result_container["ref"] = ui.column().classes("w-full").style("gap:0;")
         _recalculate()
 
 
