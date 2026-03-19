@@ -80,7 +80,7 @@ body, .q-page, .nicegui-content {
 .q-header .q-btn { height: 32px !important; }
 .q-drawer { background: %(BG_SIDEBAR)s !important; border-right: 1px solid %(BORDER)s !important; }
 .q-tab-panels { background: %(BG_MAIN)s !important; padding: 0 !important; }
-.q-tab-panel { background: %(BG_MAIN)s !important; padding: 20px !important; }
+.q-tab-panel { background: %(BG_MAIN)s !important; padding: 24px 20px !important; }
 .q-page { max-width: none !important; width: 100%% !important; }
 .q-page > .nicegui-content,
 .q-page .nicegui-content,
@@ -91,7 +91,7 @@ body, .q-page, .nicegui-content {
 .q-tab-panel > div > .nicegui-content { width: 100%% !important; max-width: none !important; padding: 0 !important; }
 .q-tab-panel .nicegui-column { width: 100%% !important; gap: var(--grid-gap) !important; }
 .q-tab-panel > .nicegui-content > .nicegui-column > :first-child {
-    padding-top: 4px;
+    padding-top: 8px;
 }
 .q-tabs { background: %(BG_MAIN)s !important; border-bottom: none !important; }
 .q-tabs__content { justify-content: center !important; }
