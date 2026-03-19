@@ -88,10 +88,25 @@ def build_sidebar(
         label="Search ticker...",
     ).props(
         'dense outlined use-input clearable input-debounce="150" '
-        'behavior="menu" '
-        ':input-class="{\'text-center\': false}"'
+        'behavior="menu"'
     ).classes("w-full sidebar-search").style(
         f"font-size:11px;"
+    )
+
+    # After each input keystroke, auto-highlight the first filtered option
+    # so pressing Enter selects it without needing arrow-down first.
+    search_select.on(
+        "input-value",
+        lambda: ui.run_javascript(f'''
+            setTimeout(() => {{
+                const el = getElement({search_select.id});
+                if (el && el.$refs && el.$refs.qRef) {{
+                    const q = el.$refs.qRef;
+                    q.setOptionIndex(-1);
+                    q.moveOptionSelection(1, true);
+                }}
+            }}, 200);
+        '''),
     )
 
     # ── Detail fields (hidden until ticker selected) ───────
