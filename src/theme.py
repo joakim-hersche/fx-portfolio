@@ -208,7 +208,10 @@ body, .q-page, .nicegui-content {
   font-size: 10px; font-weight: 700; letter-spacing: 0.12em;
   text-transform: uppercase; color: %(TEXT_MUTED)s;
 }
-.charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--grid-gap); width: 100%%; }
+.charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--grid-gap); width: 100%%; align-items: stretch; }
+.charts-row > * { display: flex; flex-direction: column; }
+.charts-row .chart-card { flex: 1; display: flex; flex-direction: column; }
+.charts-row .chart-card .js-plotly-plot { flex: 1; }
 
 /* Plotly charts fill their container */
 .js-plotly-plot, .plotly, .plot-container { width: 100%% !important; }

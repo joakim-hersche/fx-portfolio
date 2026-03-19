@@ -279,7 +279,7 @@ async def build_overview_tab(
             ui.html(alloc_html).classes("w-full").style("flex:1;display:flex;")
 
         # Comparison chart
-        with ui.column().classes("chart-card").style("min-width:0;"):
+        with ui.column().classes("chart-card").style("min-width:0;flex:1;"):
             await build_comparison(portfolio, name_map, portfolio_color_map, currency)
 
     # ── Contributions vs. Portfolio Value chart ─────────────
