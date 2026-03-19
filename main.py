@@ -4,6 +4,7 @@ Replaces the Streamlit app.py with a reactive, WebSocket-driven UI that
 matches the approved design_proposal.html visual concept.
 """
 
+import datetime
 import json
 import os
 from urllib.parse import quote
@@ -44,12 +45,13 @@ from src.fx import CURRENCY_SYMBOLS
 from src.portfolio import build_portfolio_df
 from src.stocks import TICKER_COLORS
 from src.ui.guide import build_guide_tab
-from src.ui.overview import build_overview_tab, export_excel
+from src.ui.overview import build_overview_tab, export_excel, export_csv
 from src.ui.shared import load_portfolio, save_portfolio, get_storage_secret
 from src.ui.sidebar import build_sidebar
 from src.theme import (
     ACCENT, BG_CARD, BG_INPUT, BG_MAIN, BG_SIDEBAR, BG_TOPBAR,
     BORDER, BORDER_INPUT, GLOBAL_CSS,
+    GREEN, AMBER, RED, TEXT_FAINT,
     TEXT_DIM, TEXT_MUTED, TEXT_PRIMARY,
 )
 
@@ -78,6 +80,117 @@ _PWA_HEAD = """
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0F1117">
 """
+
+
+def _get_market_status() -> tuple[str, str]:
+    """Return (label, color) for current NYSE market status.
+
+    Uses pure timezone calculation with rule-based US holidays.
+    """
+    from zoneinfo import ZoneInfo
+
+    et = datetime.datetime.now(ZoneInfo("America/New_York"))
+    weekday = et.weekday()  # 0=Mon, 6=Sun
+    hour, minute = et.hour, et.minute
+    t = hour * 60 + minute  # minutes since midnight
+
+    # Rule-based US market holidays
+    year = et.year
+    holidays: set[tuple[int, int]] = set()
+
+    # New Year's Day — Jan 1 (if Sunday, observed Monday)
+    d = datetime.date(year, 1, 1)
+    if d.weekday() == 6:
+        holidays.add((1, 2))
+    else:
+        holidays.add((1, 1))
+
+    # MLK Day — 3rd Monday of January
+    jan1 = datetime.date(year, 1, 1)
+    first_mon = jan1 + datetime.timedelta(days=(7 - jan1.weekday()) % 7)
+    mlk = first_mon + datetime.timedelta(weeks=2)
+    holidays.add((mlk.month, mlk.day))
+
+    # Presidents' Day — 3rd Monday of February
+    feb1 = datetime.date(year, 2, 1)
+    first_mon = feb1 + datetime.timedelta(days=(7 - feb1.weekday()) % 7)
+    pres = first_mon + datetime.timedelta(weeks=2)
+    holidays.add((pres.month, pres.day))
+
+    # Good Friday — 2 days before Easter (anonymous algorithm)
+    a = year % 19
+    b, c = divmod(year, 100)
+    d_v, e = divmod(b, 4)
+    f = (b + 8) // 25
+    g = (b - f + 1) // 3
+    h = (19 * a + b - d_v - g + 15) % 30
+    i, k = divmod(c, 4)
+    l = (32 + 2 * e + 2 * i - h - k) % 7
+    m = (a + 11 * h + 22 * l) // 451
+    month_e = (h + l - 7 * m + 114) // 31
+    day_e = ((h + l - 7 * m + 114) % 31) + 1
+    easter = datetime.date(year, month_e, day_e)
+    good_friday = easter - datetime.timedelta(days=2)
+    holidays.add((good_friday.month, good_friday.day))
+
+    # Memorial Day — last Monday of May
+    may31 = datetime.date(year, 5, 31)
+    memorial = may31 - datetime.timedelta(days=(may31.weekday()) % 7)
+    holidays.add((memorial.month, memorial.day))
+
+    # Juneteenth — June 19 (observed)
+    d = datetime.date(year, 6, 19)
+    if d.weekday() == 5:
+        holidays.add((6, 18))
+    elif d.weekday() == 6:
+        holidays.add((6, 20))
+    else:
+        holidays.add((6, 19))
+
+    # Independence Day — July 4 (observed)
+    d = datetime.date(year, 7, 4)
+    if d.weekday() == 5:
+        holidays.add((7, 3))
+    elif d.weekday() == 6:
+        holidays.add((7, 5))
+    else:
+        holidays.add((7, 4))
+
+    # Labor Day — 1st Monday of September
+    sep1 = datetime.date(year, 9, 1)
+    labor = sep1 + datetime.timedelta(days=(7 - sep1.weekday()) % 7)
+    holidays.add((labor.month, labor.day))
+
+    # Thanksgiving — 4th Thursday of November
+    nov1 = datetime.date(year, 11, 1)
+    first_thu = nov1 + datetime.timedelta(days=(3 - nov1.weekday()) % 7)
+    thanks = first_thu + datetime.timedelta(weeks=3)
+    holidays.add((thanks.month, thanks.day))
+
+    # Christmas — Dec 25 (observed)
+    d = datetime.date(year, 12, 25)
+    if d.weekday() == 5:
+        holidays.add((12, 24))
+    elif d.weekday() == 6:
+        holidays.add((12, 26))
+    else:
+        holidays.add((12, 25))
+
+    is_holiday = (et.month, et.day) in holidays
+
+    if weekday >= 5 or is_holiday:
+        return "Closed", RED
+
+    # Pre-market: 4:00-9:30 ET
+    if 240 <= t < 570:
+        return "Pre-market", AMBER
+    # Regular hours: 9:30-16:00 ET
+    if 570 <= t < 960:
+        return "Open", GREEN
+    # After hours: 16:00-20:00 ET
+    if 960 <= t < 1200:
+        return "After hours", AMBER
+    return "Closed", RED
 
 
 _TAB_NAMES = ["Overview", "Positions", "Risk & Analytics", "Income", "Forecast", "Diagnostics", "Guide"]
@@ -191,13 +304,21 @@ async def index(request: Request):
     with ui.header().classes("items-center justify-between px-5").style(
         f"height: 48px; background: {BG_TOPBAR}; border-bottom: 1px solid {BORDER};"
     ):
-        # Left: title with accent dot
+        # Left: title with accent dot + market status
         with ui.row().classes("items-center gap-2"):
             ui.html(
                 f'<div style="width:8px;height:8px;border-radius:50%;background:{ACCENT};"></div>'
             )
             ui.label("Market Dashboard").style(
                 f"font-size:14px; font-weight:700; color:{TEXT_PRIMARY}; letter-spacing:0.02em;"
+            )
+            # Market status indicator
+            status_label, status_color = _get_market_status()
+            ui.html(
+                f'<div style="display:flex;align-items:center;gap:5px;margin-left:8px;">'
+                f'<div style="width:7px;height:7px;border-radius:50%;background:{status_color};"></div>'
+                f'<span style="font-size:10px;color:{TEXT_FAINT};font-weight:500;">{status_label}</span>'
+                f'</div>'
             )
 
         # Right: currency selector + export button
@@ -212,8 +333,13 @@ async def index(request: Request):
             ).props('dense borderless').style(
                 f"background:{BG_INPUT}; border:1px solid {BORDER_INPUT}; border-radius:6px; color:{TEXT_MUTED}; font-size:12px; min-width:70px; height:32px; max-height:32px;"
             )
-            ui.button("Export", icon="download", on_click=lambda: export_excel(portfolio, currency)).props(
+            ui.button("Excel", icon="download", on_click=lambda: export_excel(portfolio, currency)).props(
                 'flat dense size=sm no-caps color=none aria-label="Export portfolio to Excel"'
+            ).style(
+                f"border:1px solid {BORDER_INPUT}; border-radius:6px; padding:0 12px; height:32px; color:{TEXT_MUTED} !important; font-size:12px;"
+            )
+            ui.button("CSV", icon="download", on_click=lambda: export_csv(portfolio, currency)).props(
+                'flat dense size=sm no-caps color=none aria-label="Export portfolio to CSV"'
             ).style(
                 f"border:1px solid {BORDER_INPUT}; border-radius:6px; padding:0 12px; height:32px; color:{TEXT_MUTED} !important; font-size:12px;"
             )

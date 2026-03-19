@@ -1,7 +1,9 @@
 """Overview tab — KPI cards, allocation chart, comparison chart, Excel export."""
 
 import asyncio
+import csv
 import datetime
+import io
 import json
 from concurrent.futures import ThreadPoolExecutor
 
@@ -20,7 +22,8 @@ from src.fx import (
 )
 from src.portfolio import build_portfolio_df
 from src.theme import (
-    BG_CARD, BORDER, BORDER_SUBTLE,
+    ACCENT, BG_CARD, BORDER, BORDER_SUBTLE,
+    GREEN, RED, AMBER, TEXT_FAINT,
     TEXT_DIM, TEXT_MUTED, TEXT_PRIMARY, TEXT_SECONDARY,
 )
 
@@ -111,6 +114,10 @@ async def build_overview_tab(
     daily_pnl = df["Daily P&L"].sum()
     n_positions = len(portfolio)
     cost_basis = (df["Buy Price"] * df["Shares"]).sum()
+    total_contributed = sum(
+        lot["shares"] * lot.get("buy_price", 0) * lot.get("buy_fx_rate", 1.0)
+        for lots in portfolio.values() for lot in lots
+    )
     total_divs = df["Dividends"].sum()
     total_return = total_value + total_divs - cost_basis
     total_ret_pct = (total_return / cost_basis * 100) if cost_basis else 0.0
@@ -195,7 +202,18 @@ async def build_overview_tab(
         f'</div>'
     )
 
-    ui.html(f'<div class="kpi-row">{card_1}{card_2}{card_3}{card_4}</div>').classes("w-full")
+    card_5 = _kpi_card(
+        "Total Contributed",
+        f"{currency_symbol}{total_contributed:,.2f}",
+        C_CARD_BRD,
+        line1=f'<div class="kpi-sub" style="color:{TEXT_DIM};">Cost basis at purchase FX</div>',
+        font_size="20px",
+    )
+
+    ui.html(
+        f'<div class="kpi-row" style="grid-template-columns:1fr 1fr 1fr 1fr 1fr;">'
+        f'{card_1}{card_2}{card_3}{card_4}{card_5}</div>'
+    ).classes("w-full")
 
     # ── Allocation + Comparison side by side ───────────────
     with ui.element("div").classes("charts-row w-full").style("width:100%;"):
@@ -264,6 +282,54 @@ async def build_overview_tab(
         with ui.column().classes("chart-card").style("min-width:0;"):
             await build_comparison(portfolio, name_map, portfolio_color_map, currency)
 
+    # ── Contributions vs. Portfolio Value chart ─────────────
+    from src.portfolio import build_contribution_timeline
+
+    async def _build_contribution_chart():
+        timeline = await run.io_bound(build_contribution_timeline, portfolio, currency)
+        if timeline is not None and not timeline.empty:
+            import plotly.graph_objects as go
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(
+                x=timeline.index, y=timeline["Contributed"],
+                mode="lines", name="Contributed",
+                line=dict(color=TEXT_FAINT, width=1.5, dash="dot"),
+                fill="tozeroy",
+                fillcolor="rgba(132,148,167,0.08)",
+            ))
+            fig.add_trace(go.Scatter(
+                x=timeline.index, y=timeline["Portfolio Value"],
+                mode="lines", name="Portfolio Value",
+                line=dict(color=ACCENT, width=2),
+                fill="tonexty",
+                fillcolor="rgba(59,130,246,0.10)",
+            ))
+            fig.update_layout(
+                template="plotly",
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                xaxis_title="Date",
+                yaxis_title=f"Value ({currency})",
+                legend=dict(
+                    orientation="h", yanchor="bottom", y=1.02,
+                    xanchor="left", x=0,
+                    font=dict(size=10, color="#94A3B8"),
+                    bgcolor="rgba(0,0,0,0)",
+                ),
+                margin=dict(l=40, r=20, t=30, b=40),
+                hoverlabel=dict(
+                    bgcolor="#1C1D26", bordercolor="#1E293B",
+                    font=dict(color="#F1F5F9", size=11, family="Inter, sans-serif"),
+                ),
+            )
+            fig.update_xaxes(gridcolor="rgba(255,255,255,0.04)", tickfont=dict(color="#CBD5E1", size=10))
+            fig.update_yaxes(gridcolor="rgba(255,255,255,0.04)", tickfont=dict(color="#CBD5E1", size=10))
+            with ui.column().classes("chart-card w-full").style("min-width:0;"):
+                ui.html('<div class="chart-title">Contributions vs. Portfolio Value</div>')
+                ui.plotly(fig).classes("w-full")
+
+    await _build_contribution_chart()
+
     # Other tabs preview — clickable cards that navigate to each tab
     with ui.element("div").classes("w-full").style(
         f"padding-top:var(--grid-gap);width:100%;"
@@ -307,6 +373,7 @@ async def build_comparison(
                 list(range_options.keys()), value="6M",
             ).props("dense size=sm no-caps").style("font-size:10px;")
             fx_switch = ui.switch("FX-adjusted", value=False).style(f"font-size:12px;color:{TEXT_MUTED};")
+            bench_switch = ui.switch("Show benchmark", value=False).style(f"font-size:12px;color:{TEXT_MUTED};")
 
     chart_container = ui.column().classes("w-full")
     with chart_container:
@@ -317,6 +384,7 @@ async def build_comparison(
         range_label = range_toggle.value
         selected_range = range_options[range_label]
         fx_adjust = fx_switch.value
+        show_bench = bench_switch.value
 
         def _fetch_comparison_data():
             from concurrent.futures import ThreadPoolExecutor
@@ -357,9 +425,24 @@ async def build_comparison(
 
             with ThreadPoolExecutor(max_workers=min(10, len(portfolio))) as ex:
                 results = list(ex.map(_fetch_one, portfolio))
-            return {t: series for t, series in results if series is not None}
+            data = {t: series for t, series in results if series is not None}
 
-        comparison_data = await run.io_bound(_fetch_comparison_data)
+            # Fetch SPY benchmark if requested
+            spy_series = None
+            if show_bench:
+                try:
+                    period = selected_range if selected_range != "since" else "max"
+                    spy_hist = fetch_price_history_range("SPY", period)
+                    if selected_range == "since" and earliest_date and not spy_hist.empty:
+                        spy_hist = spy_hist[spy_hist.index >= pd.Timestamp(earliest_date)]
+                    if not spy_hist.empty:
+                        spy_series = spy_hist["Close"]
+                except Exception:
+                    pass
+
+            return data, spy_series
+
+        comparison_data, spy_series = await run.io_bound(_fetch_comparison_data)
 
         comparison_df = pd.DataFrame(comparison_data).dropna()
         if not comparison_df.empty:
@@ -370,6 +453,18 @@ async def build_comparison(
             range_label, fx_adjust, base_currency,
             title="Portfolio Comparison",
         )
+
+        # Add SPY benchmark overlay
+        if show_bench and spy_series is not None and not spy_series.empty:
+            spy_rebased = spy_series / spy_series.iloc[0] * 100
+            import plotly.graph_objects as go
+            fig.add_trace(go.Scatter(
+                x=spy_rebased.index, y=spy_rebased.values,
+                mode="lines", name="SPY",
+                line=dict(color="gray", width=1.5, dash="dash"),
+                hovertemplate="SPY: %{y:.1f}<extra></extra>",
+            ))
+
         with chart_container:
             ui.plotly(fig).classes("w-full")
 
@@ -382,6 +477,7 @@ async def build_comparison(
         _debounce_timer["handle"] = loop.call_later(0.3, lambda: asyncio.ensure_future(update_chart()))
     range_toggle.on_value_change(_debounced_update)
     fx_switch.on_value_change(_debounced_update)
+    bench_switch.on_value_change(_debounced_update)
 
     # Initial render
     await update_chart()
@@ -493,3 +589,30 @@ async def export_excel(portfolio: dict, currency: str) -> None:
     filename = f"portfolio_{pd.Timestamp.today().strftime('%Y%m%d')}.xlsx"
     ui.download(excel_bytes, filename)
     ui.notify("Report downloaded", type="positive")
+
+
+async def export_csv(portfolio: dict, currency: str) -> None:
+    """Build and download a flat CSV of positions."""
+    if not portfolio:
+        ui.notify("No positions to export.", type="warning")
+        return
+
+    def _build():
+        df = build_portfolio_df(portfolio, currency)
+        if df.empty:
+            return None
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        writer.writerow(df.columns.tolist())
+        for _, row in df.iterrows():
+            writer.writerow(row.tolist())
+        return buf.getvalue().encode("utf-8")
+
+    csv_bytes = await run.io_bound(_build)
+    if csv_bytes is None:
+        ui.notify("Could not build CSV — no price data.", type="negative")
+        return
+
+    filename = f"portfolio_{pd.Timestamp.today().strftime('%Y%m%d')}.csv"
+    ui.download(csv_bytes, filename)
+    ui.notify("CSV downloaded", type="positive")
