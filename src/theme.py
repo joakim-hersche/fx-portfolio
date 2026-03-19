@@ -538,12 +538,27 @@ body, .q-page, .nicegui-content {
 .sidebar-search .q-field__control {
     min-height: 36px !important;
     height: 36px !important;
+    align-items: center !important;
+}
+.sidebar-search .q-field__control-container {
+    padding-top: 0 !important;
 }
 .sidebar-search .q-field__native,
 .sidebar-search .q-field__input {
     padding-top: 0 !important;
     padding-bottom: 0 !important;
-    line-height: 36px !important;
+    min-height: 36px !important;
+    display: flex !important;
+    align-items: center !important;
+}
+.sidebar-search .q-field__label {
+    top: 50%% !important;
+    transform: translateY(-50%%) !important;
+}
+.sidebar-search.q-field--focused .q-field__label,
+.sidebar-search.q-field--float .q-field__label {
+    transform: translateY(-130%%) scale(0.75) !important;
+    top: 0 !important;
 }
 
 /* Reserve space for Plotly charts to prevent scroll jumps */
