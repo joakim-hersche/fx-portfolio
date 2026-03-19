@@ -229,7 +229,9 @@ def build_contribution_timeline(portfolio: dict, base_currency: str) -> pd.DataF
                 purchase_date = today_str
             shares = lot["shares"]
             buy_price = lot.get("buy_price", 0)
-            buy_fx_rate = lot.get("buy_fx_rate", 1.0)
+            ticker_ccy = get_ticker_currency(lot["ticker"] if "ticker" in lot else ticker)
+            fallback_fx, _ = get_fx_rate(ticker_ccy, base_currency)
+            buy_fx_rate = lot.get("buy_fx_rate", fallback_fx)
             cost = shares * buy_price * buy_fx_rate
             lots_info.append({
                 "ticker": ticker,
@@ -289,15 +291,29 @@ def build_contribution_timeline(portfolio: dict, base_currency: str) -> pd.DataF
         prices = hist["Close"].dropna()
         prices = prices.reindex(date_range, method="ffill")
 
-        # Get FX rate for this ticker
+        # Get historical FX series for this ticker
         ticker_ccy = get_ticker_currency(ticker)
-        fx_rate, _ = get_fx_rate(ticker_ccy, base_currency)
+        if ticker_ccy == base_currency:
+            fx_series = pd.Series(1.0, index=date_range)
+        else:
+            fx_from = "GBP" if ticker_ccy == "GBX" else ticker_ccy
+            fx_pair = f"{fx_from}{base_currency}=X"
+            fx_hist_data = fetch_price_history_long(fx_pair)
+            if not fx_hist_data.empty and "Close" in fx_hist_data.columns:
+                fx_series = fx_hist_data["Close"].reindex(date_range, method="ffill")
+                if ticker_ccy == "GBX":
+                    fx_series = fx_series / 100
+                current_fx, _ = get_fx_rate(ticker_ccy, base_currency)
+                fx_series = fx_series.fillna(current_fx)
+            else:
+                current_fx, _ = get_fx_rate(ticker_ccy, base_currency)
+                fx_series = pd.Series(current_fx, index=date_range)
 
         for lot in lots:
             lot_date = pd.Timestamp(lot["date"])
             # Only count this lot's value from its purchase date onwards
             mask = date_range >= lot_date
-            lot_value = prices * lot["shares"] * fx_rate
+            lot_value = prices * lot["shares"] * fx_series
             lot_value = lot_value.where(mask, 0)
             portfolio_value += lot_value.fillna(0)
 
