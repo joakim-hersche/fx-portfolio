@@ -180,15 +180,21 @@ def _render_correlation_heatmap(price_data: dict, tickers: list) -> None:
             stacked = corr_df.where(mask).stack()
             if not stacked.empty:
                 max_pair = stacked.idxmax()
-                min_pair = stacked.idxmin()
                 max_val = stacked.max()
-                min_val = stacked.min()
-                ui.html(
-                    f'<div style="font-size:11px;color:{TEXT_DIM};margin-top:8px;">'
-                    f'Most correlated: {max_pair[0]} & {max_pair[1]} ({max_val:.2f}). '
-                    f'Least correlated: {min_pair[0]} & {min_pair[1]} ({min_val:.2f}) '
-                    f'— good for diversification.</div>'
-                )
+                if len(stacked) == 1:
+                    ui.html(
+                        f'<div style="font-size:11px;color:{TEXT_DIM};margin-top:8px;">'
+                        f'Correlation: {max_pair[0]} & {max_pair[1]} ({max_val:.2f})</div>'
+                    )
+                else:
+                    min_pair = stacked.idxmin()
+                    min_val = stacked.min()
+                    ui.html(
+                        f'<div style="font-size:11px;color:{TEXT_DIM};margin-top:8px;">'
+                        f'Most correlated: {max_pair[0]} & {max_pair[1]} ({max_val:.2f}). '
+                        f'Least correlated: {min_pair[0]} & {min_pair[1]} ({min_val:.2f}) '
+                        f'— good for diversification.</div>'
+                    )
 
 
 # ── Fundamentals Table ───────────────────────────────────────────────────────
