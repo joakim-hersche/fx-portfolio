@@ -562,18 +562,18 @@ def _render_flat_table(
                 <th colspan="4" style="text-align:center;border-bottom:1px solid rgba(255,255,255,0.07);">Valuation</th>
               </tr>
               <tr>
-                <th class="right">Weight</th>
-                <th class="right">1Y Ret</th>
-                <th class="right">Contrib</th>
-                <th class="right">vs SPY</th>
-                <th class="right">Vol</th>
-                <th class="right">Drop</th>
-                <th class="right">R/R</th>
+                <th class="right">Weight %</th>
+                <th class="right">1Y Return</th>
+                <th class="right">Contribution</th>
+                <th class="right">vs S&amp;P</th>
+                <th class="right">Volatility</th>
+                <th class="right">Worst Drop</th>
+                <th class="right">Return/Risk</th>
                 <th class="right">Beta</th>
-                <th class="right">P/E</th>
-                <th class="right">Yield</th>
-                <th>52-Wk Range</th>
-                <th class="right">Price</th>
+                <th class="right">P/E Ratio</th>
+                <th class="right">Div Yield</th>
+                <th>52-Week Range</th>
+                <th class="right">Current</th>
               </tr>
             </thead>
             <tbody>{rows_html}</tbody>
