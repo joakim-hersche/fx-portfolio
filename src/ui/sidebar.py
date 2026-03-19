@@ -86,18 +86,12 @@ def build_sidebar(
         options=all_tickers,
         with_input=True,
         label="Search ticker...",
-    ).props('dense outlined use-input clearable input-debounce="150"').classes("w-full sidebar-search").style(
+    ).props(
+        'dense outlined use-input clearable input-debounce="150" '
+        'behavior="menu" '
+        ':input-class="{\'text-center\': false}"'
+    ).classes("w-full sidebar-search").style(
         f"font-size:11px;"
-    )
-
-    # Enter key selects the first filtered option
-    search_select.on(
-        "keydown.enter",
-        lambda: (
-            search_select.set_value(search_select._props.get("options", [{}])[0].get("value"))
-            if search_select._props.get("options")
-            else None
-        ),
     )
 
     # ── Detail fields (hidden until ticker selected) ───────
