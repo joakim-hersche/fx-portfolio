@@ -80,7 +80,7 @@ body, .q-page, .nicegui-content {
 .q-header .q-btn { height: 32px !important; }
 .q-drawer { background: %(BG_SIDEBAR)s !important; border-right: 1px solid %(BORDER)s !important; }
 .q-tab-panels { background: %(BG_MAIN)s !important; padding: 0 !important; }
-.q-tab-panel { background: %(BG_MAIN)s !important; padding: 20px !important; }
+.q-tab-panel { background: %(BG_MAIN)s !important; padding: 24px 20px !important; }
 .q-page { max-width: none !important; width: 100%% !important; }
 .q-page > .nicegui-content,
 .q-page .nicegui-content,
@@ -90,7 +90,13 @@ body, .q-page, .nicegui-content {
 .q-tab-panel > .nicegui-content,
 .q-tab-panel > div > .nicegui-content { width: 100%% !important; max-width: none !important; padding: 0 !important; }
 .q-tab-panel .nicegui-column { width: 100%% !important; gap: var(--grid-gap) !important; }
-.q-tabs { background: %(BG_MAIN)s !important; border-bottom: 1px solid %(BORDER)s !important; }
+.q-tab-panel > .nicegui-content > .nicegui-column > :first-child {
+    padding-top: 12px;
+}
+.q-tabs { background: %(BG_MAIN)s !important; border-bottom: none !important; padding: 6px 0 !important; }
+.tab-bar-wrapper { position: sticky; top: 48px; z-index: 10; background: %(BG_MAIN)s; border-bottom: 1px solid %(BORDER)s; }
+.q-tabs__content { justify-content: center !important; }
+.q-tab { flex: 0 0 auto !important; align-self: center !important; border-bottom: none !important; }
 .q-tab { text-transform: none !important; font-family: 'Inter', sans-serif !important; font-size: 12px !important; font-weight: 500 !important; letter-spacing: 0.01em !important; color: %(TEXT_FAINT)s !important; }
 .q-tab--active { color: %(TEXT_PRIMARY)s !important; font-weight: 600 !important; }
 .q-tab-indicator { background: %(ACCENT)s !important; height: 3px !important; }
@@ -164,7 +170,7 @@ body, .q-page, .nicegui-content {
 .sidebar-btn:hover { border-color: rgba(255,255,255,0.15); color: %(TEXT_MUTED)s; }
 
 /* ── KPI cards ─────────────────────────────────────────── */
-.kpi-row { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: var(--grid-gap); margin-bottom: 8px; width: 100%%; }
+.kpi-row { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: var(--grid-gap); width: 100%%; }
 .kpi-card {
   background: %(BG_CARD)s; border: 1px solid %(BORDER)s;
   border-radius: 10px; padding: 16px 18px; box-sizing: border-box;
@@ -203,7 +209,9 @@ body, .q-page, .nicegui-content {
   font-size: 10px; font-weight: 700; letter-spacing: 0.12em;
   text-transform: uppercase; color: %(TEXT_MUTED)s;
 }
-.charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--grid-gap); width: 100%%; }
+.charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--grid-gap); width: 100%%; align-items: stretch; }
+.charts-row > * { display: flex; flex-direction: column; }
+.charts-row .chart-card { flex: 1; display: flex; flex-direction: column; }
 
 /* Plotly charts fill their container */
 .js-plotly-plot, .plotly, .plot-container { width: 100%% !important; }
@@ -240,6 +248,13 @@ body, .q-page, .nicegui-content {
 .preview-card-label { font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: %(TEXT_FAINT)s; margin-bottom: 4px; }
 .preview-card-text { font-size: 12px; color: %(TEXT_FAINT)s; }
 .table-wrap thead th.right, .table-wrap tbody td.right { text-align: right; }
+
+/* ── Tooltip on table headers ────────────────────────── */
+.th-tip { cursor: help; }
+.th-tip::after {
+  content: ' \u24d8'; font-size: 9px; color: %(TEXT_DIM)s; font-weight: 400;
+  vertical-align: super; letter-spacing: normal; text-transform: none;
+}
 
 /* ── 52-week range bar ────────────────────────────────── */
 .range-bar-bg {
@@ -316,6 +331,9 @@ body, .q-page, .nicegui-content {
 .metric-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--grid-gap); width: 100%%; }
 .metric-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--grid-gap); width: 100%%; }
 .preview-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: var(--grid-gap); width: 100%%; }
+.risk-triple { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--grid-gap); width: 100%%; align-items: stretch; }
+.risk-triple > * { display: flex; flex-direction: column; min-width: 0; }
+.risk-triple .chart-card { flex: 1; display: flex; flex-direction: column; }
 .diag-row { display: flex; gap: var(--grid-gap); align-items: stretch !important; flex-wrap: wrap; width: 100%%; }
 .diag-row > * { flex: 1; min-width: 280px; }
 .diag-row > * { align-self: stretch !important; }
@@ -330,6 +348,7 @@ body, .q-page, .nicegui-content {
 /* ── Responsive: Tablet (< 1024px) ────────────────────── */
 @media (max-width: 1023px) {
   .charts-row { grid-template-columns: 1fr; gap: 12px; }
+  .risk-triple { grid-template-columns: 1fr; gap: 12px; }
   .risk-grid { grid-template-columns: 1fr; }
   .metric-grid-4 { grid-template-columns: repeat(2, 1fr); }
   .metric-grid-3 { grid-template-columns: repeat(2, 1fr); }
@@ -344,7 +363,8 @@ body, .q-page, .nicegui-content {
   .q-drawer { width: 260px !important; max-width: 80vw !important; }
 
   /* KPI cards: single column */
-  .kpi-row { grid-template-columns: 1fr; gap: 8px; }
+  .kpi-row { flex-direction: column !important; gap: 8px !important; }
+  .kpi-card { min-width: 100%% !important; }
   .kpi-card, .kpi-card.hero { padding: 14px 16px; }
   .kpi-value { font-size: 20px; }
   .kpi-card.hero .kpi-value { font-size: 22px; }
@@ -352,7 +372,7 @@ body, .q-page, .nicegui-content {
 
   /* Charts: full width, stack vertically */
   .charts-row { grid-template-columns: 1fr; gap: 10px; }
-  .chart-card { padding: 12px; }
+  .chart-card { padding: 12px !important; }
 
   /* Tables: horizontal scroll */
   .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
@@ -379,6 +399,28 @@ body, .q-page, .nicegui-content {
   .metric-grid-3 { grid-template-columns: 1fr; }
   .preview-grid { grid-template-columns: 1fr; }
   .diag-row > * { min-width: 0; flex-basis: 100%%; }
+
+  .q-drawer__backdrop {
+    background: rgba(0, 0, 0, 0.5) !important;
+  }
+
+  .tab-bar-wrapper {
+    position: relative;
+    width: 100%%;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  .tab-bar-wrapper::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 40px;
+    background: linear-gradient(to right, transparent, %(BG_MAIN)s);
+    pointer-events: none;
+    z-index: 1;
+  }
 }
 
 /* ── Responsive: Small mobile (< 480px) ───────────────── */
@@ -533,6 +575,38 @@ body, .q-page, .nicegui-content {
   body { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
   .q-header { padding-top: env(safe-area-inset-top); }
 }
+
+/* Dialog styling — match dashboard dark theme */
+.q-dialog__backdrop { background: rgba(0,0,0,0.6) !important; }
+.q-dialog .q-card {
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5) !important;
+}
+.q-dialog .q-card .q-btn { min-height: 0 !important; }
+
+/* Allocation bar chart — custom hover tooltip */
+.alloc-bar { position: relative; }
+.alloc-tip {
+    display: none;
+    position: absolute;
+    left: 70px; bottom: calc(100%% + 6px);
+    background: %(BG_CARD)s;
+    border: 1px solid %(BORDER)s;
+    border-radius: 6px;
+    padding: 8px 10px;
+    white-space: nowrap;
+    z-index: 100;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    pointer-events: none;
+}
+.alloc-tip::after {
+    content: '';
+    position: absolute;
+    top: 100%%; left: 20px;
+    border: 5px solid transparent;
+    border-top-color: %(BORDER)s;
+}
+.alloc-bar:hover .alloc-tip { display: block; }
+.alloc-bar:hover > div:nth-child(2) { opacity: 0.85; }
 
 /* Sidebar search — vertically center input text */
 .sidebar-search .q-field__control {

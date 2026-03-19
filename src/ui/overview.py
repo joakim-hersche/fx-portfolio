@@ -2,6 +2,7 @@
 
 import asyncio
 import datetime
+import io
 import json
 from concurrent.futures import ThreadPoolExecutor
 
@@ -20,58 +21,91 @@ from src.fx import (
 )
 from src.portfolio import build_portfolio_df
 from src.theme import (
-    BG_CARD, BORDER, BORDER_SUBTLE,
+    ACCENT, BG_CARD, BORDER, BORDER_SUBTLE,
+    GREEN, RED, AMBER, TEXT_FAINT,
     TEXT_DIM, TEXT_MUTED, TEXT_PRIMARY, TEXT_SECONDARY,
 )
 
 
 async def build_overview_tab(
     portfolio: dict, currency: str, portfolio_color_map: dict[str, str],
-    tabs=None, tab_map: dict | None = None,
 ) -> None:
     """Overview tab — KPI cards + allocation chart + comparison chart."""
     currency_symbol = CURRENCY_SYMBOLS.get(currency, "$")
 
     if not portfolio:
-        ui.html("""
-            <div class="kpi-row">
-                <div class="kpi-card hero">
-                    <div class="kpi-label">Portfolio Value</div>
-                    <div class="kpi-value">\u2014</div>
-                    <div class="kpi-sub">Add positions to get started</div>
+        ui.html(f'''
+            <div style="display:flex;flex-direction:column;align-items:center;
+                        justify-content:center;padding:60px 20px 40px;max-width:480px;
+                        margin:0 auto;text-align:center;">
+                <div style="font-size:20px;font-weight:700;color:{TEXT_PRIMARY};
+                            margin-bottom:6px;">No positions yet</div>
+                <div style="font-size:13px;color:{TEXT_DIM};line-height:1.6;
+                            margin-bottom:32px;">
+                    Add your first stock in the sidebar to see portfolio analytics,
+                    or load sample data to explore the dashboard.</div>
+
+                <div style="display:flex;flex-direction:column;gap:16px;width:100%;
+                            text-align:left;">
+                    <div style="display:flex;gap:12px;align-items:flex-start;">
+                        <div style="width:24px;height:24px;border-radius:6px;
+                                    background:{ACCENT};color:#fff;font-size:12px;
+                                    font-weight:700;display:flex;align-items:center;
+                                    justify-content:center;flex-shrink:0;">1</div>
+                        <div>
+                            <div style="font-size:13px;font-weight:600;color:{TEXT_PRIMARY};">
+                                Search for a stock</div>
+                            <div style="font-size:12px;color:{TEXT_DIM};margin-top:2px;">
+                                Use the sidebar search — e.g. AAPL, MSFT, ASML.AS</div>
+                        </div>
+                    </div>
+                    <div style="display:flex;gap:12px;align-items:flex-start;">
+                        <div style="width:24px;height:24px;border-radius:6px;
+                                    background:{ACCENT};color:#fff;font-size:12px;
+                                    font-weight:700;display:flex;align-items:center;
+                                    justify-content:center;flex-shrink:0;">2</div>
+                        <div>
+                            <div style="font-size:13px;font-weight:600;color:{TEXT_PRIMARY};">
+                                Enter your position</div>
+                            <div style="font-size:12px;color:{TEXT_DIM};margin-top:2px;">
+                                Shares, buy price, and purchase date</div>
+                        </div>
+                    </div>
+                    <div style="display:flex;gap:12px;align-items:flex-start;">
+                        <div style="width:24px;height:24px;border-radius:6px;
+                                    background:{ACCENT};color:#fff;font-size:12px;
+                                    font-weight:700;display:flex;align-items:center;
+                                    justify-content:center;flex-shrink:0;">3</div>
+                        <div>
+                            <div style="font-size:13px;font-weight:600;color:{TEXT_PRIMARY};">
+                                Dashboard fills in automatically</div>
+                            <div style="font-size:12px;color:{TEXT_DIM};margin-top:2px;">
+                                Returns, risk metrics, charts, and more</div>
+                        </div>
+                    </div>
                 </div>
-                <div class="kpi-card hero">
-                    <div class="kpi-label">Total Return</div>
-                    <div class="kpi-value">\u2014</div>
-                    <div class="kpi-sub">vs. total cost basis</div>
-                </div>
-                <div class="kpi-card">
-                    <div class="kpi-label">Today's Change</div>
-                    <div class="kpi-value" style="font-size:20px;">\u2014</div>
-                    <div class="kpi-sub">Since market open</div>
-                </div>
-                <div class="kpi-card">
-                    <div class="kpi-label">Positions</div>
-                    <div class="kpi-value" style="font-size:28px;">0</div>
-                    <div class="kpi-sub">Add positions in the sidebar</div>
+
+                <div style="border-top:1px solid {BORDER};margin-top:28px;
+                            padding-top:16px;width:100%;text-align:center;">
+                    <div style="font-size:12px;color:{TEXT_DIM};margin-bottom:14px;">
+                        Want to explore first? Load a demo portfolio with stocks
+                        across different markets and asset types.</div>
                 </div>
             </div>
-        """).classes("w-full")
-
-        # Getting Started card pointing to the Guide tab (#25)
-        with ui.element("div").classes("chart-card").style("margin-top:16px;cursor:pointer;") as guide_card:
-            ui.html(f'<div class="chart-title">Getting Started</div>')
-            ui.html(
-                f'<p style="font-size:12px;color:{TEXT_MUTED};line-height:1.6;margin-top:8px;">'
-                "New here? Check the <b>Guide</b> tab for a plain-language walkthrough of every "
-                "feature, or add your first position using the sidebar.</p>"
-            )
-        if tabs is not None and tab_map is not None:
-            guide_card.on("click", lambda: tabs.set_value(tab_map["Guide"]))
+        ''').classes("w-full")
+        ui.button(
+            "Load Sample Portfolio", icon="science",
+            on_click=lambda: ui.run_javascript(
+                'document.getElementById("btn-load-sample")?.click()'
+            ),
+        ).props("unelevated no-caps size=lg").style(
+            f"background:{ACCENT}; color:white; border-radius:8px; padding:12px 32px;"
+            f" font-size:14px; font-weight:600; margin:0 auto; display:block;"
+        )
 
         return
 
-    # ── Build portfolio DataFrame (cached 15 min) ─────────
+    # ── Build portfolio DataFrame (cached 5 min) ──────────
     notification = ui.notification("Loading overview data...", spinner=True, timeout=None)
     try:
         df = await run.io_bound(build_portfolio_df, portfolio, currency)
@@ -86,6 +120,17 @@ async def build_overview_tab(
         )
         return
 
+    fx_warnings = df.attrs.get("fx_warnings", [])
+    if fx_warnings:
+        tickers_str = ", ".join(fx_warnings)
+        ui.html(
+            f'<div style="background:rgba(220,38,38,0.1);border:1px solid rgba(220,38,38,0.3);'
+            f'border-radius:8px;padding:10px 14px;margin-bottom:8px;">'
+            f'<span style="color:#DC2626;font-weight:600;">FX rate unavailable</span>'
+            f'<span style="color:{TEXT_DIM};font-size:12px;"> for {tickers_str}. '
+            f'Values shown with 1:1 rate — figures may be inaccurate.</span></div>'
+        ).classes("w-full")
+
     # ── Shared helpers ─────────────────────────────────────
     with ThreadPoolExecutor(max_workers=min(10, len(portfolio))) as _ex:
         _names = list(_ex.map(lambda t: (t, fetch_company_name(t)), portfolio))
@@ -96,6 +141,13 @@ async def build_overview_tab(
     daily_pnl = df["Daily P&L"].sum()
     n_positions = len(portfolio)
     cost_basis = (df["Buy Price"] * df["Shares"]).sum()
+    total_contributed = 0.0
+    for ticker, lots in portfolio.items():
+        ticker_ccy = get_ticker_currency(ticker)
+        fallback_fx, _ = get_fx_rate(ticker_ccy, currency)
+        for lot in lots:
+            lot_fx = lot.get("buy_fx_rate", fallback_fx)
+            total_contributed += lot["shares"] * lot.get("buy_price", 0) * lot_fx
     total_divs = df["Dividends"].sum()
     total_return = total_value + total_divs - cost_basis
     total_ret_pct = (total_return / cost_basis * 100) if cost_basis else 0.0
@@ -116,7 +168,7 @@ async def build_overview_tab(
     ]
     first_purchase = min(all_dates) if all_dates else None
     return_sub = (
-        f'<div class="kpi-sub sm" style="color:{TEXT_MUTED};">Since {first_purchase}</div>'
+        f'<div class="kpi-sub sm" style="color:{TEXT_MUTED};">Gross, pre-tax · since {first_purchase}</div>'
         if first_purchase else ""
     )
 
@@ -146,9 +198,11 @@ async def build_overview_tab(
     val_int = f"{currency_symbol}{int(total_value):,}"
     val_dec = f"{total_value:.2f}".split('.')[-1]
     card_1 = _kpi_card(
-        "Total Portfolio Value", val_int, C_CARD_BRD,
-        line1=f'<div style="font-size:16px;font-weight:700;color:{TEXT_PRIMARY};margin-top:1px;">.{val_dec}</div>',
-        line2=f'<div class="kpi-sub" style="color:{TEXT_DIM};">Updated {cache_time} \u00b7 15 min cache</div>',
+        "Total Portfolio Value",
+        f'{val_int}<span style="font-size:16px;font-weight:700;">.{val_dec}</span>',
+        C_CARD_BRD,
+        line1=f'<div class="kpi-sub" style="color:{TEXT_DIM};">Updated {cache_time} \u00b7 5 min cache</div>',
+        line2='',
         hero=True,
     )
     card_2 = _kpi_card(
@@ -178,9 +232,18 @@ async def build_overview_tab(
         f'</div>'
     )
 
-    ui.html(f'<div class="kpi-row">{card_1}{card_2}{card_3}{card_4}</div>').classes("w-full")
+    card_5 = _kpi_card(
+        "Total Contributed",
+        f"{currency_symbol}{total_contributed:,.2f}",
+        C_CARD_BRD,
+        line1=f'<div class="kpi-sub" style="color:{TEXT_DIM};">Cost basis at purchase FX</div>',
+        font_size="20px",
+    )
 
-    ui.html('<hr class="content-divider">').classes("w-full")
+    ui.html(
+        f'<div class="kpi-row" style="grid-template-columns:1fr 1fr 1fr 1fr 1fr;">'
+        f'{card_1}{card_2}{card_3}{card_4}{card_5}</div>'
+    ).classes("w-full")
 
     # ── Allocation + Comparison side by side ───────────────
     with ui.element("div").classes("charts-row w-full").style("width:100%;"):
@@ -203,30 +266,36 @@ async def build_overview_tab(
             bar_h = max(18, min(40, int(280 / max(n_bars, 1))))
             bar_gap = max(4, min(14, int(100 / max(n_bars, 1))))
 
+            currency_symbol = CURRENCY_SYMBOLS.get(currency, "$")
+            total_val = alloc_df["Total Value"].sum()
+
             bar_rows = ""
             for _, row in alloc_df.iterrows():
                 ticker = row["Ticker"]
                 pct = row["Portfolio Share (%)"]
+                val = row["Total Value"]
                 bar_width = (pct / max_pct * 100) if max_pct > 0 else 0
                 color = portfolio_color_map.get(ticker, "#3B82F6")
+                company = name_map.get(ticker, ticker)
                 bar_rows += (
-                    f'<div style="display:flex;align-items:center;gap:8px;line-height:1.4;">'
-                    f'<div style="width:64px;font-size:11px;font-weight:600;color:{TEXT_SECONDARY};flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{ticker}">{ticker}</div>'
-                    f'<div style="flex:1;height:{bar_h}px;background:rgba(255,255,255,0.04);border-radius:4px;overflow:hidden;">'
-                    f'<div style="width:{bar_width:.1f}%;height:100%;background:{color};border-radius:4px;"></div>'
+                    f'<div class="alloc-bar" style="display:flex;align-items:center;gap:8px;line-height:1.4;position:relative;">'
+                    f'<div style="width:64px;font-size:11px;font-weight:600;color:{TEXT_SECONDARY};flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{ticker}</div>'
+                    f'<div style="flex:1;height:{bar_h}px;background:rgba(255,255,255,0.04);border-radius:4px;overflow:hidden;cursor:pointer;">'
+                    f'<div style="width:{bar_width:.1f}%;height:100%;background:{color};border-radius:4px;transition:opacity 0.15s;"></div>'
                     f'</div>'
                     f'<div style="width:36px;font-size:11px;color:{TEXT_DIM};text-align:right;flex-shrink:0;">{pct:.0f}%</div>'
+                    f'<div class="alloc-tip">'
+                    f'<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">'
+                    f'<div style="width:8px;height:8px;border-radius:2px;background:{color};flex-shrink:0;"></div>'
+                    f'<span style="font-weight:600;color:{TEXT_PRIMARY};font-size:11px;">{ticker}</span>'
+                    f'<span style="color:{TEXT_DIM};font-size:10px;">{company}</span>'
                     f'</div>'
-                )
-
-            # Legend
-            legend_items = ""
-            for _, row in alloc_df.iterrows():
-                ticker = row["Ticker"]
-                color = portfolio_color_map.get(ticker, "#3B82F6")
-                legend_items += (
-                    f'<div style="display:flex;align-items:center;gap:4px;font-size:10px;color:{TEXT_DIM};">'
-                    f'<div style="width:8px;height:8px;border-radius:2px;background:{color};"></div>{ticker}</div>'
+                    f'<div style="display:flex;gap:12px;font-size:11px;">'
+                    f'<span style="color:{TEXT_PRIMARY};font-weight:600;">{currency_symbol}{val:,.0f}</span>'
+                    f'<span style="color:{TEXT_MUTED};">{pct:.1f}%</span>'
+                    f'</div>'
+                    f'</div>'
+                    f'</div>'
                 )
 
             alloc_html = (
@@ -234,40 +303,86 @@ async def build_overview_tab(
                 f'<div style="display:flex;flex-direction:column;gap:{bar_gap}px;flex:1;justify-content:center;">'
                 f'{bar_rows}'
                 f'</div>'
-                f'<div style="display:flex;flex-wrap:wrap;gap:8px;padding-top:16px;margin-top:20px;'
-                f'border-top:1px solid rgba(255,255,255,0.05);">{legend_items}</div>'
                 f'</div>'
             )
 
             ui.html(alloc_html).classes("w-full").style("flex:1;display:flex;")
 
-        # Comparison chart
-        with ui.column().classes("chart-card").style("min-width:0;"):
-            await build_comparison(portfolio, name_map, portfolio_color_map, currency)
+        # Comparison chart — compute height to match allocation card
+        # Allocation height: n_bars * (bar_h + bar_gap) + card padding (~32px) + header (~30px)
+        alloc_content_h = n_bars * (bar_h + bar_gap)
+        # Subtract comparison card padding (32px) + header/controls (~70px) to get chart height
+        chart_h = max(300, alloc_content_h - 40)
 
-    # Other tabs preview — clickable cards that navigate to each tab
-    with ui.element("div").classes("w-full").style(
-        f"padding-top:var(--grid-gap);border-top:1px solid {BORDER_SUBTLE};width:100%;"
-    ):
-        ui.html(f'<div style="font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:{TEXT_DIM};margin-bottom:8px;">Other tabs</div>')
-        with ui.element("div").classes("preview-grid w-full").style("width:100%;"):
-            for _tab_name, _tab_desc in [
-                ("Positions", "Positions table &middot; Price history per ticker"),
-                ("Risk & Analytics", "Attribution &middot; Risk metrics &middot; Heatmap &middot; Fundamentals"),
-                ("Forecast", "Portfolio outlook &middot; Position outlook &middot; Fan charts &middot; VaR/CVaR"),
-                ("Diagnostics", "Monte Carlo backtest &middot; Model diagnostics &middot; QQ plots"),
-                ("Guide", "Getting started &middot; Metric explanations &middot; How to read charts"),
-            ]:
-                card = ui.element("div").classes("preview-card").style("cursor:pointer;")
-                with card:
-                    ui.html(f'<div class="preview-card-label">{_tab_name}</div>')
-                    ui.html(f'<div class="preview-card-text">{_tab_desc}</div>')
-                if tabs is not None and tab_map is not None:
-                    card.on("click", lambda _, t=_tab_name: tabs.set_value(tab_map[t]))
+        with ui.column().classes("chart-card").style("min-width:0;"):
+            await build_comparison(portfolio, name_map, portfolio_color_map, currency, chart_height=chart_h)
+
+    # ── Contributions vs. Portfolio Value chart ─────────────
+    from src.portfolio import build_contribution_timeline
+
+    async def _build_contribution_chart():
+        timeline = await run.io_bound(build_contribution_timeline, portfolio, currency)
+        if timeline is not None and not timeline.empty:
+            import plotly.graph_objects as go
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(
+                x=timeline.index, y=timeline["Contributed"],
+                mode="lines", name="Contributed",
+                line=dict(color=TEXT_FAINT, width=1.5, dash="dot"),
+                fill="tozeroy",
+                fillcolor="rgba(132,148,167,0.08)",
+            ))
+            fig.add_trace(go.Scatter(
+                x=timeline.index, y=timeline["Portfolio Value"],
+                mode="lines", name="Portfolio Value",
+                line=dict(color=ACCENT, width=2),
+                fill="tonexty",
+                fillcolor="rgba(59,130,246,0.10)",
+            ))
+            fig.update_layout(
+                template="plotly",
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                xaxis=dict(title="Date"),
+                yaxis=dict(tickprefix=currency_symbol, title=f"Value ({currency})"),
+                legend=dict(
+                    orientation="h", yanchor="bottom", y=1.02,
+                    xanchor="left", x=0,
+                    font=dict(size=10, color="#94A3B8"),
+                    bgcolor="rgba(0,0,0,0)",
+                ),
+                margin=dict(l=40, r=20, t=30, b=40),
+                hoverlabel=dict(
+                    bgcolor="#1C1D26", bordercolor="#1E293B",
+                    font=dict(color="#F1F5F9", size=11, family="Inter, sans-serif"),
+                    namelength=-1,
+                ),
+                modebar=dict(
+                    bgcolor="rgba(0,0,0,0)",
+                    color="#64748B",
+                    activecolor="#94A3B8",
+                ),
+            )
+            fig.update_xaxes(gridcolor="rgba(255,255,255,0.04)", tickfont=dict(color="#CBD5E1", size=10), title_font=dict(color="#CBD5E1", size=11))
+            fig.update_yaxes(gridcolor="rgba(255,255,255,0.04)", tickfont=dict(color="#CBD5E1", size=10), title_font=dict(color="#CBD5E1", size=11))
+            with ui.column().classes("chart-card w-full").style("min-width:0;"):
+                ui.html('<div class="chart-title">Contributions vs. Portfolio Value</div>')
+                ui.html(
+                    f'<p style="font-size:11px;color:{TEXT_DIM};margin:0 0 6px 0;line-height:1.5;">'
+                    "The blue line is what you put in (total money invested). "
+                    "The green line is what it's worth now. "
+                    "The gap between them is your real investment gain or loss."
+                    "</p>"
+                )
+                ui.plotly(fig).classes("w-full")
+
+    await _build_contribution_chart()
+
 
 
 async def build_comparison(
     portfolio: dict, name_map: dict, portfolio_color_map: dict, base_currency: str,
+    chart_height: int | None = None,
 ) -> None:
     """Comparison chart with time-range toggle and FX adjustment."""
     range_options = {"3M": "3mo", "6M": "6mo", "1Y": "1y", "Max": "since"}
@@ -282,19 +397,24 @@ async def build_comparison(
 
     with ui.row().classes("w-full items-start justify-between").style("margin:0;"):
         ui.html('<div class="chart-title" style="margin-top:2px;">Portfolio Comparison</div>')
+        ui.html(f'<div style="font-size:10px;color:{TEXT_DIM};margin-top:2px;">All positions rebased to 100 at period start</div>')
         with ui.row().classes("items-center gap-2"):
             range_toggle = ui.toggle(
                 list(range_options.keys()), value="6M",
             ).props("dense size=sm no-caps").style("font-size:10px;")
             fx_switch = ui.switch("FX-adjusted", value=False).style(f"font-size:12px;color:{TEXT_MUTED};")
+            bench_switch = ui.switch("Show benchmark", value=False).style(f"font-size:12px;color:{TEXT_MUTED};")
 
     chart_container = ui.column().classes("w-full")
+    with chart_container:
+        ui.spinner('dots', size='xl').classes('self-center').style('padding:40px 0;')
 
     async def update_chart():
         chart_container.clear()
         range_label = range_toggle.value
         selected_range = range_options[range_label]
         fx_adjust = fx_switch.value
+        show_bench = bench_switch.value
 
         def _fetch_comparison_data():
             from concurrent.futures import ThreadPoolExecutor
@@ -335,9 +455,24 @@ async def build_comparison(
 
             with ThreadPoolExecutor(max_workers=min(10, len(portfolio))) as ex:
                 results = list(ex.map(_fetch_one, portfolio))
-            return {t: series for t, series in results if series is not None}
+            data = {t: series for t, series in results if series is not None}
 
-        comparison_data = await run.io_bound(_fetch_comparison_data)
+            # Fetch SPY benchmark if requested
+            spy_series = None
+            if show_bench:
+                try:
+                    period = selected_range if selected_range != "since" else "max"
+                    spy_hist = fetch_price_history_range("SPY", period)
+                    if selected_range == "since" and earliest_date and not spy_hist.empty:
+                        spy_hist = spy_hist[spy_hist.index >= pd.Timestamp(earliest_date)]
+                    if not spy_hist.empty:
+                        spy_series = spy_hist["Close"]
+                except Exception:
+                    pass
+
+            return data, spy_series
+
+        comparison_data, spy_series = await run.io_bound(_fetch_comparison_data)
 
         comparison_df = pd.DataFrame(comparison_data).dropna()
         if not comparison_df.empty:
@@ -346,7 +481,23 @@ async def build_comparison(
         fig = build_comparison_chart(
             comparison_df, name_map, portfolio_color_map,
             range_label, fx_adjust, base_currency,
+            title="Portfolio Comparison",
         )
+
+        # Add SPY benchmark overlay
+        if show_bench and spy_series is not None and not spy_series.empty:
+            spy_rebased = spy_series / spy_series.iloc[0] * 100
+            import plotly.graph_objects as go
+            fig.add_trace(go.Scatter(
+                x=spy_rebased.index, y=spy_rebased.values,
+                mode="lines", name="SPY",
+                line=dict(color="gray", width=1.5, dash="dash"),
+                hovertemplate="SPY: %{y:.1f}<extra></extra>",
+            ))
+
+        if chart_height:
+            fig.update_layout(height=chart_height)
+
         with chart_container:
             ui.plotly(fig).classes("w-full")
 
@@ -359,6 +510,7 @@ async def build_comparison(
         _debounce_timer["handle"] = loop.call_later(0.3, lambda: asyncio.ensure_future(update_chart()))
     range_toggle.on_value_change(_debounced_update)
     fx_switch.on_value_change(_debounced_update)
+    bench_switch.on_value_change(_debounced_update)
 
     # Initial render
     await update_chart()
@@ -418,13 +570,20 @@ async def export_excel(portfolio: dict, currency: str) -> None:
 
         # Fundamentals
         fund_rows = []
+        excel_target_prices: dict[str, float | None] = {}
         for t in tickers:
             f = fetch_fundamentals(t)
             if f:
                 tc = get_ticker_currency(t)
-                fx_ccy = "GBP" if tc == "GBX" else tc
-                if fx_ccy != base_currency:
-                    fx, _ = get_fx_rate(fx_ccy, base_currency)
+                # Build target price map for Excel (FX-converted, GBX /100 handled by get_fx_rate)
+                tp = f.get("Target Price")
+                if tp is not None and tc != base_currency:
+                    fx_tp, _ = get_fx_rate(tc, base_currency)
+                    excel_target_prices[t] = round(tp * fx_tp, 2)
+                elif tp is not None:
+                    excel_target_prices[t] = tp
+                if tc != base_currency:
+                    fx, _ = get_fx_rate(tc, base_currency)
                     if f.get("1-Year Low"):
                         f["1-Year Low"] = round(f["1-Year Low"] * fx, 2)
                     if f.get("1-Year High"):
@@ -458,6 +617,7 @@ async def export_excel(portfolio: dict, currency: str) -> None:
             bt_result=bt,
             ticker_mc_results=ticker_mc_results,
             portfolio_mc=portfolio_mc,
+            target_prices=excel_target_prices,
         )
 
     excel_bytes = await run.io_bound(_build)
@@ -470,3 +630,5 @@ async def export_excel(portfolio: dict, currency: str) -> None:
     filename = f"portfolio_{pd.Timestamp.today().strftime('%Y%m%d')}.xlsx"
     ui.download(excel_bytes, filename)
     ui.notify("Report downloaded", type="positive")
+
+

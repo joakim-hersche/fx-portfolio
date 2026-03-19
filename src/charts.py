@@ -29,6 +29,7 @@ def _apply_default_layout(fig: go.Figure, **overrides) -> go.Figure:
             bgcolor="#1C1D26",
             bordercolor="#1E293B",
             font=dict(color="#F1F5F9", size=11, family="Inter, sans-serif"),
+            namelength=-1,
         ),
         modebar=dict(
             bgcolor="rgba(0,0,0,0)",
@@ -111,6 +112,7 @@ def build_fan_chart(
     currency_symbol: str = "$",
     y_title: str = "Value",
     show_legend: bool = True,
+    title: str | None = None,
 ) -> go.Figure:
     """Build a Monte Carlo fan chart with 80%/50% bands, median, and optional actual line.
 
@@ -148,6 +150,7 @@ def build_fan_chart(
         y=percentiles["p50"],
         line=dict(color="rgba(99,110,250,0.7)", width=1.5, dash="dash"),
         name="Median simulation",
+        hovertemplate=f"<b>Median</b><br>%{{x|%b %d, %Y}}<br>{currency_symbol}%{{y:,.0f}}<extra></extra>",
     ))
 
     # Actual portfolio value (backtest only)
@@ -157,6 +160,7 @@ def build_fan_chart(
             y=list(actual.values),
             line=dict(color="#334155", width=2),
             name="Actual portfolio value",
+            hovertemplate=f"<b>Actual</b><br>%{{x|%b %d, %Y}}<br>{currency_symbol}%{{y:,.0f}}<extra></extra>",
         ))
 
     # Horizontal reference lines (buy prices, current value, etc.)
@@ -182,6 +186,10 @@ def build_fan_chart(
         ) if show_legend else dict(visible=False),
         hovermode="x unified",
     )
+    if title:
+        fig.update_layout(
+            title=dict(text=title, font=dict(size=12, color="#94A3B8"), x=0, y=0.98),
+        )
     return fig
 
 
@@ -224,6 +232,7 @@ def build_comparison_chart(
     range_label: str,
     fx_adjusted: bool,
     base_currency: str,
+    title: str | None = None,
 ) -> go.Figure:
     # Use "TICKER — Short Name" labels that fit in the legend without overflow
     def _legend_label(t: str) -> str:
@@ -241,6 +250,12 @@ def build_comparison_chart(
     idx_col = reset.columns[0]
     melted = reset.melt(id_vars=idx_col, var_name="Ticker", value_name="Value")
     fig = px.line(melted, x=idx_col, y="Value", color="Ticker", color_discrete_map=color_map)
+    fig.update_traces(
+        hovertemplate="<b>%{customdata[0]}</b><br>%{x|%b %d, %Y}<br>Index: %{y:.1f}<extra></extra>",
+    )
+    # Attach ticker name as customdata for hover
+    for trace in fig.data:
+        trace.customdata = [[trace.name]] * len(trace.x)
     _apply_default_layout(
         fig,
         xaxis_title="Date",
@@ -256,6 +271,10 @@ def build_comparison_chart(
         ),
     )
     fig.add_hline(y=100, line_dash="dash", line_color="gray")
+    if title:
+        fig.update_layout(
+            title=dict(text=title, font=dict(size=12, color="#94A3B8"), x=0, y=0.98),
+        )
     return fig
 
 
@@ -269,8 +288,12 @@ def build_price_history_chart(
     fx_rate: float,
     effective_from: pd.Timestamp,
     date_to,
+    title: str | None = None,
 ) -> go.Figure:
     fig = px.line(x=hist.index, y=hist["Close"], color_discrete_sequence=[line_color])
+    fig.update_traces(
+        hovertemplate=f"<b>%{{x|%b %d, %Y}}</b><br>{currency_symbol}%{{y:,.2f}}<extra></extra>",
+    )
     _apply_default_layout(
         fig,
         xaxis_title="Date",
@@ -295,6 +318,10 @@ def build_price_history_chart(
                 x=str(pd.Timestamp(lot["purchase_date"]).date()),
                 line_dash="dash", line_color="gray",
             )
+    if title:
+        fig.update_layout(
+            title=dict(text=title, font=dict(size=12, color="#94A3B8"), x=0, y=0.98),
+        )
     return fig
 
 
@@ -312,7 +339,10 @@ def build_correlation_heatmap(corr_df: pd.DataFrame) -> go.Figure:
     cell_size = max(50, min(80, 400 // max(n, 1)))
     fig_height = max(350, n * cell_size + 100)
     fig = px.imshow(corr_df, color_continuous_scale=_scale, zmin=-1, zmax=1, text_auto=".2f")
-    fig.update_traces(textfont=dict(color="#E2E8F0", size=12))
+    fig.update_traces(
+        textfont=dict(color="#E2E8F0", size=12),
+        hovertemplate="<b>%{x}</b> vs <b>%{y}</b><br>Correlation: %{z:.2f}<extra></extra>",
+    )
     _apply_default_layout(
         fig,
         height=fig_height,
@@ -335,6 +365,7 @@ def build_portfolio_histogram(
     p90: float,
     currency_symbol: str,
     base_currency: str,
+    title: str | None = None,
 ) -> go.Figure:
     fig = go.Figure()
     fig.add_trace(go.Histogram(
@@ -366,4 +397,8 @@ def build_portfolio_histogram(
         showlegend=False,
         bargap=0.02,
     )
+    if title:
+        fig.update_layout(
+            title=dict(text=title, font=dict(size=12, color="#94A3B8"), x=0, y=0.98),
+        )
     return fig

@@ -9,44 +9,47 @@ A real-time stock portfolio tracker with Monte Carlo simulations, multi-currency
 
 ## Features
 
-### Portfolio Tracking
+Seven tabs covering the full portfolio workflow:
 
-Add positions across multiple lots per ticker. Live FX conversion across USD, EUR, GBP, and CHF. KPI cards show total value, today's change, total return, and position count at a glance.
-
-Colour-coded positions table with current price, total value, dividends, daily change, return %, and portfolio weight. Dividends are fetched per lot from the purchase date with historical FX conversion.
-
-![Positions](Screenshots/dark/03_positions_hero.png)
-
-### Charts
-
-Portfolio allocation bar chart sorted by weight. All positions rebased to 100 for fair comparison with configurable time range and FX-adjusted toggle. Per-ticker price history with buy price overlays and purchase date markers.
+### Overview
+KPI cards (total value, daily P&L, total return, position count), allocation bar chart, and rebased performance chart with configurable time range and FX-adjusted toggle.
 
 ![Overview](Screenshots/dark/02_overview_full.png)
 
-### Risk & Analytics
+### Positions
+Multi-lot positions table with current price, total value, dividends, daily change, return %, analyst target prices, and portfolio weight. Per-ticker price history chart with buy-price overlay and purchase date markers.
 
-Per-ticker volatility, max drawdown, Sharpe ratio, and beta vs S&P 500. Pairwise correlation heatmap. P/E ratio, dividend yield, and 52-week range.
+![Positions](Screenshots/dark/03_positions_hero.png)
+
+### Risk & Analytics
+Per-ticker volatility, max drawdown, Sharpe ratio, and beta vs S&P 500. Pairwise correlation heatmap. P/E ratio, dividend yield, 52-week range. Sector breakdown and buy-only rebalancing calculator.
 
 ![Risk & Analytics](Screenshots/dark/04_risk_hero.png)
 
-### Monte Carlo Simulation
+### Income
+Dividend income tracking with monthly breakdown by ticker, converted to your base currency at historical FX rates.
 
-**Portfolio Outlook** — projects your full portfolio forward using correlated Monte Carlo simulation. Fan chart with 50%/80% confidence bands, VaR 95%, CVaR 95%, and diversification effect.
-
-**Position Outlook** — per-ticker forward projection with configurable horizon (3M/6M/1Y) and probability of breakeven.
-
-**Backtest** — validates the simulation model against the past year of actual prices. Reports per-ticker hit rates and reliability labels.
-
-**Model Diagnostics** — tests normality (Jarque-Bera) and independence (Ljung-Box) of daily returns. QQ plots for visual inspection.
+### Forecast
+Monte Carlo simulation with correlated multi-ticker paths. Portfolio and per-ticker outlook with confidence bands, VaR/CVaR, and probability of breakeven. Backtesting against actual prices.
 
 ![Forecast](Screenshots/dark/05_forecast_hero.png)
 
-### Other
+### Diagnostics
+Model diagnostics testing normality (Jarque-Bera) and independence (Ljung-Box) of daily returns. QQ plots for visual inspection.
 
-- **Global stock coverage** — S&P 500, FTSE 100, DAX, CAC 40, SMI, AEX, IBEX 35, ETFs, crypto, commodities, REITs, bonds
+### Guide
+In-app documentation explaining each tab and how to use the dashboard.
+
+### Key Features
+
+- **Multi-currency** — USD, EUR, GBP, CHF, SEK with automatic FX conversion (including GBX handling for London-listed stocks)
+- **Monte Carlo simulation** — correlated portfolio projections with backtesting
+- **Dividend income tracking** — per-lot dividends from purchase date with historical FX rates
+- **Contribution tracking** — cumulative cost basis vs portfolio market value over time
+- **Encrypted storage** — portfolio data encrypted at rest with Fernet (PBKDF2-derived key)
+- **Global stock coverage** — S&P 500, FTSE 100, DAX, CAC 40, SMI, AEX, IBEX 35, OMX 30, ETFs, crypto, commodities, REITs, bonds
 - **Excel report export** — formatted multi-sheet `.xlsx` with embedded charts, formulas, and net worth template
 - **Import / export** — save and load portfolios as JSON
-- **Multi-currency** — USD, EUR, GBP, CHF with automatic FX conversion
 
 ## Quick Start
 

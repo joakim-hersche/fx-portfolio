@@ -199,6 +199,7 @@ def _render_portfolio_outlook(
             }],
             currency_symbol=currency_symbol,
             y_title=f"Portfolio Value ({currency})",
+            title="Portfolio Outlook",
         )
 
         chart_container.clear()
@@ -223,34 +224,34 @@ def _render_portfolio_outlook(
             with ui.element("div").classes("metric-grid-4"):
                 ui.html(
                     f'<div class="metric-card">'
-                    f'<div class="metric-label">VaR 95% ({hl})</div>'
+                    f'<div class="metric-label">Value at Risk 95% ({hl})</div>'
                     f'<div class="metric-value" style="color:#DC2626;">{currency_symbol}{abs(vc["var_abs"]):,.0f}</div>'
-                    f'<div class="metric-sub">{vc["var"] * 100:.1f}%</div>'
+                    f'<div class="metric-sub">5% of simulations lost more than this — actual losses could be larger ({vc["var"] * 100:.1f}%)</div>'
                     f'</div>'
                 )
                 ui.html(
                     f'<div class="metric-card">'
-                    f'<div class="metric-label">CVaR 95% ({hl})</div>'
+                    f'<div class="metric-label">Average tail loss ({hl})</div>'
                     f'<div class="metric-value" style="color:#DC2626;">{currency_symbol}{abs(vc["cvar_abs"]):,.0f}</div>'
-                    f'<div class="metric-sub">{vc["cvar"] * 100:.1f}%</div>'
+                    f'<div class="metric-sub">Average loss in the worst 5% of scenarios ({vc["cvar"] * 100:.1f}%)</div>'
                     f'</div>'
                 )
                 p10_chg = (corr_p10 - start_val) / start_val * 100
                 ui.html(
                     f'<div class="metric-card">'
-                    f'<div class="metric-label">p10 outcome</div>'
+                    f'<div class="metric-label">10th percentile outcome</div>'
                     f'<div class="metric-value" style="color:#D97706;">{currency_symbol}{corr_p10:,.0f}</div>'
-                    f'<div class="metric-sub">{p10_chg:+.1f}%</div>'
+                    f'<div class="metric-sub">10% of simulations ended below this — not a worst case ({p10_chg:+.1f}%)</div>'
                     f'</div>'
                 )
                 if div_is_benefit:
                     div_color = GREEN
-                    div_title = "Diversification benefit"
-                    div_sub = f"Correlation reduces p10 downside"
+                    div_title = "Correlation effect"
+                    div_sub = f"Correlation narrows downside in simulation"
                 else:
                     div_color = RED
-                    div_title = "Correlation risk"
-                    div_sub = f"Correlation widens p10 downside"
+                    div_title = "Correlation effect"
+                    div_sub = f"Correlation widens downside in simulation"
                 ui.html(
                     f'<div class="metric-card">'
                     f'<div class="metric-label">{div_title}</div>'
@@ -271,6 +272,7 @@ def _render_portfolio_outlook(
             p90=p90_val,
             currency_symbol=currency_symbol,
             base_currency=currency,
+            title="Distribution of Simulated Outcomes",
         )
 
         hist_container.clear()
@@ -412,6 +414,7 @@ def _render_position_outlook(
             hlines=hlines,
             currency_symbol=currency_symbol,
             y_title=f"Price ({currency})",
+            title=f"{ticker} Outlook",
         )
 
         with chart_container:
@@ -424,16 +427,16 @@ def _render_position_outlook(
                 if wavg is not None:
                     prob_above = float((end_paths >= wavg).mean() * 100)
                     _metric_card(
-                        "Prob. above avg buy",
+                        "Simulated prob. above avg buy",
                         f"{prob_above:.0f}%",
-                        f"vs {currency_symbol}{wavg:,.2f}",
+                        f"Model-based — vs {currency_symbol}{wavg:,.2f}",
                     )
 
                 prob_above_current = float((end_paths >= current_price).mean() * 100)
                 _metric_card(
-                    "Prob. above today's price",
+                    "Simulated prob. above current",
                     f"{prob_above_current:.0f}%",
-                    f"vs {currency_symbol}{current_price:,.2f}",
+                    f"Model-based — vs {currency_symbol}{current_price:,.2f}",
                 )
 
                 _metric_card(
@@ -455,9 +458,9 @@ def _render_position_outlook(
                     f'</div>'
                 )
             _caption(
-                f"Calibrated on {result['train_days']} trading days of {ticker} history "
-                f"({lookback_toggle.value} window). Assumes log-normally distributed daily returns with "
-                f"\u03bc = {result['mu_annual']:+.1f}%/yr, \u03c3 = {result['sigma_annual']:.1f}%/yr. "
+                f"Based on {result['train_days']} trading days of {ticker} history "
+                f"({lookback_toggle.value} window). Historical average annual return: "
+                f"{result['mu_annual']:+.1f}%/yr, typical annual swing: {result['sigma_annual']:.1f}%/yr. "
                 f"This is a statistical model, not financial advice."
             )
 
@@ -512,6 +515,7 @@ def _render_backtest(
             actual=bt["actual"],
             currency_symbol=currency_symbol,
             y_title=f"Portfolio Value ({currency})",
+            title="Monte Carlo Backtest",
         )
         ui.plotly(fig).classes("w-full")
 
@@ -527,15 +531,15 @@ def _render_backtest(
 
         def _reliability_label(hit_rate_80: float) -> str:
             if hit_rate_80 >= 80:
-                return "Good"
+                return "Well-calibrated"
             if hit_rate_80 >= 65:
-                return "Moderate"
-            return "Low"
+                return "Under-calibrated"
+            return "Poorly-calibrated"
 
         def _reliability_color(label: str) -> str:
-            if label == "Good":
+            if label == "Well-calibrated":
                 return GREEN
-            if label == "Moderate":
+            if label == "Under-calibrated":
                 return AMBER
             return RED
 
@@ -578,12 +582,12 @@ def _render_backtest(
         <table>
             <thead><tr>
                 <th scope="col">Ticker</th>
-                <th scope="col">Hit Rate 80% CI</th>
-                <th scope="col">Hit Rate 50% CI</th>
-                <th scope="col">Kurtosis</th>
-                <th scope="col">Skewness</th>
-                <th scope="col">Fat-tailed</th>
-                <th scope="col">Reliability</th>
+                <th scope="col" class="th-tip" title="How often the actual price stayed inside the model's 80% confidence band. Should be close to 80% if the model is accurate.">Hit Rate 80% CI</th>
+                <th scope="col" class="th-tip" title="How often the actual price stayed inside the 50% confidence band. Should be close to 50%.">Hit Rate 50% CI</th>
+                <th scope="col" class="th-tip" title="Measures how 'fat' the tails of the return distribution are. Above 3 means extreme moves happen more often than expected.">Kurtosis</th>
+                <th scope="col" class="th-tip" title="Whether returns lean more to one side. Negative = more large drops, positive = more large gains.">Skewness</th>
+                <th scope="col" class="th-tip" title="Yes means this stock has unusually extreme price swings. The simulation will understate how bad a bad day can really be.">Fat-tailed</th>
+                <th scope="col" class="th-tip" title="Overall model quality for this stock. Well-calibrated = trustworthy bands. Poorly-calibrated = take the fan chart with a grain of salt.">Reliability</th>
             </tr></thead>
             <tbody>{rows_html}</tbody>
         </table>
@@ -693,9 +697,7 @@ def _render_model_diagnostics(
                     f'<tr>'
                     f'<td style="font-weight:600;">{t}</td>'
                     f'<td style="color:{jb_color}; font-weight:500;">{jb_label}</td>'
-                    f'<td>{d["jb_pvalue"]:.4f}</td>'
                     f'<td style="color:{lb_color}; font-weight:500;">{lb_label}</td>'
-                    f'<td>{d["lb_pvalue"]:.4f}</td>'
                     f'<td style="font-size:11px; color:{TEXT_DIM};">'
                     f'{d["verdict"][:60]}{"..." if len(d["verdict"]) > 60 else ""}</td>'
                     f'</tr>'
@@ -706,10 +708,8 @@ def _render_model_diagnostics(
             <table>
                 <thead><tr>
                     <th scope="col">Ticker</th>
-                    <th scope="col">Normality (JB)</th>
-                    <th scope="col">JB p-value</th>
-                    <th scope="col">Independence (LB)</th>
-                    <th scope="col">LB p-value</th>
+                    <th scope="col" class="th-tip" title="Jarque-Bera test: checks if daily returns follow a bell curve. Pass = normal, Fail = fat tails or skew (extreme days happen more than expected).">Normality (JB)</th>
+                    <th scope="col" class="th-tip" title="Ljung-Box test: checks if today's return is related to recent days. Pass = independent, Fail = there is momentum or mean-reversion the model ignores.">Independence (LB)</th>
                     <th scope="col">Verdict</th>
                 </tr></thead>
                 <tbody>{rows_html}</tbody>
@@ -734,12 +734,27 @@ async def build_forecast_tab(portfolio: dict, currency: str) -> None:
     tickers = list(portfolio.keys())
 
     if not tickers:
-        _empty_state("Add positions to your portfolio to see forecasts.")
+        with ui.column().classes("w-full items-center").style("padding:40px 20px;"):
+            ui.html(
+                f'<p style="color:{TEXT_DIM};font-size:14px;text-align:center;margin-bottom:16px;">'
+                "Add positions to see Monte Carlo simulations and projected outcomes."
+                "</p>"
+            )
+            ui.button(
+                "Load Sample Portfolio", icon="science",
+                on_click=lambda: ui.run_javascript(
+                    'document.getElementById("btn-load-sample")?.click()'
+                ),
+            ).props("unelevated no-caps size=lg").style(
+                "background:#3B82F6; color:white; border-radius:8px; padding:12px 32px;"
+                " font-size:14px; font-weight:600;"
+            )
         return
 
     _section_intro(
-        "Monte Carlo simulations project possible future paths for your portfolio and individual "
-        "positions. The fan charts show the range of likely outcomes based on historical return patterns."
+        "Imagine replaying the stock market 1,000 times. Each replay uses each stock's real "
+        "historical behaviour but shuffles the order of good and bad days randomly. The result "
+        "is a fan of possible futures — the wider the fan, the more uncertain the outcome."
     )
 
     # Load simulation data once for both sections (off the event loop)
@@ -760,44 +775,41 @@ async def build_forecast_tab(portfolio: dict, currency: str) -> None:
 
     _render_position_outlook(portfolio, tickers, price_data, currency, currency_symbol)
 
-
-async def build_diagnostics_tab(portfolio: dict, currency: str) -> None:
-    """Render the full Diagnostics tab content using NiceGUI widgets.
-
-    Parameters
-    ----------
-    portfolio : dict
-        Mapping of ticker -> list of lot dicts (the session portfolio).
-    currency : str
-        Base display currency code, e.g. "USD", "GBP", "EUR".
-    """
-    currency_symbol = CURRENCY_SYMBOLS.get(currency, "$")
-    tickers = list(portfolio.keys())
-
-    if not tickers:
-        _empty_state("Add positions to your portfolio to see diagnostics.")
-        return
-
-    _section_intro(
-        "Validates whether the Monte Carlo model's assumptions hold for your positions. "
-        "The backtest checks calibration against actual history; the diagnostics test normality "
-        "and independence of returns."
-    )
-
-    # Load simulation data once for both sections (off the event loop)
-    notification = ui.notification("Running diagnostics...", spinner=True, timeout=None)
-    try:
-        price_data = await run.io_bound(_load_simulation_data, tickers)
-    finally:
-        notification.dismiss()
-
-    if not price_data:
-        ui.notify("Could not load simulation data. Try reloading.", type="warning")
-        _empty_state("No price data available for diagnostics. Check your positions and try reloading.")
-        return
-
-    _render_backtest(portfolio, tickers, price_data, currency, currency_symbol)
-
+    # ── Model Diagnostics (collapsible advanced section) ──
     ui.html('<hr class="content-divider">')
 
-    _render_model_diagnostics(tickers, price_data)
+    with ui.expansion(
+        "Model Diagnostics",
+        icon="science",
+    ).classes("w-full").style(
+        f"background:{BG_PILL};border:1px solid {BORDER};border-radius:8px;"
+    ).props("dense header-class='text-grey-5'") as diag_exp:
+        diag_exp.style("margin-top:8px;")
+
+        ui.html(
+            f'<div style="font-size:12px;color:{TEXT_MUTED};line-height:1.6;margin-bottom:12px;">'
+            f'<b style="color:{TEXT_PRIMARY};">For most users:</b> check the '
+            f'<b style="color:{TEXT_PRIMARY};">Reliability</b> column in the backtest table. '
+            f'"Well-calibrated" means the simulation\'s confidence bands matched what actually happened. '
+            f'The rest is for advanced users who want to verify the model\'s statistical assumptions.'
+            f'</div>'
+        )
+
+        _render_backtest(portfolio, tickers, price_data, currency, currency_symbol)
+
+        ui.html('<hr class="content-divider">')
+
+        _render_model_diagnostics(tickers, price_data)
+
+
+async def build_diagnostics_tab(portfolio: dict, currency: str) -> None:
+    """Deprecated — diagnostics are now part of the Forecast tab.
+
+    Kept as a stub for backwards compatibility.
+    """
+    ui.html(
+        f'<p style="color:{TEXT_DIM};font-size:13px;padding:20px 0;">'
+        'Model diagnostics have moved to the Forecast tab. '
+        'Expand the "Model Diagnostics" section at the bottom.'
+        '</p>'
+    )

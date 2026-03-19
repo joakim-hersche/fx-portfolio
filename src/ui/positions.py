@@ -19,7 +19,7 @@ from src.charts import (
     C_POSITIVE,
     build_price_history_chart,
 )
-from src.data_fetch import fetch_company_name, fetch_price_history_long
+from src.data_fetch import fetch_company_name, fetch_fundamentals, fetch_price_history_long
 from src.fx import CURRENCY_SYMBOLS, get_fx_rate, get_ticker_currency
 from src.portfolio import build_portfolio_df
 from src.stocks import TICKER_COLORS
@@ -67,6 +67,8 @@ def _build_positions_table(
     currency_symbol: str,
     portfolio_color_map: dict[str, str] | None = None,
     on_click_bridge_id: int | None = None,
+    target_prices: dict[str, float | None] | None = None,
+    unavailable_tickers: set[str] | None = None,
 ) -> None:
     """Render the positions table as a styled HTML table via ui.html().
 
@@ -77,10 +79,12 @@ def _build_positions_table(
     ui.html(
         f'<p style="font-size:12px;color:{TEXT_MUTED};line-height:1.6;margin-bottom:12px;">'
         "Every stock you own, how much you paid, what it's worth now, "
-        "and how much you've gained or lost. <b>Today's Change</b> is how much "
+        "and how much you've gained or lost. <b>Target</b> shows the analyst "
+        "consensus price target with upside/downside percentage. "
+        "<b>Today's Change</b> is how much "
         "your value moved since yesterday's market close. "
         "<b>Total Return</b> includes any dividends received. "
-        "<b>Portfolio Share</b> is what percentage of your total investment "
+        "<b>Share</b> is what percentage of your total investment "
         "this position represents."
         + (" Click a row to view its price chart below." if on_click_bridge_id else "")
         + "</p>"
@@ -147,26 +151,43 @@ def _build_positions_table(
         )
         display_df["Purchase"] = display_df["Purchase"].astype(str)
 
+        _target_prices = target_prices or {}
+        _unavailable = unavailable_tickers or set()
+
         # Build HTML table
         columns = [
             "Ticker",
             "Company",
-            "Buy #",
+            "Lot",
             "Shares",
             "Buy Price",
             "Purchase Date",
             "Current Price",
+            "Target",
             "Total Value",
             "Dividends",
-            "Today",
+            "Day P&L",
             "Return (%)",
-            "Weight (%)",
+            "Share (%)",
         ]
 
         right_cols = {"Shares", "Buy Price", "Purchase Date", "Current Price",
-                      "Total Value", "Dividends", "Today", "Return (%)", "Weight (%)"}
+                      "Target", "Total Value", "Dividends", "Today", "Return (%)", "Weight (%)"}
+        _col_tips = {
+            "Target": "Analyst consensus price target — the average price Wall Street analysts expect this stock to reach.",
+            "Dividends": "Cash dividends received since you bought this position, in your base currency.",
+            "Day P&L": "How much this position's value changed since yesterday's market close.",
+            "Return (%)": "Total return including dividends — how much you gained or lost as a % of what you paid.",
+            "Share (%)": "What percentage of your total portfolio this position represents by value.",
+        }
         header_cells = "".join(
-            f'<th scope="col" class="right">{c}</th>' if c in right_cols else f'<th scope="col">{c}</th>'
+            f'<th scope="col" class="right th-tip" title="{_col_tips[c]}">{c}</th>'
+            if c in _col_tips and c in right_cols
+            else f'<th scope="col" class="th-tip" title="{_col_tips[c]}">{c}</th>'
+            if c in _col_tips
+            else f'<th scope="col" class="right">{c}</th>'
+            if c in right_cols
+            else f'<th scope="col">{c}</th>'
             for c in columns
         )
         header = f"<thead><tr>{header_cells}</tr></thead>"
@@ -202,18 +223,51 @@ def _build_positions_table(
                 f'{dot_html}{ticker_raw}</div></td>'
             )
 
+            # Target price + upside badge
+            tp = _target_prices.get(clean_ticker)
+            cur_price = row['Current Price']
+            if tp and cur_price and cur_price > 0:
+                upside_pct = (tp - cur_price) / cur_price * 100
+                if upside_pct > 10:
+                    badge_cls = "badge-green"
+                elif upside_pct >= 0:
+                    badge_cls = "badge-amber"
+                else:
+                    badge_cls = "badge-red"
+                arrow = "\u25b2" if upside_pct >= 0 else "\u25bc"
+                target_cell = (
+                    f'<td style="{row_style}" class="right">'
+                    f'{_fmt_currency(tp, currency_symbol)} '
+                    f'<span class="kpi-badge {badge_cls}" style="font-size:10px;">'
+                    f'{arrow} {upside_pct:+.1f}%</span></td>'
+                )
+            else:
+                target_cell = f'<td style="{row_style}" class="right">\u2014</td>'
+
+            # Unavailable ticker badge
+            is_unavailable = clean_ticker in _unavailable
+            if is_unavailable:
+                company_cell = (
+                    f'<td style="{row_style}">{company} '
+                    f'<span class="kpi-badge badge-amber" style="font-size:10px;">'
+                    f'\u26a0 Data unavailable</span></td>'
+                )
+            else:
+                company_cell = f'<td style="{row_style}">{company}</td>'
+
             cells = [
                 ticker_cell,
-                f"<td style=\"{row_style}\">{company}</td>",
+                company_cell,
                 f"<td style=\"{row_style}\">{row['Purchase']}</td>",
                 f"<td style=\"{row_style}\" class=\"right\">{_fmt_shares(row['Shares'])}</td>",
                 f"<td style=\"{row_style}\" class=\"right\">{_fmt_currency(row['Buy Price'], currency_symbol)}</td>",
                 f"<td style=\"{row_style}\" class=\"right\">{row['Purchase Date']}</td>",
                 f"<td style=\"{row_style}\" class=\"right\">{_fmt_currency(row['Current Price'], currency_symbol)}</td>",
+                target_cell,
                 f"<td style=\"{row_style}\" class=\"right\">{_fmt_currency(row['Total Value'], currency_symbol)}</td>",
                 f"<td style=\"{row_style}\" class=\"right\">{_fmt_currency(row['Dividends'], currency_symbol)}</td>",
-                f"<td style=\"{row_style}\" class=\"{daily_cls} right\">{'+' if pd.notna(daily_pnl) and daily_pnl > 0 else ''}{_fmt_currency(daily_pnl, currency_symbol) if pd.notna(daily_pnl) else '—'}</td>",
-                f"<td style=\"{row_style}\" class=\"{ret_cls} right\">{_fmt_return(ret_pct) if pd.notna(ret_pct) else '—'}</td>",
+                f"<td style=\"{row_style}\" class=\"{daily_cls} right\">{'+' if pd.notna(daily_pnl) and daily_pnl > 0 else ''}{_fmt_currency(daily_pnl, currency_symbol) if pd.notna(daily_pnl) else '\u2014'}</td>",
+                f"<td style=\"{row_style}\" class=\"{ret_cls} right\">{_fmt_return(ret_pct) if pd.notna(ret_pct) else '\u2014'}</td>",
                 f"<td style=\"{row_style}\" class=\"right\">{row['Weight (%)']:.2f}%</td>",
             ]
 
@@ -254,17 +308,18 @@ def _build_positions_table(
             f'<td style="{ts}" class="right">\u2014</td>'
             f'<td style="{ts}" class="right">\u2014</td>'
             f'<td style="{ts}" class="right">\u2014</td>'
+            f'<td style="{ts}" class="right">\u2014</td>'
             f'<td style="font-weight:700;color:{TEXT_PRIMARY};" class="right">{_fmt_currency(total_value, currency_symbol)}</td>'
             f'<td style="{ts}" class="right">{_fmt_currency(total_divs, currency_symbol)}</td>'
             f'<td class="{total_daily_cls} right">{"+" if total_daily > 0 else ""}{_fmt_currency(total_daily, currency_symbol)}</td>'
-            f'<td class="right"><span class="kpi-badge {"badge-green" if total_ret_pct >= 0 else "badge-red"}" style="font-size:11px;">{"▲" if total_ret_pct >= 0 else "▼"} {_fmt_return(total_ret_pct)}</span></td>'
+            f'<td class="right"><span class="kpi-badge {"badge-green" if total_ret_pct >= 0 else "badge-red"}" style="font-size:11px;">{"\u25b2" if total_ret_pct >= 0 else "\u25bc"} {_fmt_return(total_ret_pct)}</span></td>'
             f'<td style="{ts}" class="right">100.00%</td>'
             f'</tr>'
         )
         body_rows.append(total_row)
 
         tbody = f"<tbody>{''.join(body_rows)}</tbody>"
-        html = f'<div class="table-wrap"><table>{header}{tbody}</table></div>'
+        html = f'<div style="overflow-x:auto;"><div class="table-wrap"><table>{header}{tbody}</table></div></div>'
 
         with table_container:
             ui.html(html)
@@ -425,6 +480,7 @@ def _build_price_history(
             fx_rate,
             effective_from,
             date_to,
+            title=t,
         )
 
         with chart_container:
@@ -458,23 +514,36 @@ async def build_positions_tab(portfolio: dict, currency: str) -> None:
     currency_symbol = CURRENCY_SYMBOLS.get(currency, "$")
 
     if not portfolio:
-        ui.html(
-            f'<div style="color:{TEXT_DIM};font-size:14px;padding:24px;">'
-            "No positions yet. Add stocks in the sidebar, or use "
-            "<b>Load Sample</b> in the sidebar to try a demo portfolio."
-            "</div>"
-        )
+        with ui.column().classes("w-full items-center").style("padding:40px 20px;"):
+            ui.html(
+                f'<div style="color:{TEXT_DIM};font-size:14px;text-align:center;margin-bottom:16px;">'
+                "No positions yet. Add stocks in the sidebar, or load sample data to explore."
+                "</div>"
+            )
+            ui.button(
+                "Load Sample Portfolio", icon="science",
+                on_click=lambda: ui.run_javascript(
+                    'document.getElementById("btn-load-sample")?.click()'
+                ),
+            ).props("unelevated no-caps size=lg").style(
+                "background:#3B82F6; color:white; border-radius:8px; padding:12px 32px;"
+                " font-size:14px; font-weight:600;"
+            )
         return
 
     # Build the portfolio DataFrame (cached 15 min) — off the event loop
     def _fetch_positions_data():
         df = build_portfolio_df(portfolio, currency)
         name_map: dict[str, str] = {t: fetch_company_name(t) for t in portfolio}
-        return df, name_map
+        # Fetch fundamentals for target prices and error detection
+        fund_map: dict[str, dict] = {}
+        for t in portfolio:
+            fund_map[t] = fetch_fundamentals(t)
+        return df, name_map, fund_map
 
     notification = ui.notification("Loading positions...", spinner=True, timeout=None)
     try:
-        df, name_map = await run.io_bound(_fetch_positions_data)
+        df, name_map, fund_map = await run.io_bound(_fetch_positions_data)
     finally:
         notification.dismiss()
 
@@ -491,6 +560,26 @@ async def build_positions_tab(portfolio: dict, currency: str) -> None:
         for i, t in enumerate(portfolio.keys())
     }
 
+    # Build target price map and detect unavailable tickers
+    from src.fx import get_fx_rate as _get_fx_rate, get_ticker_currency as _get_ticker_ccy
+    target_prices: dict[str, float | None] = {}
+    unavailable_tickers: set[str] = set()
+    for t in portfolio:
+        f = fund_map.get(t, {})
+        if not f or f.get("Current Price") is None:
+            unavailable_tickers.add(t)
+            continue
+        tp = f.get("Target Price")
+        if tp is not None:
+            # Convert target price to base currency (GBX /100 handled by get_fx_rate)
+            tc = _get_ticker_ccy(t)
+            if tc != currency:
+                fx, _ = _get_fx_rate(tc, currency)
+                tp = round(tp * fx, 2)
+            target_prices[t] = tp
+        else:
+            target_prices[t] = None
+
     # Hidden bridge element — table rows emit 'row_click' events on it
     bridge = ui.element("div").style("display:none")
 
@@ -498,6 +587,8 @@ async def build_positions_tab(portfolio: dict, currency: str) -> None:
     _build_positions_table(
         df, name_map, currency_symbol, portfolio_color_map,
         on_click_bridge_id=bridge.id,
+        target_prices=target_prices,
+        unavailable_tickers=unavailable_tickers,
     )
 
     # ── Divider ───────────────────────────────────────────

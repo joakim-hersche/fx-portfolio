@@ -27,7 +27,7 @@ from src.stocks import (
 
 @cached(short_cache)
 def fetch_price_history_short(ticker: str) -> pd.DataFrame:
-    """Fetch 6-month price history. Cached for 15 minutes."""
+    """Fetch 6-month price history. Cached for 5 minutes."""
     try:
         hist = yf.Ticker(ticker).history(period="6mo")
         hist.index = hist.index.tz_localize(None)
@@ -49,52 +49,61 @@ def fetch_price_history_long(ticker: str) -> pd.DataFrame:
 
 @cached(long_cache_fundamentals)
 def fetch_fundamentals(ticker: str) -> dict:
-    """Fetch P/E, dividend yield, and 1-year range. Cached for 24 hours."""
+    """Fetch P/E, dividend yield, and 1-year range. Cached for 24 hours.
+
+    Price fields (``currentPrice``, ``1-Year Low/High``) are returned in
+    the ticker's **trading currency** (i.e. what ``get_ticker_currency``
+    returns — GBX for ``.L`` stocks, EUR for ``.AS``, etc.).
+
+    ``Dividend Rate`` comes from yfinance in ``financialCurrency``
+    which can differ from the trading currency (e.g. USD for many
+    London-listed stocks).  We return it in ``financialCurrency`` and
+    include a ``Financial Currency`` key so callers can apply the right
+    FX conversion.  ``Target Price`` is in the trading currency.
+    """
     try:
         info = yf.Ticker(ticker).info
-        current  = info.get("currentPrice") or info.get("regularMarketPrice")
-        low_1y   = info.get("fiftyTwoWeekLow")
-        high_1y  = info.get("fiftyTwoWeekHigh")
-        pe       = info.get("trailingPE")
-        div_rate = info.get("dividendRate")  # annual dividend per share, native currency
+        current      = info.get("currentPrice") or info.get("regularMarketPrice")
+        low_1y       = info.get("fiftyTwoWeekLow")
+        high_1y      = info.get("fiftyTwoWeekHigh")
+        pe           = info.get("trailingPE")
+        div_rate     = info.get("dividendRate")  # in financialCurrency
+        sector       = info.get("sector", None)
+        target_price = info.get("targetMeanPrice", None)  # in financialCurrency
 
-        # Prefer computing yield from dividendRate/price — more reliable than dividendYield
-        # which yfinance returns inconsistently (sometimes decimal fraction, sometimes percent).
-        if div_rate and current and current > 0:
-            candidate = round(div_rate / current * 100, 4)
-            # Guard: yields above 20% almost certainly indicate a unit mismatch
-            # (e.g. dividendRate returned in cents instead of dollars). Fall through
-            # to the dividendYield fallback in that case.
-            div_pct = candidate if candidate <= 20.0 else None
-        else:
-            div_pct = None
+        trading_ccy   = info.get("currency")           # e.g. "GBp", "EUR", "USD"
+        financial_ccy = info.get("financialCurrency")   # e.g. "USD", "GBP", "EUR"
+        # Normalise yfinance's "GBp" label to our canonical "GBX"
+        if financial_ccy == "GBp":
+            financial_ccy = "GBX"
 
-        if div_pct is None:
-            div = info.get("dividendYield")
-            if div is not None:
-                # dividendYield is normally a decimal fraction (0.0042 = 0.42%).
-                # If result > 20% after multiplying it was already in percent form.
-                candidate = div * 100
-                div_pct = candidate if candidate <= 20.0 else div
+        # ── Dividend yield (%) ──
+        # Use dividendYield directly — it's already a ratio independent of
+        # currency mismatches between trading and financial currencies.
+        div_pct = None
+        div = info.get("dividendYield")
+        if div is not None:
+            # dividendYield is normally a decimal fraction (0.0042 = 0.42%).
+            # If result > 20% after multiplying it was already in percent form.
+            candidate = div * 100
+            div_pct = candidate if candidate <= 20.0 else div
 
-        # For London-listed tickers yfinance returns fiftyTwoWeekLow/High in GBX
-        # (pence) but currentPrice in GBP, so divide by 100 to make units consistent.
-        ticker_ccy = get_ticker_currency(ticker)
-        if ticker_ccy == "GBX":
-            low_1y  = low_1y  / 100 if low_1y  else None
-            high_1y = high_1y / 100 if high_1y else None
-
+        # ── 52-week position ──
         position = None
         if current and low_1y and high_1y and high_1y > low_1y:
             position = round((current - low_1y) / (high_1y - low_1y) * 100, 1)
 
         return {
-            "P/E Ratio":      round(pe, 1)        if pe      else None,
-            "Div Yield (%)":  round(div_pct, 2)   if div_pct else None,
-            "1-Year Low":     round(low_1y, 2)     if low_1y  else None,
-            "1-Year High":    round(high_1y, 2)    if high_1y else None,
-            "1-Year Position": position,
-            "Current Price":  round(current, 2)    if current else None,
+            "P/E Ratio":          round(pe, 1)            if pe           else None,
+            "Div Yield (%)":      round(div_pct, 2)       if div_pct      else None,
+            "1-Year Low":         round(low_1y, 2)        if low_1y       else None,
+            "1-Year High":        round(high_1y, 2)       if high_1y      else None,
+            "1-Year Position":    position,
+            "Current Price":      round(current, 2)       if current      else None,
+            "Sector":             sector if sector else "Unknown",
+            "Target Price":       round(target_price, 2)  if target_price else None,
+            "Dividend Rate":      round(div_rate, 4)      if div_rate     else None,
+            "Financial Currency": financial_ccy,
         }
     except Exception:
         return {}
@@ -139,7 +148,7 @@ def fetch_analytics_history(ticker: str) -> pd.DataFrame:
 
 @cached(short_cache)
 def fetch_price_history_range(ticker: str, period: str) -> pd.DataFrame:
-    """Fetch price history for a given period string (e.g. '3mo', '1y'). Cached for 15 minutes."""
+    """Fetch price history for a given period string (e.g. '3mo', '1y'). Cached for 5 minutes."""
     try:
         hist = yf.Ticker(ticker).history(period=period)
         hist.index = hist.index.tz_localize(None)

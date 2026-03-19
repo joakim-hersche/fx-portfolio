@@ -361,6 +361,7 @@ def _sheet_summary(wb: Workbook, kpis: dict, currency: str, n_rows: int) -> None
 _POS_COLS = [
     "Ticker", "Company", "Purchase", "Shares",
     "Buy Price", "Purchase Date", "Current Price",
+    "Target Price", "Upside (%)",
     "Total Value", "Dividends", "Daily P&L",
     "Return (%)", "Weight (%)",
 ]
@@ -368,7 +369,8 @@ _POS_COLS = [
 _POS_IDX = {c: i for i, c in enumerate(_POS_COLS, 1)}
 
 
-def _sheet_positions(wb: Workbook, df: pd.DataFrame, name_map: dict, currency: str) -> None:
+def _sheet_positions(wb: Workbook, df: pd.DataFrame, name_map: dict, currency: str,
+                     target_prices: dict[str, float | None] | None = None) -> None:
     ws       = wb.create_sheet("Positions")
     curr_fmt = _CURRENCY_FMT.get(currency, "#,##0.00")
 
@@ -376,6 +378,13 @@ def _sheet_positions(wb: Workbook, df: pd.DataFrame, name_map: dict, currency: s
 
     export_df = df.copy()
     export_df.insert(1, "Company", export_df["Ticker"].map(name_map))
+
+    # Add Target Price column from fundamentals data
+    _tp = target_prices or {}
+    export_df["Target Price"] = export_df["Ticker"].map(lambda t: _tp.get(t))
+    # Upside % is computed as formula in Excel, but we need a placeholder column
+    export_df["Upside (%)"] = None
+
     export_df = export_df[[c for c in _POS_COLS if c in export_df.columns]]
     export_df = export_df.rename(columns={"Purchase": "Lot #"})
 
@@ -383,6 +392,8 @@ def _sheet_positions(wb: Workbook, df: pd.DataFrame, name_map: dict, currency: s
     D = get_column_letter(_POS_IDX["Shares"])
     E = get_column_letter(_POS_IDX["Buy Price"])
     G = get_column_letter(_POS_IDX["Current Price"])
+    TP = get_column_letter(_POS_IDX["Target Price"])
+    UP = get_column_letter(_POS_IDX["Upside (%)"])
     H = get_column_letter(_POS_IDX["Total Value"])
     I = get_column_letter(_POS_IDX["Dividends"])
     K = get_column_letter(_POS_IDX["Return (%)"])
@@ -422,6 +433,17 @@ def _sheet_positions(wb: Workbook, df: pd.DataFrame, name_map: dict, currency: s
                 # give wrong values for EUR/CHF/GBX tickers.
                 cell.value         = safe
                 cell.number_format = curr_fmt
+            elif col_name == "Target Price":
+                cell.value         = safe
+                cell.number_format = curr_fmt
+            elif col_name == "Upside (%)":
+                # Formula: (Target Price - Current Price) / Current Price * 100
+                cell.value = (
+                    f'=IF(OR({TP}{row_idx}="",{G}{row_idx}=0),"",'
+                    f'({TP}{row_idx}-{G}{row_idx})/{G}{row_idx}*100)'
+                )
+                cell.number_format = '0.00"%"'
+                cell.font          = Font(size=10)
             elif col_name == "Total Value":
                 cell.value         = f"={D}{row_idx}*{G}{row_idx}"
                 cell.number_format = curr_fmt
@@ -455,9 +477,9 @@ def _sheet_positions(wb: Workbook, df: pd.DataFrame, name_map: dict, currency: s
 
         ws.row_dimensions[row_idx].height = 18
 
-    # Conditional formatting: green/red on Return (%) and Daily P&L
+    # Conditional formatting: green/red on Return (%), Daily P&L, and Upside (%)
     J = get_column_letter(_POS_IDX["Daily P&L"])
-    for col_l in (K, J):
+    for col_l in (K, J, UP):
         rng = f"{col_l}2:{col_l}{last_data}"
         ws.conditional_formatting.add(rng, CellIsRule(operator="greaterThan", formula=["0"], fill=_GREEN_FILL))
         ws.conditional_formatting.add(rng, CellIsRule(operator="lessThan",    formula=["0"], fill=_RED_FILL))
@@ -513,13 +535,14 @@ def _sheet_allocation(wb: Workbook, df: pd.DataFrame, name_map: dict, currency: 
 
     _write_headers(ws, ["Ticker", "Company", "Total Value", "Weight (%)"])
 
+    _TV = get_column_letter(_POS_IDX["Total Value"])
     for row_idx, ticker in enumerate(tickers, 2):
         alt = _row_fill(row_idx)
         ws.cell(row_idx, 1, ticker).border  = _CELL_BORDER
         ws.cell(row_idx, 2, name_map.get(ticker, ticker)).border = _CELL_BORDER
 
         val_cell               = ws.cell(row_idx, 3,
-            f"=SUMIF(Positions!$A:$A,A{row_idx},Positions!$H:$H)")
+            f"=SUMIF(Positions!$A:$A,A{row_idx},Positions!${_TV}:${_TV})")
         val_cell.number_format = curr_fmt
         val_cell.border        = _CELL_BORDER
 
@@ -733,7 +756,7 @@ def _sheet_fundamentals(wb: Workbook, fund_rows: list[dict], name_map: dict) -> 
 
     fund_df = pd.DataFrame(fund_rows)
     fund_df.insert(1, "Company", fund_df["Ticker"].map(name_map))
-    headers = ["Ticker", "Company", "P/E Ratio", "Div Yield (%)", "1-Year Low", "1-Year High", "1-Year Position (%)"]
+    headers = ["Ticker", "Company", "Sector", "P/E Ratio", "Div Yield (%)", "1-Year Low", "1-Year High", "1-Year Position (%)"]
     fund_df = fund_df[[c for c in headers if c in fund_df.columns]]
 
     _write_headers(ws, list(fund_df.columns))
@@ -1520,6 +1543,10 @@ def _sheet_scenario(wb: Workbook, positions_df: pd.DataFrame, name_map: dict, cu
 
     last_data = n + 2  # header at row 2, data rows 3 to n+2
 
+    _PD = get_column_letter(_POS_IDX["Shares"])
+    _PE = get_column_letter(_POS_IDX["Buy Price"])
+    _PTV = get_column_letter(_POS_IDX["Total Value"])
+
     for row_idx, ticker in enumerate(tickers, 3):
         row_data = agg.loc[ticker]
         alt      = _row_fill(row_idx)
@@ -1535,12 +1562,12 @@ def _sheet_scenario(wb: Workbook, positions_df: pd.DataFrame, name_map: dict, cu
         ws.cell(row_idx, 2, name_map.get(ticker, ticker))
 
         ws.cell(row_idx, 3,
-            f"=SUMIF(Positions!$A:$A,A{row_idx},Positions!$D:$D)").number_format = "#,##0"
+            f"=SUMIF(Positions!$A:$A,A{row_idx},Positions!${_PD}:${_PD})").number_format = "#,##0"
 
         ws.cell(row_idx, 4,
             f"=IFERROR(SUMPRODUCT((Positions!$A$2:$A$10000=A{row_idx})"
-            f"*Positions!$D$2:$D$10000*Positions!$E$2:$E$10000)"
-            f"/SUMIF(Positions!$A:$A,A{row_idx},Positions!$D:$D),\"\")"
+            f"*Positions!${_PD}$2:${_PD}$10000*Positions!${_PE}$2:${_PE}$10000)"
+            f"/SUMIF(Positions!$A:$A,A{row_idx},Positions!${_PD}:${_PD}),\"\")"
         ).number_format = curr_fmt
 
         curr_cell               = ws.cell(row_idx, 5, float(row_data["CurrentPrice"]) if pd.notna(row_data["CurrentPrice"]) else 0)
@@ -1554,7 +1581,7 @@ def _sheet_scenario(wb: Workbook, positions_df: pd.DataFrame, name_map: dict, cu
         tgt_cell.fill          = _INPUT_FILL
 
         ws.cell(row_idx, 7,
-            f"=SUMIF(Positions!$A:$A,A{row_idx},Positions!$H:$H)"
+            f"=SUMIF(Positions!$A:$A,A{row_idx},Positions!${_PTV}:${_PTV})"
         ).number_format = curr_fmt
 
         ws.cell(row_idx, 8, f"=C{row_idx}*F{row_idx}").number_format = curr_fmt
@@ -1591,6 +1618,69 @@ def _sheet_scenario(wb: Workbook, positions_df: pd.DataFrame, name_map: dict, cu
     _add_table(ws, "tblScenario", f"A2:{get_column_letter(len(headers))}{last_data}")
 
 
+# ── Income sheet ──────────────────────────────────────────────────────────────
+
+def _sheet_income(wb: Workbook, positions_df: pd.DataFrame, fund_rows: list[dict], name_map: dict, currency: str) -> None:
+    """Per-position dividend income summary."""
+    from src.fx import get_ticker_currency, get_fx_rate
+
+    ws = wb.create_sheet("Income")
+    curr_fmt = _CURRENCY_FMT.get(currency, '#,##0.00')
+    headers = ["Ticker", "Company", "Shares", "Annual Income", "Yield (%)", "Yield on Cost (%)"]
+
+    _no_gridlines(ws)
+    _write_headers(ws, headers)
+
+    # Build a lookup from fund_rows
+    fund_map = {}
+    for fr in fund_rows:
+        t = fr.get("Ticker")
+        if t:
+            fund_map[t] = fr
+
+    row = 2
+    tickers = sorted(positions_df["Ticker"].unique()) if not positions_df.empty else []
+    for ticker in tickers:
+        ticker_df = positions_df[positions_df["Ticker"] == ticker]
+        total_shares = ticker_df["Shares"].sum()
+        total_value = ticker_df["Total Value"].sum()
+        cost_basis = (ticker_df["Buy Price"] * ticker_df["Shares"]).sum()
+
+        fund = fund_map.get(ticker, {})
+        div_rate = fund.get("Dividend Rate")
+        div_yield = fund.get("Div Yield (%)")
+
+        div_ccy = fund.get("Financial Currency") or get_ticker_currency(ticker)
+        fx_rate, _ = get_fx_rate(div_ccy, currency)
+
+        if div_rate and div_rate > 0:
+            annual_income = div_rate * total_shares * fx_rate
+            yoc = (annual_income / cost_basis * 100) if cost_basis > 0 else 0
+        else:
+            annual_income = 0
+            yoc = 0
+
+        name = name_map.get(ticker, ticker)
+        ws.cell(row, 1, ticker).font = Font(bold=True, size=10)
+        ws.cell(row, 2, name)
+        ws.cell(row, 3, total_shares).number_format = '#,##0'
+        ws.cell(row, 4, round(annual_income, 2)).number_format = curr_fmt
+        ws.cell(row, 5, round(div_yield, 2) if div_yield else 0).number_format = '0.00'
+        ws.cell(row, 6, round(yoc, 2)).number_format = '0.00'
+
+        fill = _ALT_FILL if (row - 2) % 2 else None
+        if fill:
+            for c in range(1, len(headers) + 1):
+                ws.cell(row, c).fill = fill
+        for c in range(1, len(headers) + 1):
+            ws.cell(row, c).border = _CELL_BORDER
+        row += 1
+
+    _autofit(ws)
+    if row > 3:
+        _add_table(ws, "tblIncome", f"A2:{get_column_letter(len(headers))}{row - 1}")
+
+
 # ── Public API ─────────────────────────────────────────────────────────────────
 
 def build_excel_report(
@@ -1604,6 +1694,7 @@ def build_excel_report(
     bt_result: dict | None = None,
     ticker_mc_results: dict | None = None,
     portfolio_mc: dict | None = None,
+    target_prices: dict[str, float | None] | None = None,
 ) -> bytes:
     """
     Build a comprehensive multi-sheet interactive Excel report.
@@ -1619,13 +1710,14 @@ def build_excel_report(
     builders = [
         ("Net Worth",         lambda: _sheet_net_worth(wb, summary_kpis, currency)),
         ("Summary",           lambda: _sheet_summary(wb, summary_kpis, currency, len(positions_df))),
-        ("Positions",         lambda: _sheet_positions(wb, positions_df, name_map, currency)),
+        ("Positions",         lambda: _sheet_positions(wb, positions_df, name_map, currency, target_prices=target_prices)),
         ("Scenario Analysis", lambda: _sheet_scenario(wb, positions_df, name_map, currency)),
         ("Allocation",        lambda: _sheet_allocation(wb, positions_df, name_map, currency)),
         ("Risk Metrics",      lambda: _sheet_risk(wb, analytics_df, name_map, positions_df)),
         ("Attribution",       lambda: _sheet_attribution(wb, positions_df, name_map)),
         ("Fundamentals",      lambda: _sheet_fundamentals(wb, fund_rows, name_map)),
         ("Monte Carlo",       lambda: _sheet_monte_carlo(wb, _bt, _tmc, _pmc, name_map, currency)),
+        ("Income",            lambda: _sheet_income(wb, positions_df, fund_rows, name_map, currency)),
         ("Correlation",       lambda: _sheet_correlation(wb, price_histories, positions_df)),
         ("Price History",     lambda: _sheet_price_history(wb, price_histories)),
         ("Daily Returns",     lambda: _sheet_daily_returns(wb, price_histories)),
