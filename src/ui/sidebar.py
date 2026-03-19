@@ -675,10 +675,11 @@ def build_sidebar(
             ),
         ).props('flat no-caps').classes("w-full").style(_action_btn_style)
 
-        ui.button(
+        _sample_btn = ui.button(
             "Load Sample", icon="science",
             on_click=on_load_sample,
         ).props('flat no-caps').classes("w-full").style(_action_btn_style)
+        _sample_btn.props('id="btn-load-sample"')
 
         ui.button(
             "Clear All", icon="delete_outline",

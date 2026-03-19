@@ -1650,8 +1650,8 @@ def _sheet_income(wb: Workbook, positions_df: pd.DataFrame, fund_rows: list[dict
         div_rate = fund.get("Dividend Rate")
         div_yield = fund.get("Div Yield (%)")
 
-        ticker_ccy = get_ticker_currency(ticker)
-        fx_rate, _ = get_fx_rate(ticker_ccy, currency)
+        div_ccy = fund.get("Financial Currency") or get_ticker_currency(ticker)
+        fx_rate, _ = get_fx_rate(div_ccy, currency)
 
         if div_rate and div_rate > 0:
             annual_income = div_rate * total_shares * fx_rate

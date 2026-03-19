@@ -77,23 +77,21 @@ async def build_income_tab(
     currency_symbol = CURRENCY_SYMBOLS.get(currency, "$")
 
     if not portfolio:
-        ui.html("""
-            <div class="kpi-row" style="grid-template-columns:1fr 1fr 1fr;">
-                <div class="kpi-card">
-                    <div class="kpi-label">Trailing 12M Income</div>
-                    <div class="kpi-value">&mdash;</div>
-                    <div class="kpi-sub">Add positions to get started</div>
-                </div>
-                <div class="kpi-card">
-                    <div class="kpi-label">Projected Annual Income</div>
-                    <div class="kpi-value">&mdash;</div>
-                </div>
-                <div class="kpi-card">
-                    <div class="kpi-label">Portfolio Yield</div>
-                    <div class="kpi-value">&mdash;</div>
-                </div>
-            </div>
-        """).classes("w-full")
+        with ui.column().classes("w-full items-center").style("padding:40px 20px;"):
+            ui.html(
+                f'<div style="color:#64748B;font-size:14px;text-align:center;margin-bottom:16px;">'
+                "Add positions to see dividend income, yield, and payment calendar."
+                "</div>"
+            )
+            ui.button(
+                "Load Sample Portfolio", icon="science",
+                on_click=lambda: ui.run_javascript(
+                    'document.getElementById("btn-load-sample")?.click()'
+                ),
+            ).props("unelevated no-caps size=lg").style(
+                "background:#3B82F6; color:white; border-radius:8px; padding:12px 32px;"
+                " font-size:14px; font-weight:600;"
+            )
         return
 
     notification = ui.notification("Loading income data...", spinner=True, timeout=None)
@@ -136,6 +134,15 @@ async def build_income_tab(
     total_value = df.groupby("Ticker")["Total Value"].sum().sum()
     portfolio_yield = (projected_annual / total_value * 100) if total_value > 0 else 0.0
 
+    # ── Intro explainer ─────────────────────────────────────
+    ui.html(
+        f'<p style="font-size:12px;color:{TEXT_DIM};line-height:1.6;margin:0 0 12px 0;">'
+        "Some stocks pay you cash just for holding them — these payments are called "
+        "<b>dividends</b>. This tab shows how much cash your portfolio generates, "
+        "when to expect payments, and which stocks contribute the most."
+        "</p>"
+    )
+
     # ── KPI Cards ─────────────────────────────────────────
     ui.html(f"""
         <div class="kpi-row" style="grid-template-columns:1fr 1fr 1fr;">
@@ -145,9 +152,10 @@ async def build_income_tab(
                 <div class="kpi-sub">Dividends received last 12 months</div>
             </div>
             <div class="kpi-card">
-                <div class="kpi-label">Projected Annual Income*</div>
+                <div class="kpi-label">Projected Annual Income</div>
                 <div class="kpi-value">{_fmt_currency(projected_annual, currency_symbol)}</div>
                 <div class="kpi-sub">Assumes current rates continue</div>
+                <div style="font-size:9px;color:{TEXT_FAINT};margin-top:4px;">Companies may cut, suspend, or increase dividends at any time.</div>
             </div>
             <div class="kpi-card">
                 <div class="kpi-label">Forward Dividend Yield</div>
@@ -157,17 +165,11 @@ async def build_income_tab(
         </div>
     """).classes("w-full")
 
-    ui.html(
-        f'<p style="font-size:10px;color:{TEXT_FAINT};margin:4px 0 0 0;">'
-        '*Projected figures assume current dividend rates continue. '
-        'Companies may cut, suspend, or increase dividends at any time.</p>'
-    ).classes("w-full")
-
     # ── Income Growth Chart ───────────────────────────────
     _build_income_chart(timeline, portfolio_color_map, currency_symbol)
 
     # ── Dividend Calendar ─────────────────────────────────
-    _build_dividend_calendar(timeline, portfolio, portfolio_color_map, currency_symbol)
+    _build_dividend_calendar(timeline, portfolio, fund_map, portfolio_color_map, currency, currency_symbol)
 
     # ── Per-Position Income Table ─────────────────────────
     _build_income_table(portfolio, df, fund_map, currency, currency_symbol, portfolio_color_map)
@@ -199,59 +201,74 @@ def _build_income_chart(
     color_map: dict[str, str],
     currency_symbol: str,
 ) -> None:
-    """Stacked monthly bar chart with a 3-month rolling average trend line."""
+    """Monthly total bar chart with 3-month rolling average trend line."""
     if not timeline:
         with ui.column().classes("chart-card w-full"):
             ui.html('<div class="chart-title">Income Growth</div>')
             ui.html(f'<p style="font-size:12px;color:{TEXT_MUTED};padding:20px 0;">No dividend history available.</p>')
         return
 
-    # Aggregate by month + ticker
+    # Aggregate totals by month
+    month_totals: dict[str, float] = defaultdict(float)
+    for r in timeline:
+        month_totals[r["month"]] += r["amount"]
+
+    months = sorted(month_totals.keys())
+
+    if not months:
+        with ui.column().classes("chart-card w-full"):
+            ui.html('<div class="chart-title">Income Growth</div>')
+            ui.html(f'<p style="font-size:12px;color:{TEXT_MUTED};padding:20px 0;">No dividend payments recorded.</p>')
+        return
+
+    totals = [month_totals[m] for m in months]
+
+    # Build per-ticker breakdown for hover text
     month_ticker: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
     for r in timeline:
         month_ticker[r["month"]][r["ticker"]] += r["amount"]
 
-    months = sorted(month_ticker.keys())
-    tickers = sorted({r["ticker"] for r in timeline})
+    hover_texts = []
+    for m in months:
+        parts = [f"<b>{m}</b>"]
+        for ticker in sorted(month_ticker[m].keys()):
+            amt = month_ticker[m][ticker]
+            if amt > 0:
+                parts.append(f"{ticker}: {currency_symbol}{amt:,.2f}")
+        parts.append(f"<b>Total: {currency_symbol}{month_totals[m]:,.2f}</b>")
+        hover_texts.append("<br>".join(parts))
 
-    # Build Plotly traces
-    traces = []
-    for ticker in tickers:
-        values = [month_ticker[m].get(ticker, 0) for m in months]
-        traces.append({
-            "x": months,
-            "y": values,
-            "name": ticker,
-            "type": "bar",
-            "marker": {"color": color_map.get(ticker, "#3B82F6")},
-            "hovertemplate": f"<b>{ticker}</b><br>%{{x}}<br>{currency_symbol}%{{y:,.2f}}<extra></extra>",
-        })
+    traces = [{
+        "x": months,
+        "y": totals,
+        "type": "bar",
+        "marker": {"color": ACCENT, "opacity": 0.3},
+        "hovertemplate": "%{customdata}<extra></extra>",
+        "customdata": hover_texts,
+        "showlegend": False,
+    }]
 
     # 3-month rolling average
-    monthly_totals = [sum(month_ticker[m].values()) for m in months]
-    if len(monthly_totals) >= 3:
-        rolling = []
-        for i in range(len(monthly_totals)):
-            if i < 2:
-                rolling.append(None)
-            else:
-                rolling.append(round(sum(monthly_totals[i - 2 : i + 1]) / 3, 2))
+    if len(totals) >= 3:
+        rolling = [None, None] + [
+            round(sum(totals[i - 2 : i + 1]) / 3, 2)
+            for i in range(2, len(totals))
+        ]
         traces.append({
             "x": months,
             "y": rolling,
-            "name": "3M Avg",
             "type": "scatter",
             "mode": "lines",
-            "line": {"color": TEXT_PRIMARY, "width": 2, "dash": "dot"},
-            "yaxis": "y",
+            "line": {"color": TEXT_PRIMARY, "width": 1.5, "dash": "dot"},
             "hovertemplate": f"<b>3M Avg</b><br>%{{x}}<br>{currency_symbol}%{{y:,.2f}}<extra></extra>",
+            "showlegend": False,
         })
 
     layout = {
-        "barmode": "stack",
         "paper_bgcolor": "rgba(0,0,0,0)",
         "plot_bgcolor": "rgba(0,0,0,0)",
         "font": {"family": "Inter, sans-serif", "size": 11, "color": TEXT_MUTED},
+        "height": 380,
         "margin": {"l": 50, "r": 20, "t": 10, "b": 40},
         "xaxis": {
             "gridcolor": "rgba(255,255,255,0.04)",
@@ -261,13 +278,6 @@ def _build_income_chart(
             "gridcolor": "rgba(255,255,255,0.04)",
             "tickfont": {"size": 10, "color": "#CBD5E1"},
             "tickprefix": currency_symbol,
-        },
-        "legend": {
-            "orientation": "h",
-            "yanchor": "bottom", "y": 1.02,
-            "xanchor": "left", "x": 0,
-            "font": {"size": 10, "color": "#94A3B8"},
-            "bgcolor": "rgba(0,0,0,0)",
         },
         "hoverlabel": {
             "bgcolor": "#1C1D26",
@@ -283,30 +293,33 @@ def _build_income_chart(
     }
 
     with ui.column().classes("chart-card w-full"):
-        ui.html('<div class="chart-title">Income Growth</div>')
+        with ui.row().classes("w-full items-center justify-between").style("margin:0;"):
+            ui.html('<div class="chart-title">Income Growth</div>')
+            ui.html(f'<div style="font-size:10px;color:{TEXT_DIM};">3M avg trend</div>')
         ui.plotly({"data": traces, "layout": layout}).classes("w-full")
 
 
 def _build_dividend_calendar(
     timeline: list[dict],
     portfolio: dict,
+    fund_map: dict,
     color_map: dict[str, str],
+    currency: str,
     currency_symbol: str,
 ) -> None:
-    """12-month forward calendar based on historical payment patterns."""
+    """12-month forward calendar based on historical payment patterns.
+
+    Per-payment amounts use dividendRate / payments_per_year × shares × spot FX
+    so the calendar matches the projected annual KPI exactly.
+    """
     today = pd.Timestamp.today()
     tickers = sorted(portfolio.keys())
 
     # Analyse historical payment months per ticker
     ticker_months: dict[str, list[int]] = defaultdict(list)
-    ticker_last_amount: dict[str, tuple[str, float]] = {}  # ticker -> (month_key, amount)
     for r in timeline:
         month_num = int(r["month"][5:7])
         ticker_months[r["ticker"]].append(month_num)
-        # Track latest payment per ticker (by month key)
-        prev = ticker_last_amount.get(r["ticker"])
-        if prev is None or r["month"] > prev[0]:
-            ticker_last_amount[r["ticker"]] = (r["month"], r["amount"])
 
     # Build next 12 months
     future_months = []
@@ -330,10 +343,19 @@ def _build_dividend_calendar(
             calendar_data[ticker] = None
             continue
 
-        # Which months does this ticker typically pay in?
+        # Calculate per-payment from dividendRate using spot FX (same as KPI)
         typical_months = sorted(set(payments))
-        last_entry = ticker_last_amount.get(ticker)
-        per_payment = round(last_entry[1], 2) if last_entry else 0
+        payments_per_year = len(typical_months)
+        fund = fund_map.get(ticker, {})
+        div_rate = fund.get("Dividend Rate")
+        total_shares = sum(lot["shares"] for lot in portfolio.get(ticker, []))
+
+        if div_rate and div_rate > 0 and total_shares > 0 and payments_per_year > 0:
+            div_ccy = fund.get("Financial Currency") or get_ticker_currency(ticker)
+            fx_rate, _ = get_fx_rate(div_ccy, currency)
+            per_payment = round(div_rate / payments_per_year * total_shares * fx_rate, 2)
+        else:
+            per_payment = 0
 
         projected: dict[str, str] = {}
         amounts: dict[str, float] = {}
@@ -511,9 +533,9 @@ def _build_income_table(
                     <tr>
                         <th>Ticker</th>
                         <th class="right">Shares</th>
-                        <th class="right">Annual Income</th>
-                        <th class="right">Yield</th>
-                        <th class="right">Yield on Cost</th>
+                        <th class="right th-tip" data-tip="Estimated yearly dividend income from this position, in your base currency.">Annual Income</th>
+                        <th class="right th-tip" data-tip="Annual dividend as a % of the current stock price. Higher = more cash income per dollar invested today.">Yield</th>
+                        <th class="right th-tip" data-tip="Annual dividend as a % of what you originally paid. Shows how your income compares to your purchase price, not today's price.">Yield on Cost</th>
                     </tr>
                 </thead>
                 <tbody>

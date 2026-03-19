@@ -87,13 +87,21 @@ async def build_overview_tab(
 
                 <div style="border-top:1px solid {BORDER};margin-top:28px;
                             padding-top:16px;width:100%;text-align:center;">
-                    <div style="font-size:12px;color:{TEXT_DIM};">
-                        Want to explore first? Click
-                        <b style="color:{TEXT_PRIMARY};">Sample</b> in the sidebar
-                        to load example data.</div>
+                    <div style="font-size:12px;color:{TEXT_DIM};margin-bottom:14px;">
+                        Want to explore first? Load a demo portfolio with stocks
+                        across different markets and asset types.</div>
                 </div>
             </div>
         ''').classes("w-full")
+        ui.button(
+            "Load Sample Portfolio", icon="science",
+            on_click=lambda: ui.run_javascript(
+                'document.getElementById("btn-load-sample")?.click()'
+            ),
+        ).props("unelevated no-caps size=lg").style(
+            f"background:{ACCENT}; color:white; border-radius:8px; padding:12px 32px;"
+            f" font-size:14px; font-weight:600; margin:0 auto; display:block;"
+        )
 
         return
 
@@ -359,6 +367,13 @@ async def build_overview_tab(
             fig.update_yaxes(gridcolor="rgba(255,255,255,0.04)", tickfont=dict(color="#CBD5E1", size=10), title_font=dict(color="#CBD5E1", size=11))
             with ui.column().classes("chart-card w-full").style("min-width:0;"):
                 ui.html('<div class="chart-title">Contributions vs. Portfolio Value</div>')
+                ui.html(
+                    f'<p style="font-size:11px;color:{TEXT_DIM};margin:0 0 6px 0;line-height:1.5;">'
+                    "The blue line is what you put in (total money invested). "
+                    "The green line is what it's worth now. "
+                    "The gap between them is your real investment gain or loss."
+                    "</p>"
+                )
                 ui.plotly(fig).classes("w-full")
 
     await _build_contribution_chart()
