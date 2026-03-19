@@ -94,7 +94,7 @@ body, .q-page, .nicegui-content {
     padding-top: 4px;
 }
 .q-tabs { background: %(BG_MAIN)s !important; border-bottom: 1px solid %(BORDER)s !important; justify-content: center !important; }
-.q-tabs__content { justify-content: center !important; }
+.q-tabs__content { justify-content: center !important; flex-grow: 0 !important; margin: 0 auto !important; }
 .q-tab { text-transform: none !important; font-family: 'Inter', sans-serif !important; font-size: 12px !important; font-weight: 500 !important; letter-spacing: 0.01em !important; color: %(TEXT_FAINT)s !important; }
 .q-tab--active { color: %(TEXT_PRIMARY)s !important; font-weight: 600 !important; }
 .q-tab-indicator { background: %(ACCENT)s !important; height: 3px !important; }
