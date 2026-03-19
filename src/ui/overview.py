@@ -537,11 +537,19 @@ async def export_excel(portfolio: dict, currency: str) -> None:
 
         # Fundamentals
         fund_rows = []
+        excel_target_prices: dict[str, float | None] = {}
         for t in tickers:
             f = fetch_fundamentals(t)
             if f:
                 tc = get_ticker_currency(t)
                 fx_ccy = "GBP" if tc == "GBX" else tc
+                # Build target price map for Excel (FX-converted)
+                tp = f.get("Target Price")
+                if tp is not None and fx_ccy != base_currency:
+                    fx_tp, _ = get_fx_rate(fx_ccy, base_currency)
+                    excel_target_prices[t] = round(tp * fx_tp, 2)
+                elif tp is not None:
+                    excel_target_prices[t] = tp
                 if fx_ccy != base_currency:
                     fx, _ = get_fx_rate(fx_ccy, base_currency)
                     if f.get("1-Year Low"):
@@ -577,6 +585,7 @@ async def export_excel(portfolio: dict, currency: str) -> None:
             bt_result=bt,
             ticker_mc_results=ticker_mc_results,
             portfolio_mc=portfolio_mc,
+            target_prices=excel_target_prices,
         )
 
     excel_bytes = await run.io_bound(_build)
