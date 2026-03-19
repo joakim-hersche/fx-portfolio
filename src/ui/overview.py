@@ -278,9 +278,40 @@ async def build_overview_tab(
 
             ui.html(alloc_html).classes("w-full").style("flex:1;display:flex;")
 
-        # Comparison chart
-        with ui.column().classes("chart-card").style("min-width:0;flex:1;"):
+        # Comparison chart — stretch to fill the card height
+        with ui.column().classes("chart-card").style("min-width:0;flex:1;") as comp_card:
             await build_comparison(portfolio, name_map, portfolio_color_map, currency)
+
+    # Resize the Plotly chart to fill its card after both cards have rendered
+    ui.run_javascript('''
+        setTimeout(() => {
+            const row = document.querySelector(".charts-row");
+            if (!row) return;
+            const cards = row.querySelectorAll(".chart-card");
+            if (cards.length < 2) return;
+            const plotDiv = cards[1].querySelector(".js-plotly-plot");
+            if (!plotDiv) return;
+            // Subtract card padding + header/controls height from card height
+            const cardStyle = getComputedStyle(cards[1]);
+            const padTop = parseFloat(cardStyle.paddingTop);
+            const padBot = parseFloat(cardStyle.paddingBottom);
+            const cardH = cards[1].offsetHeight;
+            // Find the plotly container's previous siblings total height
+            let siblingsH = 0;
+            let el = plotDiv.closest(".nicegui-plotly") || plotDiv;
+            while (el.parentElement && !el.parentElement.classList.contains("chart-card")) {
+                el = el.parentElement;
+            }
+            for (const sib of el.parentElement.children) {
+                if (sib === el || sib.contains(plotDiv)) break;
+                siblingsH += sib.offsetHeight + 8;
+            }
+            const targetH = cardH - padTop - padBot - siblingsH;
+            if (targetH > 300) {
+                Plotly.relayout(plotDiv, { height: targetH });
+            }
+        }, 500);
+    ''')
 
     # ── Contributions vs. Portfolio Value chart ─────────────
     from src.portfolio import build_contribution_timeline
