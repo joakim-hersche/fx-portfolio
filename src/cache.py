@@ -21,6 +21,8 @@ long_cache  = TTLCache(maxsize=256, ttl=86400)   # 24 hours — fundamentals, hi
 # receive the same arguments (e.g. fetch_price_history_long("AAPL") vs
 # fetch_company_name("AAPL") would collide in a shared cache).
 long_cache_history = TTLCache(maxsize=256, ttl=86400)
+long_cache_simulation = TTLCache(maxsize=256, ttl=86400)
+long_cache_analytics = TTLCache(maxsize=256, ttl=86400)
 long_cache_fundamentals = TTLCache(maxsize=256, ttl=86400)
 long_cache_names = TTLCache(maxsize=256, ttl=86400)
 

@@ -13,7 +13,7 @@ from cachetools import cached
 
 logger = logging.getLogger(__name__)
 
-from src.cache import short_cache, long_cache, long_cache_history, long_cache_fundamentals, long_cache_names, lenient_key
+from src.cache import short_cache, long_cache, long_cache_history, long_cache_simulation, long_cache_analytics, long_cache_fundamentals, long_cache_names, lenient_key
 
 from src.fx import get_ticker_currency, CURRENCY_SYMBOLS
 from src.monte_carlo import run_monte_carlo_backtest, run_monte_carlo_portfolio, run_monte_carlo_ticker
@@ -110,7 +110,7 @@ def fetch_company_name(ticker: str) -> str:
         return ticker
 
 
-@cached(long_cache)
+@cached(long_cache_simulation)
 def fetch_simulation_history(ticker: str) -> pd.DataFrame:
     """Fetch up to 5-year price history for Monte Carlo simulation. Cached for 24 hours."""
     try:
@@ -126,7 +126,7 @@ def fetch_simulation_history(ticker: str) -> pd.DataFrame:
         return pd.DataFrame()
 
 
-@cached(long_cache)
+@cached(long_cache_analytics)
 def fetch_analytics_history(ticker: str) -> pd.DataFrame:
     """Fetch 1-year price history for analytics. Cached for 24 hours."""
     try:
