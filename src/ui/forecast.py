@@ -693,9 +693,7 @@ def _render_model_diagnostics(
                     f'<tr>'
                     f'<td style="font-weight:600;">{t}</td>'
                     f'<td style="color:{jb_color}; font-weight:500;">{jb_label}</td>'
-                    f'<td>{d["jb_pvalue"]:.4f}</td>'
                     f'<td style="color:{lb_color}; font-weight:500;">{lb_label}</td>'
-                    f'<td>{d["lb_pvalue"]:.4f}</td>'
                     f'<td style="font-size:11px; color:{TEXT_DIM};">'
                     f'{d["verdict"][:60]}{"..." if len(d["verdict"]) > 60 else ""}</td>'
                     f'</tr>'
@@ -707,9 +705,7 @@ def _render_model_diagnostics(
                 <thead><tr>
                     <th scope="col">Ticker</th>
                     <th scope="col">Normality (JB)</th>
-                    <th scope="col">JB p-value</th>
                     <th scope="col">Independence (LB)</th>
-                    <th scope="col">LB p-value</th>
                     <th scope="col">Verdict</th>
                 </tr></thead>
                 <tbody>{rows_html}</tbody>
