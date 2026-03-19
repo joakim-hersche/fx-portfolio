@@ -730,7 +730,9 @@ def _render_sector_breakdown(
     fund_rows: list[dict],
     portfolio_df: pd.DataFrame,
 ) -> None:
-    """Sector concentration as a CSS-grid treemap."""
+    """Sector exposure as a Plotly treemap."""
+    import plotly.graph_objects as go
+
     with ui.column().classes("chart-card w-full"):
         ui.html(
             f'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">'
@@ -738,6 +740,11 @@ def _render_sector_breakdown(
             f'text-transform:uppercase;color:{TEXT_MUTED};">Sector Exposure</div>'
             f'<div style="font-size:10px;color:{TEXT_DIM};">by portfolio weight</div>'
             f'</div>'
+        )
+
+        _section_intro(
+            "Shows which industries your money is spread across. "
+            "If one sector dominates, a downturn in that industry affects your whole portfolio."
         )
 
         if not fund_rows or portfolio_df.empty:
@@ -749,113 +756,51 @@ def _render_sector_breakdown(
         }
         ticker_weights = portfolio_df.groupby("Ticker")["Weight (%)"].sum().to_dict()
 
-        sector_data: dict[str, dict] = {}
+        # Build treemap data
+        labels = []
+        parents = []
+        values = []
+        colors = []
+        sector_order: list[str] = []
+
+        for ticker, weight in sorted(ticker_weights.items(), key=lambda x: x[1], reverse=True):
+            sector = ticker_sector.get(ticker, "Unknown")
+            if sector not in sector_order:
+                sector_order.append(sector)
+
+        sector_color_map = {s: _SECTOR_COLORS[i % len(_SECTOR_COLORS)] for i, s in enumerate(sector_order)}
+
+        for sector in sector_order:
+            labels.append(sector)
+            parents.append("")
+            values.append(0)
+            colors.append(sector_color_map[sector])
+
         for ticker, weight in ticker_weights.items():
             sector = ticker_sector.get(ticker, "Unknown")
-            if sector not in sector_data:
-                sector_data[sector] = {"weight": 0.0, "tickers": []}
-            sector_data[sector]["weight"] += weight
-            sector_data[sector]["tickers"].append((ticker, weight))
+            labels.append(ticker)
+            parents.append(sector)
+            values.append(round(weight, 2))
+            colors.append(sector_color_map[sector])
 
-        sorted_sectors = sorted(sector_data.items(), key=lambda x: x[1]["weight"], reverse=True)
-        if not sorted_sectors:
-            ui.html(f'<p style="color:{TEXT_DIM};font-size:12px;">No sector data available.</p>')
-            return
+        fig = go.Figure(go.Treemap(
+            labels=labels,
+            parents=parents,
+            values=values,
+            marker=dict(colors=colors, line=dict(width=2, color="#1C1D26")),
+            textinfo="label+percent parent",
+            textfont=dict(size=13, color="white", family="Inter, sans-serif"),
+            hovertemplate="<b>%{label}</b><br>Weight: %{value:.1f}%<extra></extra>",
+            branchvalues="total",
+        ))
 
-        sector_colors = {s: _SECTOR_COLORS[i % len(_SECTOR_COLORS)] for i, (s, _) in enumerate(sorted_sectors)}
-        n = len(sorted_sectors)
+        fig.update_layout(
+            margin=dict(t=0, l=0, r=0, b=0),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+        )
 
-        # ── Build treemap cell HTML ──
-        def _cell(sector: str, data: dict, color: str) -> str:
-            w = data["weight"]
-            tickers_sorted = sorted(data["tickers"], key=lambda x: x[1], reverse=True)
-            # Show ticker pills only if cell is large enough (>= 8%)
-            if w >= 8:
-                pills = "".join(
-                    f'<span style="font-size:9px;background:rgba(255,255,255,0.2);'
-                    f'padding:2px 5px;border-radius:2px;color:white;">{t}</span>'
-                    for t, _ in tickers_sorted
-                )
-                pills_html = f'<div style="display:flex;gap:3px;flex-wrap:wrap;margin-top:4px;justify-content:center;">{pills}</div>'
-            else:
-                pills_html = ""
-            # Show sector name only if large enough
-            name_html = (
-                f'<span style="font-size:10px;color:rgba(255,255,255,0.8);margin-top:2px;">{sector}</span>'
-                if w >= 12 else ""
-            )
-            tickers_str = ", ".join(t for t, _ in tickers_sorted)
-            return (
-                f'<div title="{sector}: {w:.1f}% ({tickers_str})" '
-                f'style="background:{color};border-radius:6px;display:flex;flex-direction:column;'
-                f'align-items:center;justify-content:center;padding:6px;overflow:hidden;min-width:0;">'
-                f'<span style="font-size:16px;font-weight:700;color:white;">{w:.0f}%</span>'
-                f'{name_html}{pills_html}'
-                f'</div>'
-            )
-
-        # ── Layout strategy: biggest sector on left full-height, rest stack right ──
-        _sq = "width:100%;aspect-ratio:1;"
-
-        if n == 1:
-            s, d = sorted_sectors[0]
-            grid_html = (
-                f'<div style="{_sq}">'
-                f'{_cell(s, d, sector_colors[s])}'
-                f'</div>'
-            )
-        elif n == 2:
-            s0, d0 = sorted_sectors[0]
-            s1, d1 = sorted_sectors[1]
-            w0 = max(30, min(70, round(d0["weight"] / (d0["weight"] + d1["weight"]) * 100)))
-            grid_html = (
-                f'<div style="display:grid;grid-template-columns:{w0}fr {100-w0}fr;gap:3px;{_sq}">'
-                f'{_cell(s0, d0, sector_colors[s0])}'
-                f'{_cell(s1, d1, sector_colors[s1])}'
-                f'</div>'
-            )
-        else:
-            s0, d0 = sorted_sectors[0]
-            rest = sorted_sectors[1:]
-            left_w = max(30, min(60, round(d0["weight"])))
-            right_w = 100 - left_w
-            right_cells = ""
-            rest_total = sum(d["weight"] for _, d in rest)
-            i = 0
-            while i < len(rest):
-                s, d = rest[i]
-                w_frac = d["weight"] / rest_total if rest_total > 0 else 1.0 / len(rest)
-                if i + 1 < len(rest) and d["weight"] < 20 and rest[i + 1][1]["weight"] < 20:
-                    s2, d2 = rest[i + 1]
-                    pair_total = d["weight"] + d2["weight"]
-                    w1 = max(30, round(d["weight"] / pair_total * 100)) if pair_total > 0 else 50
-                    pair_frac = pair_total / rest_total if rest_total > 0 else 0.5
-                    right_cells += (
-                        f'<div style="display:grid;grid-template-columns:{w1}fr {100-w1}fr;gap:3px;'
-                        f'flex:{pair_frac:.2f};">'
-                        f'{_cell(s, d, sector_colors[s])}'
-                        f'{_cell(s2, d2, sector_colors[s2])}'
-                        f'</div>'
-                    )
-                    i += 2
-                else:
-                    right_cells += (
-                        f'<div style="flex:{w_frac:.2f};">'
-                        f'{_cell(s, d, sector_colors[s])}'
-                        f'</div>'
-                    )
-                    i += 1
-
-            grid_html = (
-                f'<div style="display:grid;grid-template-columns:{left_w}fr {right_w}fr;gap:3px;{_sq}">'
-                f'{_cell(s0, d0, sector_colors[s0])}'
-                f'<div style="display:flex;flex-direction:column;gap:3px;">'
-                f'{right_cells}'
-                f'</div>'
-                f'</div>'
-            )
-
-        ui.html(grid_html).classes("w-full")
+        ui.plotly(fig).classes("w-full")
 
 
 # ── Rebalancing Calculator (drift bars) ──────────────────────────────────────
@@ -891,111 +836,107 @@ def _render_rebalancing_calculator(portfolio_df: pd.DataFrame, currency_symbol: 
             for _, row in ticker_data.iterrows()
         }
         deposit_ref = {"value": 0.0}
-        result_container = {"ref": None}
+        bar_containers: dict[str, ui.column] = {}
+        footer_ref = {"ref": None}
 
         def _recalculate():
-            container = result_container["ref"]
-            if container is None:
-                return
-            container.clear()
-            with container:
-                deposit = deposit_ref["value"] or 0.0
+            deposit = deposit_ref["value"] or 0.0
 
-                action_map: dict[str, dict] = {}
-                remaining = 0.0
-                if deposit > 0:
-                    total_value = ticker_data["Total Value"].sum()
-                    new_total = total_value + deposit
-                    suggestions = []
-                    for _, row in ticker_data.iterrows():
-                        t = row["Ticker"]
-                        cur_pct = row["Weight (%)"]
-                        tgt_pct = target_weights.get(t, cur_pct)
-                        cur_val = row["Total Value"]
-                        price = row["Current Price"]
-                        tgt_val = new_total * tgt_pct / 100
-                        deficit = tgt_val - cur_val
-                        suggestions.append({
-                            "Ticker": t, "Deficit": max(deficit, 0), "Price": price,
-                        })
-                    suggestions.sort(key=lambda s: s["Deficit"], reverse=True)
-
-                    remaining = deposit
-                    for s in suggestions:
-                        if remaining <= 0 or s["Price"] is None or s["Price"] <= 0 or s["Deficit"] <= 0:
-                            action_map[s["Ticker"]] = {"Shares": 0, "Amount": 0.0}
-                            continue
-                        max_spend = min(s["Deficit"], remaining)
-                        shares = int(max_spend / s["Price"])
-                        amount = shares * s["Price"]
-                        remaining -= amount
-                        action_map[s["Ticker"]] = {"Shares": shares, "Amount": amount}
-
-                    if remaining > 0:
-                        for t, a in action_map.items():
-                            if remaining <= 0:
-                                break
-                            price = next(
-                                (r["Current Price"] for _, r in ticker_data.iterrows() if r["Ticker"] == t),
-                                None,
-                            )
-                            if price and price > 0 and remaining >= price:
-                                extra = int(remaining / price)
-                                if extra > 0:
-                                    a["Shares"] += extra
-                                    a["Amount"] += extra * price
-                                    remaining -= extra * price
-
-                # Drift bar rows
-                bars_html = ""
+            # Compute buy suggestions
+            action_map: dict[str, dict] = {}
+            remaining = 0.0
+            if deposit > 0:
+                total_value = ticker_data["Total Value"].sum()
+                new_total = total_value + deposit
+                suggestions = []
                 for _, row in ticker_data.iterrows():
                     t = row["Ticker"]
-                    cur = row["Weight (%)"]
-                    tgt = target_weights.get(t, cur)
-                    a = action_map.get(t, {})
-                    shares = a.get("Shares", 0)
-                    amount = a.get("Amount", 0.0)
+                    cur_pct = row["Weight (%)"]
+                    tgt_pct = target_weights.get(t, cur_pct)
+                    cur_val = row["Total Value"]
+                    price = row["Current Price"]
+                    tgt_val = new_total * tgt_pct / 100
+                    deficit = tgt_val - cur_val
+                    suggestions.append({
+                        "Ticker": t, "Deficit": max(deficit, 0), "Price": price,
+                    })
+                suggestions.sort(key=lambda s: s["Deficit"], reverse=True)
 
-                    if abs(tgt - cur) < 0.5:
-                        border_color = ACCENT; opacity = "0.7"
-                    elif tgt > cur:
-                        border_color = GREEN; opacity = "0.5"
-                    else:
-                        border_color = AMBER; opacity = "0.5"
+                remaining = deposit
+                for s in suggestions:
+                    if remaining <= 0 or s["Price"] is None or s["Price"] <= 0 or s["Deficit"] <= 0:
+                        action_map[s["Ticker"]] = {"Shares": 0, "Amount": 0.0}
+                        continue
+                    max_spend = min(s["Deficit"], remaining)
+                    shares = int(max_spend / s["Price"])
+                    amount = shares * s["Price"]
+                    remaining -= amount
+                    action_map[s["Ticker"]] = {"Shares": shares, "Amount": amount}
 
-                    buy_html = (
-                        f'<span style="font-size:10px;font-weight:700;color:{GREEN};'
-                        f'white-space:nowrap;">+{shares} ({currency_symbol}{amount:,.0f})</span>'
-                        if shares > 0 else ""
-                    )
+                if remaining > 0:
+                    for t, a in action_map.items():
+                        if remaining <= 0:
+                            break
+                        price = next(
+                            (r["Current Price"] for _, r in ticker_data.iterrows() if r["Ticker"] == t),
+                            None,
+                        )
+                        if price and price > 0 and remaining >= price:
+                            extra = int(remaining / price)
+                            if extra > 0:
+                                a["Shares"] += extra
+                                a["Amount"] += extra * price
+                                remaining -= extra * price
 
-                    bars_html += (
-                        f'<div style="margin-bottom:8px;">'
-                        f'<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">'
-                        f'<span style="font-size:11px;font-weight:700;color:{TEXT_PRIMARY};'
-                        f'width:48px;flex-shrink:0;">{t}</span>'
-                        f'<span style="font-size:9px;color:{TEXT_DIM};">'
-                        f'{cur:.0f}% \u2192 {tgt:.0f}%</span>'
-                        f'<span style="flex:1;"></span>'
-                        f'{buy_html}'
-                        f'</div>'
-                        f'<div style="height:8px;background:rgba(255,255,255,0.06);border-radius:4px;'
-                        f'position:relative;">'
-                        f'<div style="position:absolute;left:0;width:{min(cur, 100):.1f}%;height:100%;'
-                        f'background:{TEXT_DIM};border-radius:4px;opacity:{opacity};"></div>'
-                        f'<div style="position:absolute;left:0;width:{min(tgt, 100):.1f}%;height:100%;'
-                        f'border:1.5px solid {border_color};border-radius:4px;box-sizing:border-box;"></div>'
-                        f'</div>'
-                        f'</div>'
-                    )
+            # Update each ticker's inline bar
+            for _, row in ticker_data.iterrows():
+                t = row["Ticker"]
+                if t not in bar_containers:
+                    continue
+                cur = row["Weight (%)"]
+                tgt = target_weights.get(t, cur)
+                a = action_map.get(t, {})
+                shares = a.get("Shares", 0)
+                amount = a.get("Amount", 0.0)
 
-                ui.html(bars_html)
+                if abs(tgt - cur) < 0.5:
+                    border_color = ACCENT; opacity = "0.7"
+                elif tgt > cur:
+                    border_color = GREEN; opacity = "0.5"
+                else:
+                    border_color = AMBER; opacity = "0.5"
 
-                if deposit > 0 and remaining > 0.01:
+                buy_html = (
+                    f'<div style="font-size:9px;font-weight:700;color:{GREEN};'
+                    f'white-space:nowrap;text-align:right;margin-top:1px;">'
+                    f'+{shares} ({currency_symbol}{amount:,.0f})</div>'
+                    if shares > 0 else ""
+                )
+
+                bar_containers[t].clear()
+                with bar_containers[t]:
                     ui.html(
-                        f'<div style="font-size:10px;color:{TEXT_DIM};margin-top:2px;">'
-                        f'{currency_symbol}{remaining:.2f} unallocated</div>'
+                        f'<div style="height:8px;background:rgba(255,255,255,0.06);'
+                        f'border-radius:4px;position:relative;">'
+                        f'<div style="position:absolute;left:0;width:{min(cur, 100):.1f}%;'
+                        f'height:100%;background:{TEXT_DIM};border-radius:4px;opacity:{opacity};"></div>'
+                        f'<div style="position:absolute;left:0;width:{min(tgt, 100):.1f}%;'
+                        f'height:100%;border:1.5px solid {border_color};border-radius:4px;'
+                        f'box-sizing:border-box;"></div>'
+                        f'</div>'
+                        f'{buy_html}'
                     )
+
+            # Footer
+            fc = footer_ref["ref"]
+            if fc is not None:
+                fc.clear()
+                if deposit > 0 and remaining > 0.01:
+                    with fc:
+                        ui.html(
+                            f'<div style="font-size:10px;color:{TEXT_DIM};">'
+                            f'{currency_symbol}{remaining:.2f} unallocated</div>'
+                        )
 
         # ── Deposit ──
         with ui.row().classes("w-full items-center").style("gap:8px;margin-bottom:8px;"):
@@ -1015,40 +956,31 @@ def _render_rebalancing_calculator(portfolio_df: pd.DataFrame, currency_symbol: 
                 _recalculate()
             deposit_input.on_value_change(_on_deposit)
 
-        # ── Targets ──
+        # ── Per-ticker rows: ticker | current -> [target] | drift bar ──
         ui.html(
             f'<div style="border-top:1px solid {BORDER_SUBTLE};margin:4px 0 8px 0;"></div>'
-        )
-        ui.html(
-            f'<div style="display:flex;justify-content:space-between;margin-bottom:6px;">'
-            f'<span style="font-size:9px;font-weight:600;color:{TEXT_DIM};'
-            f'text-transform:uppercase;letter-spacing:0.08em;">Targets</span>'
-            f'<span style="font-size:9px;color:{TEXT_DIM};">current \u2192 target</span>'
-            f'</div>'
         )
         for _, row in ticker_data.iterrows():
             ticker = row["Ticker"]
             current_w = row["Weight (%)"]
-            with ui.row().classes("w-full items-center").style("gap:6px;margin-bottom:3px;"):
+            with ui.row().classes("w-full items-center").style("gap:6px;margin-bottom:6px;"):
                 ui.html(
-                    f'<span style="width:48px;font-size:11px;font-weight:700;'
+                    f'<span style="width:44px;font-size:11px;font-weight:700;'
                     f'color:{TEXT_PRIMARY};flex-shrink:0;">{ticker}</span>'
                 )
                 ui.html(
-                    f'<span style="font-size:10px;color:{TEXT_DIM};width:32px;'
-                    f'text-align:right;flex-shrink:0;">{current_w:.0f}%</span>'
-                )
-                ui.html(
-                    f'<span style="font-size:9px;color:{TEXT_DIM};flex-shrink:0;">\u2192</span>'
+                    f'<span style="font-size:10px;color:{TEXT_DIM};flex-shrink:0;">'
+                    f'{current_w:.0f}%\u2192</span>'
                 )
                 inp = ui.number(
                     value=round(current_w, 1),
                     min=0, max=100, step=0.5, format="%.1f",
                     suffix="%",
                 ).props("dense borderless").style(
-                    f"width:68px;flex-shrink:0;background:{BG_PILL};"
-                    f"border:1px solid {BORDER_SUBTLE};border-radius:6px;padding:0 6px;"
+                    f"width:58px;flex-shrink:0;background:{BG_PILL};"
+                    f"border:1px solid {BORDER_SUBTLE};border-radius:6px;padding:0 4px;"
                 )
+                bar_containers[ticker] = ui.column().style("flex:1;min-width:0;gap:0;")
 
                 def _make_handler(t):
                     def handler(e):
@@ -1057,11 +989,7 @@ def _render_rebalancing_calculator(portfolio_df: pd.DataFrame, currency_symbol: 
                     return handler
                 inp.on_value_change(_make_handler(ticker))
 
-        # ── Drift bars + buy suggestions ──
-        ui.html(
-            f'<div style="border-top:1px solid {BORDER_SUBTLE};margin:8px 0 10px 0;"></div>'
-        )
-        result_container["ref"] = ui.column().classes("w-full").style("gap:0;")
+        footer_ref["ref"] = ui.column().classes("w-full").style("margin-top:2px;")
         _recalculate()
 
 
