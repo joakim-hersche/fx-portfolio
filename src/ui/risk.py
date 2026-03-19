@@ -855,7 +855,7 @@ def _render_sector_breakdown(
                 f'</div>'
             )
 
-        ui.html(grid_html)
+        ui.html(grid_html).classes("w-full")
 
 
 # ── Rebalancing Calculator (drift bars) ──────────────────────────────────────
