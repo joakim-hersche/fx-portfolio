@@ -237,7 +237,9 @@ def build_comparison_chart(
     color_map = {comp_label_map[t]: portfolio_color_map[t] for t in comparison_df.columns if t in portfolio_color_map}
     display = comparison_df.rename(columns=comp_label_map)
     fx_note = " (FX-adjusted)" if fx_adjusted else ""
-    fig = px.line(display, x=display.index, y=display.columns, color_discrete_map=color_map)
+    idx_name = display.index.name or "Date"
+    melted = display.reset_index().melt(id_vars=idx_name, var_name="Ticker", value_name="Value")
+    fig = px.line(melted, x=idx_name, y="Value", color="Ticker", color_discrete_map=color_map)
     _apply_default_layout(
         fig,
         xaxis_title="Date",
@@ -267,7 +269,7 @@ def build_price_history_chart(
     effective_from: pd.Timestamp,
     date_to,
 ) -> go.Figure:
-    fig = px.line(hist, x=hist.index, y="Close", color_discrete_sequence=[line_color])
+    fig = px.line(x=hist.index, y=hist["Close"], color_discrete_sequence=[line_color])
     _apply_default_layout(
         fig,
         xaxis_title="Date",
