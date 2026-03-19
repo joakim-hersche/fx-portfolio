@@ -4,6 +4,7 @@ Renders risk metrics, correlation heatmap, and fundamentals tables
 using NiceGUI widgets and Plotly charts.
 """
 
+import numpy as np
 import pandas as pd
 from nicegui import run, ui
 
@@ -173,6 +174,21 @@ def _render_correlation_heatmap(price_data: dict, tickers: list) -> None:
         corr_df = pd.DataFrame(returns).dropna().corr()
         fig = build_correlation_heatmap(corr_df)
         ui.plotly(fig).classes("w-full")
+
+        if len(corr_df) > 1:
+            mask = np.triu(np.ones(corr_df.shape, dtype=bool), k=1)
+            stacked = corr_df.where(mask).stack()
+            if not stacked.empty:
+                max_pair = stacked.idxmax()
+                min_pair = stacked.idxmin()
+                max_val = stacked.max()
+                min_val = stacked.min()
+                ui.html(
+                    f'<div style="font-size:11px;color:{TEXT_DIM};margin-top:8px;">'
+                    f'Most correlated: {max_pair[0]} & {max_pair[1]} ({max_val:.2f}). '
+                    f'Least correlated: {min_pair[0]} & {min_pair[1]} ({min_val:.2f}) '
+                    f'— good for diversification.</div>'
+                )
 
 
 # ── Fundamentals Table ───────────────────────────────────────────────────────
