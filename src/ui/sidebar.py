@@ -140,7 +140,7 @@ def build_sidebar(
                 ).classes("w-full")
                 date_input = ui.input(placeholder="2024-01-15").props(
                     'dense outlined mask="####-##-##"'
-                ).classes("w-full").style("font-size:11px;")
+                ).classes("w-full").style("font-size:11px;min-width:95px;")
                 with date_input:
                     with ui.menu().props("no-parent-event auto-close") as date_menu:
                         ui.date().bind_value(date_input)
