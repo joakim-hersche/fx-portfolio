@@ -286,6 +286,7 @@ async def build_comparison(
 
     with ui.row().classes("w-full items-start justify-between").style("margin:0;"):
         ui.html('<div class="chart-title" style="margin-top:2px;">Portfolio Comparison</div>')
+        ui.html(f'<div style="font-size:10px;color:{TEXT_DIM};margin-top:2px;">All positions rebased to 100 at period start</div>')
         with ui.row().classes("items-center gap-2"):
             range_toggle = ui.toggle(
                 list(range_options.keys()), value="6M",
