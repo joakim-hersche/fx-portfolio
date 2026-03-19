@@ -272,26 +272,23 @@ def build_sidebar(
                         value_text = f"{total_shares:g} shares"
                     company_name = shared.get("name_map", {}).get(ticker, ticker)
                     _t = ticker
-                    with ui.element("div").style(
-                        f"display:flex;align-items:center;gap:8px;width:100%;"
-                        f"background:{BG_PILL};border:1px solid {BORDER_SUBTLE};"
-                        f"border-radius:6px;padding:6px 8px;box-sizing:border-box;"
-                    ):
-                        ui.html(
-                            f'<div style="width:6px;height:6px;border-radius:50%;background:{color};flex-shrink:0;"></div>'
-                        )
-                        ui.html(
-                            f'<div style="flex:1;min-width:0;overflow:hidden;">'
-                            f'<div style="font-size:11px;font-weight:600;color:{TEXT_PRIMARY};line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="{company_name}">'
-                            f'{ticker} <span style="font-weight:400;color:{TEXT_DIM};">{value_text}</span></div>'
-                            f'</div>'
-                        )
-                        ui.button(
-                            icon="close",
-                            on_click=lambda _, t=_t: _confirm_remove(t),
-                        ).props(f'flat dense round size=xs aria-label="Remove {_t}"').style(
-                            f"color:{TEXT_DIM};min-width:0;padding:0;width:18px;height:18px;font-size:12px;"
-                        )
+                    # Single HTML card — dot, text, and x all inline
+                    bridge = ui.element("div").style("display:none;")
+                    bridge.on("remove_click", lambda _, t=_t: _confirm_remove(t))
+                    bridge_id = f"c{bridge.id}"
+                    ui.html(
+                        f'<div style="display:flex;align-items:center;gap:8px;width:100%;'
+                        f'background:{BG_PILL};border:1px solid {BORDER_SUBTLE};'
+                        f'border-radius:6px;padding:7px 8px 7px 10px;box-sizing:border-box;">'
+                        f'<div style="width:6px;height:6px;border-radius:50%;background:{color};flex-shrink:0;"></div>'
+                        f'<div style="flex:1;min-width:0;font-size:11px;font-weight:600;color:{TEXT_PRIMARY};'
+                        f'line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="{company_name}">'
+                        f'{ticker} <span style="font-weight:400;color:{TEXT_DIM};">{value_text}</span></div>'
+                        f'<div onclick="document.getElementById(\'{bridge_id}\').dispatchEvent(new Event(\'remove_click\'))" '
+                        f'style="flex-shrink:0;cursor:pointer;color:{TEXT_DIM};font-size:14px;line-height:1;'
+                        f'padding:2px;opacity:0.6;" title="Remove {_t}">&times;</div>'
+                        f'</div>'
+                    ).classes("w-full")
         else:
             ui.html(
                 f'<div style="font-size:11px;color:{TEXT_DIM};padding:8px 4px;">'
