@@ -370,6 +370,7 @@ async def build_comparison(
         fig = build_comparison_chart(
             comparison_df, name_map, portfolio_color_map,
             range_label, fx_adjust, base_currency,
+            title="Portfolio Comparison",
         )
         with chart_container:
             ui.plotly(fig).classes("w-full")

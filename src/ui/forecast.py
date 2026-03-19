@@ -199,6 +199,7 @@ def _render_portfolio_outlook(
             }],
             currency_symbol=currency_symbol,
             y_title=f"Portfolio Value ({currency})",
+            title="Portfolio Outlook",
         )
 
         chart_container.clear()
@@ -271,6 +272,7 @@ def _render_portfolio_outlook(
             p90=p90_val,
             currency_symbol=currency_symbol,
             base_currency=currency,
+            title="Distribution of Simulated Outcomes",
         )
 
         hist_container.clear()
@@ -412,6 +414,7 @@ def _render_position_outlook(
             hlines=hlines,
             currency_symbol=currency_symbol,
             y_title=f"Price ({currency})",
+            title=f"{ticker} Outlook",
         )
 
         with chart_container:
@@ -512,6 +515,7 @@ def _render_backtest(
             actual=bt["actual"],
             currency_symbol=currency_symbol,
             y_title=f"Portfolio Value ({currency})",
+            title="Monte Carlo Backtest",
         )
         ui.plotly(fig).classes("w-full")
 

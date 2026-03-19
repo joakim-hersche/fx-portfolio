@@ -425,6 +425,7 @@ def _build_price_history(
             fx_rate,
             effective_from,
             date_to,
+            title=t,
         )
 
         with chart_container:

@@ -112,6 +112,7 @@ def build_fan_chart(
     currency_symbol: str = "$",
     y_title: str = "Value",
     show_legend: bool = True,
+    title: str | None = None,
 ) -> go.Figure:
     """Build a Monte Carlo fan chart with 80%/50% bands, median, and optional actual line.
 
@@ -185,6 +186,10 @@ def build_fan_chart(
         ) if show_legend else dict(visible=False),
         hovermode="x unified",
     )
+    if title:
+        fig.update_layout(
+            title=dict(text=title, font=dict(size=12, color="#94A3B8"), x=0, y=0.98),
+        )
     return fig
 
 
@@ -227,6 +232,7 @@ def build_comparison_chart(
     range_label: str,
     fx_adjusted: bool,
     base_currency: str,
+    title: str | None = None,
 ) -> go.Figure:
     # Use "TICKER — Short Name" labels that fit in the legend without overflow
     def _legend_label(t: str) -> str:
@@ -265,6 +271,10 @@ def build_comparison_chart(
         ),
     )
     fig.add_hline(y=100, line_dash="dash", line_color="gray")
+    if title:
+        fig.update_layout(
+            title=dict(text=title, font=dict(size=12, color="#94A3B8"), x=0, y=0.98),
+        )
     return fig
 
 
@@ -278,6 +288,7 @@ def build_price_history_chart(
     fx_rate: float,
     effective_from: pd.Timestamp,
     date_to,
+    title: str | None = None,
 ) -> go.Figure:
     fig = px.line(x=hist.index, y=hist["Close"], color_discrete_sequence=[line_color])
     fig.update_traces(
@@ -307,6 +318,10 @@ def build_price_history_chart(
                 x=str(pd.Timestamp(lot["purchase_date"]).date()),
                 line_dash="dash", line_color="gray",
             )
+    if title:
+        fig.update_layout(
+            title=dict(text=title, font=dict(size=12, color="#94A3B8"), x=0, y=0.98),
+        )
     return fig
 
 
@@ -350,6 +365,7 @@ def build_portfolio_histogram(
     p90: float,
     currency_symbol: str,
     base_currency: str,
+    title: str | None = None,
 ) -> go.Figure:
     fig = go.Figure()
     fig.add_trace(go.Histogram(
@@ -381,4 +397,8 @@ def build_portfolio_histogram(
         showlegend=False,
         bargap=0.02,
     )
+    if title:
+        fig.update_layout(
+            title=dict(text=title, font=dict(size=12, color="#94A3B8"), x=0, y=0.98),
+        )
     return fig
