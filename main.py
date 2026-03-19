@@ -406,17 +406,24 @@ async def index(request: Request):
 
     # ── Callbacks ──────────────────────────────────────────
     async def _on_currency_change(new_currency: str):
-        nonlocal currency
+        nonlocal currency, ticker_values
         stored = load_portfolio()
         stored["currency"] = new_currency
         save_portfolio(stored)
         currency = new_currency
         _shared["currency"] = new_currency
         _shared["currency_symbol"] = CURRENCY_SYMBOLS.get(new_currency, "$")
+        # Recompute ticker values in the new currency
+        if portfolio:
+            ticker_values = await run.io_bound(_compute_ticker_values)
+            _shared["ticker_values"] = ticker_values
         # Invalidate all tabs and rebuild current
         for name in _TAB_NAMES:
             _tab_built[name] = False
         await _build_tab(_active_tab["name"])
+        # Refresh sidebar to show updated currency symbols and values
+        if _mutation_ref.get("sidebar_refresh"):
+            _mutation_ref["sidebar_refresh"]()
 
 
 # ── Security headers middleware ────────────────────────────

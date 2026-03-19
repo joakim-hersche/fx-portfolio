@@ -361,6 +361,9 @@ def build_sidebar(
 
     positions_list()
 
+    if on_mutation:
+        on_mutation["sidebar_refresh"] = positions_list.refresh
+
     # ── Confirmation dialog for remove ─────────────────────
     _dlg_card_style = (
         f"min-width:280px;max-width:340px;background:{BG_CARD};"
