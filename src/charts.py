@@ -237,9 +237,10 @@ def build_comparison_chart(
     color_map = {comp_label_map[t]: portfolio_color_map[t] for t in comparison_df.columns if t in portfolio_color_map}
     display = comparison_df.rename(columns=comp_label_map)
     fx_note = " (FX-adjusted)" if fx_adjusted else ""
-    idx_name = display.index.name or "Date"
-    melted = display.reset_index().melt(id_vars=idx_name, var_name="Ticker", value_name="Value")
-    fig = px.line(melted, x=idx_name, y="Value", color="Ticker", color_discrete_map=color_map)
+    reset = display.reset_index()
+    idx_col = reset.columns[0]
+    melted = reset.melt(id_vars=idx_col, var_name="Ticker", value_name="Value")
+    fig = px.line(melted, x=idx_col, y="Value", color="Ticker", color_discrete_map=color_map)
     _apply_default_layout(
         fig,
         xaxis_title="Date",
