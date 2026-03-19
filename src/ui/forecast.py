@@ -754,7 +754,7 @@ async def build_forecast_tab(portfolio: dict, currency: str) -> None:
 
     _render_portfolio_outlook(portfolio, tickers, price_data, currency, currency_symbol)
 
-    ui.html('<hr class="content-divider" style="margin:8px 0;">')
+    ui.html('<hr class="content-divider">')
 
     _render_position_outlook(portfolio, tickers, price_data, currency, currency_symbol)
 
@@ -796,6 +796,6 @@ async def build_diagnostics_tab(portfolio: dict, currency: str) -> None:
 
     _render_backtest(portfolio, tickers, price_data, currency, currency_symbol)
 
-    ui.html('<hr class="content-divider" style="margin:8px 0;">')
+    ui.html('<hr class="content-divider">')
 
     _render_model_diagnostics(tickers, price_data)

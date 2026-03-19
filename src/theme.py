@@ -89,7 +89,7 @@ body, .q-page, .nicegui-content {
 .q-tab-panel .nicegui-content,
 .q-tab-panel > .nicegui-content,
 .q-tab-panel > div > .nicegui-content { width: 100%% !important; max-width: none !important; padding: 0 !important; }
-.q-tab-panel .nicegui-column { width: 100%% !important; gap: 8px !important; }
+.q-tab-panel .nicegui-column { width: 100%% !important; gap: var(--grid-gap) !important; }
 .q-tabs { background: %(BG_MAIN)s !important; border-bottom: 1px solid %(BORDER)s !important; }
 .q-tab { text-transform: none !important; font-family: 'Inter', sans-serif !important; font-size: 12px !important; font-weight: 500 !important; letter-spacing: 0.01em !important; color: %(TEXT_FAINT)s !important; }
 .q-tab--active { color: %(TEXT_PRIMARY)s !important; font-weight: 600 !important; }
@@ -310,7 +310,7 @@ body, .q-page, .nicegui-content {
 }
 
 /* ── Responsive grid classes ─────────────────────────── */
-.risk-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--grid-gap); width: 100%%; align-items: stretch; margin-bottom: calc(var(--grid-gap) - 8px); }
+.risk-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--grid-gap); width: 100%%; align-items: stretch; }
 .risk-grid > * { display: flex; flex-direction: column; }
 .risk-grid > * > .chart-card { flex: 1; display: flex; flex-direction: column; }
 .metric-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--grid-gap); width: 100%%; }
