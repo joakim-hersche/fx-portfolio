@@ -322,7 +322,7 @@ def _render_unified_table(
             )
 
         # ── JS toggle function ──
-        toggle_js = '''
+        ui.add_body_html('''
         <script>
         function toggleDetail(id) {
             var detailRow = document.getElementById('detail-' + id);
@@ -337,10 +337,9 @@ def _render_unified_table(
             }
         }
         </script>
-        '''
+        ''')
 
         ui.html(f'''
-        {toggle_js}
         <div class="table-wrap">
         <table>
             <thead><tr>
