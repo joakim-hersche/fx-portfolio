@@ -318,7 +318,7 @@ async def index(request: Request):
             ui.html(
                 f'<div style="display:flex;align-items:center;gap:5px;margin-left:8px;">'
                 f'<div style="width:7px;height:7px;border-radius:50%;background:{status_color};"></div>'
-                f'<span style="font-size:10px;color:{TEXT_FAINT};font-weight:500;">{status_label}</span>'
+                f'<span style="font-size:10px;color:{TEXT_FAINT};font-weight:500;">NYSE {status_label}</span>'
                 f'</div>'
             )
 
@@ -558,6 +558,18 @@ async def index(request: Request):
             if not _tab_built.get(e.value):
                 await _build_tab(e.value)
         tabs.on_value_change(_on_tab_change)
+
+        # ── Persistent disclaimer footer ──────────────────────────
+        ui.html(
+            f'<div style="text-align:center;padding:12px 20px;margin-top:24px;'
+            f'border-top:1px solid {BORDER};font-size:10px;color:{TEXT_FAINT};line-height:1.6;">'
+            'For informational purposes only — not financial advice. '
+            'Past performance does not guarantee future results. '
+            'All figures are before taxes and fees. '
+            'Prices may be delayed up to 15 minutes. '
+            'Simulated probabilities are model outputs, not predictions.'
+            '</div>'
+        )
 
     # ── Mutation callback — rebuild current tab in-place ──
     async def _on_portfolio_mutation():
