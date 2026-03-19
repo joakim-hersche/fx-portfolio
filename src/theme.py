@@ -169,7 +169,7 @@ body, .q-page, .nicegui-content {
 .sidebar-btn:hover { border-color: rgba(255,255,255,0.15); color: %(TEXT_MUTED)s; }
 
 /* ── KPI cards ─────────────────────────────────────────── */
-.kpi-row { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: var(--grid-gap); margin-bottom: 8px; width: 100%%; }
+.kpi-row { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: var(--grid-gap); width: 100%%; }
 .kpi-card {
   background: %(BG_CARD)s; border: 1px solid %(BORDER)s;
   border-radius: 10px; padding: 16px 18px; box-sizing: border-box;
@@ -349,7 +349,8 @@ body, .q-page, .nicegui-content {
   .q-drawer { width: 260px !important; max-width: 80vw !important; }
 
   /* KPI cards: single column */
-  .kpi-row { grid-template-columns: 1fr; gap: 8px; }
+  .kpi-row { flex-direction: column !important; gap: 8px !important; }
+  .kpi-card { min-width: 100%% !important; }
   .kpi-card, .kpi-card.hero { padding: 14px 16px; }
   .kpi-value { font-size: 20px; }
   .kpi-card.hero .kpi-value { font-size: 22px; }
@@ -357,7 +358,7 @@ body, .q-page, .nicegui-content {
 
   /* Charts: full width, stack vertically */
   .charts-row { grid-template-columns: 1fr; gap: 10px; }
-  .chart-card { padding: 12px; }
+  .chart-card { padding: 12px !important; }
 
   /* Tables: horizontal scroll */
   .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
@@ -392,6 +393,8 @@ body, .q-page, .nicegui-content {
   .tab-bar-wrapper {
     position: relative;
     width: 100%%;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
   }
   .tab-bar-wrapper::after {
     content: '';
