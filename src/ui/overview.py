@@ -97,7 +97,7 @@ async def build_overview_tab(
 
         return
 
-    # ── Build portfolio DataFrame (cached 15 min) ─────────
+    # ── Build portfolio DataFrame (cached 5 min) ──────────
     notification = ui.notification("Loading overview data...", spinner=True, timeout=None)
     try:
         df = await run.io_bound(build_portfolio_df, portfolio, currency)
@@ -157,7 +157,7 @@ async def build_overview_tab(
     ]
     first_purchase = min(all_dates) if all_dates else None
     return_sub = (
-        f'<div class="kpi-sub sm" style="color:{TEXT_MUTED};">Since {first_purchase}</div>'
+        f'<div class="kpi-sub sm" style="color:{TEXT_MUTED};">Gross, pre-tax · since {first_purchase}</div>'
         if first_purchase else ""
     )
 
@@ -190,7 +190,7 @@ async def build_overview_tab(
         "Total Portfolio Value",
         f'{val_int}<span style="font-size:16px;font-weight:700;">.{val_dec}</span>',
         C_CARD_BRD,
-        line1=f'<div class="kpi-sub" style="color:{TEXT_DIM};">Updated {cache_time} \u00b7 15 min cache</div>',
+        line1=f'<div class="kpi-sub" style="color:{TEXT_DIM};">Updated {cache_time} \u00b7 5 min cache</div>',
         line2='',
         hero=True,
     )
