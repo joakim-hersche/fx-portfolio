@@ -91,9 +91,9 @@ body, .q-page, .nicegui-content {
 .q-tab-panel > div > .nicegui-content { width: 100%% !important; max-width: none !important; padding: 0 !important; }
 .q-tab-panel .nicegui-column { width: 100%% !important; gap: var(--grid-gap) !important; }
 .q-tab-panel > .nicegui-content > .nicegui-column > :first-child {
-    padding-top: 8px;
+    padding-top: 12px;
 }
-.q-tabs { background: %(BG_MAIN)s !important; border-bottom: none !important; }
+.q-tabs { background: %(BG_MAIN)s !important; border-bottom: none !important; padding: 6px 0 !important; }
 .q-tabs__content { justify-content: center !important; }
 .q-tab { flex: 0 0 auto !important; align-self: center !important; border-bottom: 1px solid %(BORDER)s !important; }
 .q-tab { text-transform: none !important; font-family: 'Inter', sans-serif !important; font-size: 12px !important; font-weight: 500 !important; letter-spacing: 0.01em !important; color: %(TEXT_FAINT)s !important; }
