@@ -519,14 +519,14 @@ def _render_flat_table(
             # 52-week range bar (compact)
             if low is not None and high is not None and position is not None:
                 range_html = (
-                    f'<span style="display:inline-flex;align-items:center;gap:3px;min-width:90px;">'
-                    f'<span style="font-size:9px;color:{TEXT_DIM};">{currency_symbol}{low:.0f}</span>'
-                    f'<span class="range-bar-bg" style="width:60px;display:inline-block;">'
-                    f'<span class="range-bar-fill" style="left:0;width:100%;"></span>'
-                    f'<span class="range-bar-dot" style="left:{position}%;"></span>'
-                    f'</span>'
-                    f'<span style="font-size:9px;color:{TEXT_DIM};">{currency_symbol}{high:.0f}</span>'
-                    f'</span>'
+                    f'<div style="display:flex;align-items:center;gap:4px;width:100%;">'
+                    f'<span style="font-size:9px;color:{TEXT_DIM};min-width:32px;text-align:right;">{currency_symbol}{low:.0f}</span>'
+                    f'<div class="range-bar-bg" style="flex:1;min-width:60px;">'
+                    f'<div class="range-bar-fill" style="left:0;width:100%;"></div>'
+                    f'<div class="range-bar-dot" style="left:{position}%;"></div>'
+                    f'</div>'
+                    f'<span style="font-size:9px;color:{TEXT_DIM};min-width:32px;">{currency_symbol}{high:.0f}</span>'
+                    f'</div>'
                 )
             else:
                 range_html = "\u2014"
@@ -540,11 +540,11 @@ def _render_flat_table(
                 f'<td class="{ret_cls} right">{_fmt(pos_return, "{:+.1f}%")}</td>'
                 f'<td class="{contrib_cls} right">{_fmt(contribution, "{:+.1f}%")}</td>'
                 f'<td class="{bench_cls} right">{_fmt(vs_bench, "{:+.1f}%")}</td>'
-                f'<td class="{vol_cls} right">{_fmt(vol, "{:.0f}%")}</td>'
+                f'<td class="{vol_cls} right" style="border-left:1px solid rgba(255,255,255,0.07);">{_fmt(vol, "{:.0f}%")}</td>'
                 f'<td class="{dd_cls} right">{_fmt(dd, "{:.0f}%")}</td>'
                 f'<td class="{sharpe_cls} right">{_fmt(sharpe, "{:.1f}")}</td>'
                 f'<td class="right">{_fmt(beta, "{:.1f}")}</td>'
-                f'<td class="right">{_fmt(pe, "{:.0f}\u00d7")}</td>'
+                f'<td class="right" style="border-left:1px solid rgba(255,255,255,0.07);">{_fmt(pe, "{:.0f}\u00d7")}</td>'
                 f'<td class="right">{_fmt(div_yield, "{:.1f}%")}</td>'
                 f'<td>{range_html}</td>'
                 f'<td class="right">{current_html}</td>'
@@ -553,24 +553,24 @@ def _render_flat_table(
 
         ui.html(f'''
         <div class="table-wrap" style="overflow-x:auto;">
-        <table style="min-width:900px;">
+        <table style="min-width:1200px;border-collapse:separate;border-spacing:0;">
             <thead>
               <tr>
                 <th rowspan="2">Ticker</th>
                 <th colspan="4" style="text-align:center;border-bottom:1px solid rgba(255,255,255,0.07);">Performance</th>
-                <th colspan="4" style="text-align:center;border-bottom:1px solid rgba(255,255,255,0.07);">Risk</th>
-                <th colspan="4" style="text-align:center;border-bottom:1px solid rgba(255,255,255,0.07);">Valuation</th>
+                <th colspan="4" style="text-align:center;border-bottom:1px solid rgba(255,255,255,0.07);border-left:1px solid rgba(255,255,255,0.07);">Risk</th>
+                <th colspan="4" style="text-align:center;border-bottom:1px solid rgba(255,255,255,0.07);border-left:1px solid rgba(255,255,255,0.07);">Valuation</th>
               </tr>
               <tr>
                 <th class="right">Weight %</th>
                 <th class="right">1Y Return</th>
                 <th class="right">Contribution</th>
                 <th class="right">vs S&amp;P</th>
-                <th class="right">Volatility</th>
+                <th class="right" style="border-left:1px solid rgba(255,255,255,0.07);">Volatility</th>
                 <th class="right">Worst Drop</th>
                 <th class="right">Return/Risk</th>
                 <th class="right">Beta</th>
-                <th class="right">P/E Ratio</th>
+                <th class="right" style="border-left:1px solid rgba(255,255,255,0.07);">P/E Ratio</th>
                 <th class="right">Div Yield</th>
                 <th>52-Week Range</th>
                 <th class="right">Current</th>
