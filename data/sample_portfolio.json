@@ -1,6 +1,7 @@
 {
   "AAPL": [
-    {"shares": 15, "buy_price": 123.10, "buy_fx_rate": 1.0, "purchase_date": "2023-01-03", "manual_price": false}
+    {"shares": 10, "buy_price": 123.10, "buy_fx_rate": 1.0, "purchase_date": "2023-01-03", "manual_price": false},
+    {"shares": 5, "buy_price": 189.50, "buy_fx_rate": 1.0, "purchase_date": "2024-06-15", "manual_price": false}
   ],
   "JNJ": [
     {"shares": 8, "buy_price": 144.71, "buy_fx_rate": 1.0, "purchase_date": "2023-02-15", "manual_price": false}
