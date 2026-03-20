@@ -556,7 +556,13 @@ body, .q-page, .nicegui-content {
 
 /* ── Table zebra striping ── */
 .table-wrap tbody tr:nth-child(even) {
-    background: rgba(255,255,255,0.015);
+    background: rgba(255,255,255,0.025);
+}
+.table-wrap thead {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: %(BG_CARD)s;
 }
 
 /* ── Plotly modebar — hidden for clean minimal look ── */
@@ -633,6 +639,12 @@ body, .q-page, .nicegui-content {
 .chart-card .js-plotly-plot,
 .chart-card .plotly {
     min-height: 380px;
+}
+
+/* ── Tertiary card (rebalancing calculator) ── */
+.card-tertiary {
+    background: %(BG_PAGE)s !important;
+    border-top: 1px solid %(BORDER)s;
 }
 </style>
 """ % {
