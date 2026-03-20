@@ -10,7 +10,7 @@ import pandas as pd
 from nicegui import run, ui
 
 from src.charts import (
-    CHART_COLORS, C_CARD_BRD, C_NEGATIVE, C_POSITIVE,
+    C_CARD_BRD, C_NEGATIVE, C_POSITIVE,
     build_comparison_chart,
 )
 from src.data_fetch import (

@@ -28,7 +28,7 @@ _C_POS_BG     = "E8F5E9"   # positive fill
 _C_NEG_BG     = "FBE9E9"   # negative fill
 _C_AMBER_BG   = "FFF8E1"
 
-# ── Chart palette — matches app.py CHART_COLORS (hex, no leading #) ───────────
+# ── Chart palette — matches charts.py FALLBACK_COLORS (hex, no leading #) ─────
 _CHART_COLORS = [
     "1D4ED8", "0EA5E9", "6366F1", "10B981", "F59E0B",
     "EC4899", "8B5CF6", "06B6D4", "22C55E", "F97316",

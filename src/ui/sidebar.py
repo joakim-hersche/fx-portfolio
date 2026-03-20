@@ -9,7 +9,7 @@ import re
 import pandas as pd
 from nicegui import run, ui
 
-from src.charts import CHART_COLORS
+from src.charts import FALLBACK_COLORS
 from src.fx import CURRENCY_SYMBOLS, get_fx_rate, get_historical_fx_rate, get_ticker_currency
 from src.portfolio import fetch_buy_price
 from src.theme import (
@@ -425,7 +425,7 @@ def build_sidebar(
             with ui.column().classes("w-full").style("gap:4px;"):
                 for i, ticker in enumerate(tickers):
                     color = (shared.get("portfolio_color_map") or {}).get(
-                        ticker, CHART_COLORS[i % len(CHART_COLORS)]
+                        ticker, FALLBACK_COLORS[i % len(FALLBACK_COLORS)]
                     )
                     lots = portfolio[ticker]
                     total_shares = sum(lot.get("shares", 0) for lot in lots)

@@ -13,7 +13,7 @@ import pandas as pd
 from nicegui import run, ui
 
 from src.charts import (
-    CHART_COLORS,
+    FALLBACK_COLORS,
     C_NEGATIVE,
     C_NEUTRAL,
     C_POSITIVE,
@@ -460,7 +460,7 @@ def _build_price_history(
 
         idx = tickers.index(t)
         line_color = portfolio_color_map.get(
-            t, CHART_COLORS[idx % len(CHART_COLORS)]
+            t, FALLBACK_COLORS[idx % len(FALLBACK_COLORS)]
         )
         if fx_adjust:
             fx_rate, fx_ok = get_fx_rate(ticker_currency, base_currency)
@@ -556,7 +556,7 @@ async def build_positions_tab(portfolio: dict, currency: str) -> None:
 
     # Shared maps
     portfolio_color_map: dict[str, str] = {
-        t: TICKER_COLORS.get(t, CHART_COLORS[i % len(CHART_COLORS)])
+        t: TICKER_COLORS.get(t, FALLBACK_COLORS[i % len(FALLBACK_COLORS)])
         for i, t in enumerate(portfolio.keys())
     }
 

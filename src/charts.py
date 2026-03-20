@@ -6,8 +6,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 # ── Color tokens (shared across all charts) ──────────────────────────────────
-CHART_COLORS = ["#1D4ED8", "#0EA5E9", "#6366F1", "#10B981", "#F59E0B",
-                "#EC4899", "#8B5CF6", "#06B6D4", "#22C55E", "#F97316"]
+FALLBACK_COLORS = ["#1D4ED8", "#0EA5E9", "#6366F1", "#10B981", "#F59E0B",
+                   "#EC4899", "#8B5CF6", "#06B6D4", "#22C55E", "#F97316"]
 
 C_POSITIVE   = "#16A34A"
 C_NEGATIVE   = "#DC2626"

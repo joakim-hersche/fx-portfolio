@@ -36,7 +36,7 @@ def _unsanitized_html_init(self, content='', **kwargs):
     _original_html_init(self, content, **kwargs)
 ui.html.__init__ = _unsanitized_html_init
 
-from src.charts import CHART_COLORS
+from src.charts import FALLBACK_COLORS
 from src.ui.forecast import build_forecast_tab
 from src.ui.income import build_income_tab
 from src.ui.positions import build_positions_tab
@@ -67,7 +67,7 @@ _SAMPLE_PATH = os.path.join(os.path.dirname(__file__), "data", "sample_portfolio
 def _build_color_map(portfolio: dict) -> dict[str, str]:
     """Build a consistent ticker -> color mapping used across all tabs and sidebar."""
     return {
-        t: TICKER_COLORS.get(t, CHART_COLORS[i % len(CHART_COLORS)])
+        t: TICKER_COLORS.get(t, FALLBACK_COLORS[i % len(FALLBACK_COLORS)])
         for i, t in enumerate(portfolio.keys())
     }
 

@@ -9,7 +9,7 @@ import pandas as pd
 from nicegui import run, ui
 
 from src.charts import (
-    CHART_COLORS,
+    FALLBACK_COLORS,
     C_POSITIVE,
     C_NEGATIVE,
     C_AMBER,
@@ -1057,7 +1057,7 @@ def _render_rebalancing_calculator(
             )
             deposit_input = ui.number(
                 value=0, min=0, format="%.0f", prefix=currency_symbol,
-            ).props("dense borderless").style(f"width:120px;{input_style}")
+            ).props("dense borderless input-class=text-center").style(f"width:120px;{input_style}")
 
             def _on_deposit(e):
                 deposit_ref["value"] = e.value or 0.0
@@ -1132,7 +1132,7 @@ def _render_rebalancing_calculator(
                         value=round(current_w),
                         min=0, max=100, step=1, format="%.0f",
                         suffix="%",
-                    ).props("dense borderless").style(
+                    ).props("dense borderless input-class=text-center").style(
                         f"width:56px;max-height:28px;{input_style}"
                     )
 
@@ -1230,7 +1230,7 @@ async def build_risk_tab(portfolio: dict, currency: str) -> None:
 
     # Build color map for dot indicators
     portfolio_color_map: dict[str, str] = {
-        t: TICKER_COLORS.get(t, CHART_COLORS[i % len(CHART_COLORS)])
+        t: TICKER_COLORS.get(t, FALLBACK_COLORS[i % len(FALLBACK_COLORS)])
         for i, t in enumerate(portfolio.keys())
     }
 
