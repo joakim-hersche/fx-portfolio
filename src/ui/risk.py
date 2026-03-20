@@ -965,15 +965,19 @@ def _render_rebalancing_calculator(
                     action_map[s["Ticker"]] = {"Shares": shares, "Amount": amount}
 
                 if remaining > 0:
-                    for t, a in action_map.items():
+                    for s in suggestions:
                         if remaining <= 0:
                             break
-                        price = next(
-                            (r["Current Price"] for _, r in ticker_data.iterrows() if r["Ticker"] == t),
-                            None,
-                        )
-                        if price and price > 0 and remaining >= price:
-                            extra = int(remaining / price)
+                        t = s["Ticker"]
+                        if s["Deficit"] <= 0 or s["Price"] is None or s["Price"] <= 0:
+                            continue
+                        a = action_map[t]
+                        still_needed = s["Deficit"] - a["Amount"]
+                        if still_needed <= 0:
+                            continue
+                        price = s["Price"]
+                        if remaining >= price:
+                            extra = min(int(remaining / price), int(still_needed / price) or 1)
                             if extra > 0:
                                 a["Shares"] += extra
                                 a["Amount"] += extra * price
