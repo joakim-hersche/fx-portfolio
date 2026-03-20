@@ -263,9 +263,13 @@ def build_comparison_chart(
     fig.update_traces(
         hovertemplate="<b>%{customdata[0]}</b><br>%{x|%b %d, %Y}<br>Index: %{y:.1f}<extra></extra>",
     )
-    # Attach ticker name as customdata for hover
+    # Attach ticker name as customdata for hover; add area fill per trace
     for trace in fig.data:
         trace.customdata = [[trace.name]] * len(trace.x)
+        trace.fill = "tozeroy"
+        trace.fillcolor = _hex_to_rgba(
+            color_map.get(trace.name, "#3B82F6"), 0.08
+        )
     _apply_default_layout(
         fig,
         xaxis_title="Date",
@@ -303,6 +307,8 @@ def build_price_history_chart(
 ) -> go.Figure:
     fig = px.line(x=hist.index, y=hist["Close"], color_discrete_sequence=[line_color])
     fig.update_traces(
+        fill="tozeroy",
+        fillcolor=_hex_to_rgba(line_color, 0.12),
         hovertemplate=f"<b>%{{x|%b %d, %Y}}</b><br>{currency_symbol}%{{y:,.2f}}<extra></extra>",
     )
     _apply_default_layout(
