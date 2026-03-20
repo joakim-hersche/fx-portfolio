@@ -19,12 +19,21 @@ C_CARD_BRD   = "rgba(29,78,216,0.3)"
 _PLOT_TMPL = "plotly"
 
 
+def _hex_to_rgba(hex_color: str, alpha: float = 0.12) -> str:
+    """Convert '#3B82F6' to 'rgba(59,130,246,0.12)'."""
+    h = hex_color.lstrip("#")
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    return f"rgba({r},{g},{b},{alpha})"
+
+
 def _apply_default_layout(fig: go.Figure, **overrides) -> go.Figure:
     """Apply standard transparent background and template to any chart."""
     defaults = dict(
         template=_PLOT_TMPL,
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(family="Inter, sans-serif"),
+        margin=dict(l=30, r=12, t=16, b=32),
         hoverlabel=dict(
             bgcolor="#1C1D26",
             bordercolor="#1E293B",
@@ -40,9 +49,10 @@ def _apply_default_layout(fig: go.Figure, **overrides) -> go.Figure:
     defaults.update(overrides)
     fig.update_layout(**defaults)
     _axis_style = dict(
-        gridcolor="rgba(255,255,255,0.04)",
-        tickfont=dict(color="#CBD5E1", size=10),
-        title_font=dict(color="#CBD5E1", size=11),
+        showgrid=False,
+        tickfont=dict(color="#64748B", size=9),
+        title_font=dict(color="#64748B", size=10),
+        nticks=3,
     )
     fig.update_xaxes(**_axis_style)
     fig.update_yaxes(**_axis_style)
@@ -269,6 +279,7 @@ def build_comparison_chart(
             bgcolor="rgba(0,0,0,0)",
             bordercolor="rgba(255,255,255,0.06)",
         ),
+        hovermode="x unified",
     )
     fig.add_hline(y=100, line_dash="dash", line_color="gray")
     if title:
@@ -300,6 +311,7 @@ def build_price_history_chart(
         yaxis_title=y_label,
         xaxis_range=[str(pd.Timestamp(effective_from).date()), str(date_to)],
         showlegend=False,
+        hovermode="x unified",
     )
     for i, lot in enumerate(lots):
         if fx_adjusted:
@@ -397,6 +409,7 @@ def build_portfolio_histogram(
         showlegend=False,
         bargap=0.02,
     )
+    fig.update_yaxes(nticks=5)
     if title:
         fig.update_layout(
             title=dict(text=title, font=dict(size=12, color="#94A3B8"), x=0, y=0.98),
