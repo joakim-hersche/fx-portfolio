@@ -4,9 +4,11 @@ import calendar as cal
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 
+import plotly.graph_objects as go
 import pandas as pd
 from nicegui import run, ui
 
+from src.charts import _apply_default_layout
 from src.data_fetch import fetch_fundamentals
 from src.fx import CURRENCY_SYMBOLS, get_fx_rate, get_ticker_currency
 from src.portfolio import build_dividend_timeline, build_portfolio_df
@@ -264,39 +266,21 @@ def _build_income_chart(
             "showlegend": False,
         })
 
-    layout = {
-        "paper_bgcolor": "rgba(0,0,0,0)",
-        "plot_bgcolor": "rgba(0,0,0,0)",
-        "font": {"family": "Inter, sans-serif", "size": 11, "color": TEXT_MUTED},
-        "height": 380,
-        "margin": {"l": 50, "r": 20, "t": 10, "b": 40},
-        "xaxis": {
-            "gridcolor": "rgba(255,255,255,0.04)",
-            "tickfont": {"size": 10, "color": "#CBD5E1"},
-        },
-        "yaxis": {
-            "gridcolor": "rgba(255,255,255,0.04)",
-            "tickfont": {"size": 10, "color": "#CBD5E1"},
-            "tickprefix": currency_symbol,
-        },
-        "hoverlabel": {
-            "bgcolor": "#1C1D26",
-            "bordercolor": "#1E293B",
-            "font": {"family": "Inter, sans-serif", "size": 11, "color": "#F1F5F9"},
-            "namelength": -1,
-        },
-        "modebar": {
-            "bgcolor": "rgba(0,0,0,0)",
-            "color": "#64748B",
-            "activecolor": "#94A3B8",
-        },
-    }
+    fig = go.Figure({"data": traces})
+    _apply_default_layout(
+        fig,
+        height=380,
+        margin=dict(l=50, r=20, t=10, b=40),
+        yaxis=dict(tickprefix=currency_symbol),
+        showlegend=False,
+        bargap=0.02,
+    )
 
     with ui.column().classes("chart-card w-full"):
         with ui.row().classes("w-full items-center justify-between").style("margin:0;"):
             ui.html('<div class="chart-title">Income Growth</div>')
             ui.html(f'<div style="font-size:10px;color:{TEXT_DIM};">3M avg trend</div>')
-        ui.plotly({"data": traces, "layout": layout}).classes("w-full")
+        ui.plotly(fig).classes("w-full")
 
 
 def _build_dividend_calendar(
