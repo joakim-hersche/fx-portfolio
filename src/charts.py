@@ -263,13 +263,9 @@ def build_comparison_chart(
     fig.update_traces(
         hovertemplate="<b>%{customdata[0]}</b><br>%{x|%b %d, %Y}<br>Index: %{y:.1f}<extra></extra>",
     )
-    # Attach ticker name as customdata for hover; add area fill per trace
+    # Attach ticker name as customdata for hover
     for trace in fig.data:
         trace.customdata = [[trace.name]] * len(trace.x)
-        trace.fill = "tozeroy"
-        trace.fillcolor = _hex_to_rgba(
-            color_map.get(trace.name, "#3B82F6"), 0.08
-        )
     _apply_default_layout(
         fig,
         xaxis_title="Date",
@@ -285,6 +281,8 @@ def build_comparison_chart(
         ),
         hovermode="x unified",
     )
+    fig.update_xaxes(nticks=6)
+    fig.update_yaxes(nticks=6)
     fig.add_hline(y=100, line_dash="dash", line_color="gray")
     if title:
         fig.update_layout(
