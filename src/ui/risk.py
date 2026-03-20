@@ -781,6 +781,7 @@ def _build_sector_data(
 def _render_sector_breakdown(
     fund_rows: list[dict],
     portfolio_df: pd.DataFrame,
+    color_map: dict[str, str] | None = None,
 ) -> None:
     """Sector exposure as grouped horizontal bars."""
     with ui.column().classes("chart-card w-full"):
@@ -839,18 +840,19 @@ def _render_sector_breakdown(
             )
             for ticker, weight in sector_tickers.get(sector, []):
                 bar_width = (weight / max_ticker * 100) if max_ticker > 0 else 0
+                ticker_color = (color_map or {}).get(ticker, color)  # fallback to sector color
                 rows_html += (
                     f'<div class="alloc-bar" style="display:flex;align-items:center;gap:8px;'
                     f'padding:1px 0 1px 20px;position:relative;">'
                     f'<div style="width:48px;font-size:10px;color:{TEXT_DIM};'
                     f'flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{ticker}</div>'
                     f'<div style="flex:1;height:4px;background:rgba(255,255,255,0.03);border-radius:3px;overflow:hidden;">'
-                    f'<div style="width:{bar_width:.1f}%;height:100%;background:{color};opacity:0.45;border-radius:3px;"></div>'
+                    f'<div style="width:{bar_width:.1f}%;height:100%;background:{ticker_color};opacity:0.45;border-radius:3px;"></div>'
                     f'</div>'
                     f'<div style="width:40px;font-size:10px;color:{TEXT_DIM};text-align:right;flex-shrink:0;">{weight:.1f}%</div>'
                     f'<div class="alloc-tip">'
                     f'<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">'
-                    f'<div style="width:8px;height:8px;border-radius:2px;background:{color};flex-shrink:0;"></div>'
+                    f'<div style="width:8px;height:8px;border-radius:2px;background:{ticker_color};flex-shrink:0;"></div>'
                     f'<span style="font-weight:600;color:{TEXT_PRIMARY};font-size:11px;">{ticker}</span>'
                     f'<span style="color:{TEXT_DIM};font-size:10px;">{sector}</span>'
                     f'</div>'
@@ -885,7 +887,7 @@ def _render_rebalancing_calculator(
     currency_symbol: str,
 ) -> None:
     """Buy-only rebalancing calculator with sector-grouped drift-bar layout."""
-    with ui.column().classes("chart-card w-full").style("gap:0;"):
+    with ui.column().classes("chart-card card-tertiary w-full").style("gap:0;"):
         ui.html(
             f'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">'
             f'<span style="font-size:10px;font-weight:700;letter-spacing:0.12em;'
@@ -1302,5 +1304,5 @@ async def build_risk_tab(portfolio: dict, currency: str) -> None:
             _render_correlation_heatmap(price_data_1y, tickers)
         else:
             ui.element("div")  # placeholder to keep 3-col grid
-        _render_sector_breakdown(fund_rows, portfolio_df)
+        _render_sector_breakdown(fund_rows, portfolio_df, portfolio_color_map)
         _render_rebalancing_calculator(fund_rows, portfolio_df, currency_symbol)
