@@ -885,7 +885,7 @@ def _render_rebalancing_calculator(
     currency_symbol: str,
 ) -> None:
     """Buy-only rebalancing calculator with sector-grouped drift-bar layout."""
-    with ui.column().classes("chart-card w-full"):
+    with ui.column().classes("chart-card w-full").style("gap:0;"):
         ui.html(
             f'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">'
             f'<span style="font-size:10px;font-weight:700;letter-spacing:0.12em;'
@@ -1050,7 +1050,7 @@ def _render_rebalancing_calculator(
             f"background:{BG_PILL};border:1px solid {BORDER_INPUT};"
             f"border-radius:4px;padding:0 4px;"
         )
-        with ui.row().classes("w-full items-center").style("gap:8px;margin-bottom:10px;"):
+        with ui.row().classes("w-full items-center no-wrap").style("gap:8px;margin:0 0 10px 0;min-height:0;"):
             ui.html(
                 f'<span style="font-size:9px;font-weight:600;color:{TEXT_DIM};'
                 f'text-transform:uppercase;letter-spacing:0.06em;">Deposit</span>'
@@ -1078,7 +1078,7 @@ def _render_rebalancing_calculator(
             f'<span style="flex:1;font-size:8px;font-weight:600;text-transform:uppercase;'
             f'letter-spacing:0.08em;color:{TEXT_MUTED};">Drift</span>'
             f'</div>'
-        )
+        ).classes("w-full")
 
         # ── Sector-grouped rows ──
         max_sector_total = max(sector_totals.values()) if sector_totals else 1
@@ -1103,7 +1103,7 @@ def _render_rebalancing_calculator(
                 f'<span style="width:40px;font-size:11px;font-weight:700;color:{TEXT_SECONDARY};'
                 f'text-align:right;flex-shrink:0;">{total:.1f}%</span>'
                 f'</div>'
-            )
+            ).classes("w-full")
 
             # Ticker rows within sector
             for ticker in sector_tickers_grouped.get(sector, []):
@@ -1112,8 +1112,8 @@ def _render_rebalancing_calculator(
                     continue
                 current_w = td_row.iloc[0]["Weight (%)"]
 
-                with ui.row().classes("w-full items-center").style(
-                    "gap:6px;margin-bottom:2px;padding-left:14px;"
+                with ui.row().classes("w-full items-center no-wrap").style(
+                    "gap:6px;margin:0;padding:0 0 0 14px;min-height:0;"
                 ):
                     ui.html(
                         f'<span style="width:52px;font-size:10px;color:{TEXT_DIM};'
@@ -1132,7 +1132,9 @@ def _render_rebalancing_calculator(
                         value=round(current_w),
                         min=0, max=100, step=1, format="%.0f",
                         suffix="%",
-                    ).props("dense borderless").style(f"width:44px;{input_style}")
+                    ).props("dense borderless").style(
+                        f"width:56px;max-height:28px;{input_style}"
+                    )
 
                     def _make_handler(t):
                         def handler(e):
