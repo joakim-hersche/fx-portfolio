@@ -208,8 +208,29 @@ async def index(request: Request):
     if initial_tab_name not in _TAB_NAMES:
         initial_tab_name = "Overview"
 
+    # On mobile, Forecast and Income are hidden — fall back to Overview.
+    # (Actual hiding is CSS-only; this handles direct URL access.)
+    _MOBILE_HIDDEN_TABS = {"Forecast", "Income"}
+
     # ── Head: CSS + PWA ────────────────────────────────────
     ui.add_head_html(GLOBAL_CSS)
+    ui.add_head_html("""<script>
+function switchMobileTab(el, tabName) {
+  // Update active state
+  document.querySelectorAll('.mobile-tab-bar .tab-item').forEach(
+    t => t.classList.remove('active')
+  );
+  el.classList.add('active');
+  // Click the hidden top tab
+  const tabs = document.querySelectorAll('.q-tab');
+  for (const tab of tabs) {
+    if (tab.textContent.trim() === tabName) {
+      tab.click();
+      break;
+    }
+  }
+}
+</script>""")
     ui.add_head_html(_PWA_HEAD)
 
     # Force dark mode to match design concept
@@ -489,6 +510,39 @@ async def index(request: Request):
             if not _tab_built.get(e.value):
                 await _build_tab(e.value)
         tabs.on_value_change(_on_tab_change)
+
+        # ── Mobile bottom tab bar ──────────────────────────────────
+        _MOBILE_TABS = [
+            ("Overview", "Overview", '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>'),
+            ("Positions", "Positions", '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>'),
+            ("Health", "Portfolio Health", '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>'),
+            ("Research", "Research", '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>'),
+            ("Guide", "Guide", '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>'),
+        ]
+        active_label = {
+            "Overview": "Overview",
+            "Positions": "Positions",
+            "Portfolio Health": "Health",
+            "Research": "Research",
+            "Guide": "Guide",
+        }.get(initial_tab_name, "Overview")
+
+        tab_items_html = ""
+        for label, tab_name, icon in _MOBILE_TABS:
+            active_cls = " active" if label == active_label else ""
+            tab_items_html += (
+                f'<div class="tab-item{active_cls}" data-tab="{tab_name}" '
+                f'onclick="switchMobileTab(this, \'{tab_name}\')">'
+                f'{icon}'
+                f'<span class="tab-label">{label}</span>'
+                f'</div>'
+            )
+
+        ui.html(
+            f'<div class="mobile-tab-bar" id="mobile-tab-bar">'
+            f'{tab_items_html}'
+            f'</div>'
+        )
 
         # ── Persistent disclaimer footer ──────────────────────────
         ui.html(
