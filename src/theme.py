@@ -708,7 +708,7 @@ body, .q-page, .nicegui-content {
 
   /* Sidebar buttons: touch-friendly */
   .sidebar .q-btn, .sidebar .sidebar-btn {
-    min-height: 40px !important;
+    min-height: 44px !important;
     font-size: 13px !important;
   }
 
