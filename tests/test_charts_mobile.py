@@ -91,3 +91,74 @@ def test_comparison_desktop_unchanged():
     fig = build_comparison_chart(df, {"AAPL": "Apple", "MSFT": "Microsoft"}, color_map, "1Y", False, "USD")
     trace_names = [t.name for t in fig.data]
     assert any(" — " in name for name in trace_names)  # has company name
+
+
+from src.charts import build_price_history_chart
+
+
+def _sample_hist():
+    dates = pd.date_range("2024-01-01", periods=100, freq="D")
+    return pd.DataFrame({"Close": range(100, 200)}, index=dates)
+
+
+def _sample_lots():
+    return [
+        {"buy_price": 120, "shares": 10, "purchase_date": "2024-02-01"},
+        {"buy_price": 150, "shares": 5, "purchase_date": "2024-03-15"},
+    ]
+
+
+def test_price_history_mobile_no_hlines():
+    hist = _sample_hist()
+    fig = build_price_history_chart(
+        hist, "Price (USD)", "#1D4ED8", _sample_lots(), "$",
+        False, 1.0, pd.Timestamp("2024-01-01"), pd.Timestamp("2024-04-10"),
+        mobile=True,
+    )
+    hlines = [s for s in fig.layout.shapes if hasattr(s, 'type') and s.type == 'line' and s.y0 == s.y1]
+    assert len(hlines) == 0
+
+
+def test_price_history_mobile_no_vlines():
+    hist = _sample_hist()
+    fig = build_price_history_chart(
+        hist, "Price (USD)", "#1D4ED8", _sample_lots(), "$",
+        False, 1.0, pd.Timestamp("2024-01-01"), pd.Timestamp("2024-04-10"),
+        mobile=True,
+    )
+    vlines = [s for s in fig.layout.shapes if hasattr(s, 'type') and s.type == 'line' and s.x0 == s.x1]
+    assert len(vlines) == 0
+
+
+def test_price_history_mobile_has_buy_markers():
+    hist = _sample_hist()
+    fig = build_price_history_chart(
+        hist, "Price (USD)", "#1D4ED8", _sample_lots(), "$",
+        False, 1.0, pd.Timestamp("2024-01-01"), pd.Timestamp("2024-04-10"),
+        mobile=True,
+    )
+    scatter_traces = [t for t in fig.data if t.mode == "markers"]
+    assert len(scatter_traces) == 1
+    assert len(scatter_traces[0].x) == 2
+
+
+def test_price_history_mobile_compact_ticks():
+    hist = _sample_hist()
+    fig = build_price_history_chart(
+        hist, "Price (USD)", "#1D4ED8", _sample_lots(), "$",
+        False, 1.0, pd.Timestamp("2024-01-01"), pd.Timestamp("2024-04-10"),
+        mobile=True,
+    )
+    assert fig.layout.xaxis.nticks == 5
+    assert fig.layout.dragmode is False
+
+
+def test_price_history_desktop_still_has_hlines():
+    hist = _sample_hist()
+    fig = build_price_history_chart(
+        hist, "Price (USD)", "#1D4ED8", _sample_lots(), "$",
+        False, 1.0, pd.Timestamp("2024-01-01"), pd.Timestamp("2024-04-10"),
+    )
+    shapes = fig.layout.shapes or []
+    hlines = [s for s in shapes if hasattr(s, 'type') and s.type == 'line' and s.y0 == s.y1]
+    assert len(hlines) >= 1
