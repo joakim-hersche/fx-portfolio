@@ -62,58 +62,55 @@ def build_pricing_page(user_id: str | None, currency: str) -> None:
             f"font-size:14px; color:{TEXT_MUTED}; margin-bottom:32px;"
         )
 
-        # Interval selector
-        selected_interval = {"value": "yearly"}
+        # All three plans side by side
+        _CARD = (
+            f"width:260px; min-height:520px; background:{BG_CARD};"
+            f" border-radius:12px; padding:28px; display:flex; flex-direction:column;"
+        )
+        _PLANS = [
+            ("Monthly", prices["monthly"], "/month", "monthly"),
+            ("Yearly", prices["yearly"], "/year", "yearly"),
+            ("Lifetime", prices["lifetime"], " one-time", "lifetime"),
+        ]
 
-        interval_row = ui.row().classes("items-center gap-2").style("margin-bottom:32px;")
-
-        def _update_interval(interval: str):
-            selected_interval["value"] = interval
-            _refresh_cards.refresh()
-
-        with interval_row:
-            for iv in ["monthly", "yearly", "lifetime"]:
-                ui.button(
-                    iv.capitalize(),
-                    on_click=lambda i=iv: _update_interval(i),
-                ).props("flat no-caps").style(
-                    f"border:1px solid {BORDER_SUBTLE}; border-radius:6px; padding:4px 16px;"
-                    f" font-size:13px; color:{TEXT_MUTED};"
+        with ui.row().classes("items-stretch gap-5 justify-center flex-wrap"):
+            # Free card
+            with ui.card().style(
+                f"{_CARD} border:1px solid rgba(255,255,255,0.08);"
+            ):
+                ui.label("Free").style(
+                    f"font-size:20px; font-weight:700; color:{TEXT_PRIMARY}; margin-bottom:4px;"
                 )
+                ui.label(f"{symbol}0").style(
+                    f"font-size:28px; font-weight:700; color:{TEXT_PRIMARY}; margin-bottom:16px;"
+                )
+                _feature_list([
+                    ("Up to 10 positions", True),
+                    ("Overview & Positions", True),
+                    ("Portfolio Health", True),
+                    ("Research & Guide", True),
+                    ("Monte Carlo Forecast", False),
+                    ("Income tracking", False),
+                    ("Excel export", False),
+                    ("Email alerts", False),
+                ])
 
-        # Cards container
-        @ui.refreshable
-        def _refresh_cards():
-            iv = selected_interval["value"]
-            price = prices[iv]
-            period = {"monthly": "/month", "yearly": "/year", "lifetime": " one-time"}[iv]
+            # Pro cards — one per interval
+            for plan_name, plan_price, period, interval in _PLANS:
+                is_recommended = interval == "yearly"
+                border = f"border:2px solid {ACCENT};" if is_recommended else f"border:1px solid rgba(255,255,255,0.08);"
 
-            with ui.row().classes("items-start gap-6 justify-center flex-wrap"):
-                # Free card
-                with ui.card().style(
-                    f"width:280px; background:{BG_CARD}; border:1px solid rgba(255,255,255,0.08);"
-                    f" border-radius:12px; padding:28px;"
-                ):
-                    ui.label("Free").style(f"font-size:20px; font-weight:700; color:{TEXT_PRIMARY}; margin-bottom:4px;")
-                    ui.label(f"{symbol}0").style(f"font-size:28px; font-weight:700; color:{TEXT_PRIMARY}; margin-bottom:16px;")
-                    _feature_list([
-                        ("Up to 10 positions", True),
-                        ("Overview & Positions", True),
-                        ("Portfolio Health", True),
-                        ("Research & Guide", True),
-                        ("Monte Carlo Forecast", False),
-                        ("Income tracking", False),
-                        ("Excel export", False),
-                        ("Email alerts", False),
-                    ])
-
-                # Pro card
-                with ui.card().style(
-                    f"width:280px; background:{BG_CARD}; border:2px solid {ACCENT};"
-                    f" border-radius:12px; padding:28px;"
-                ):
-                    ui.label("Pro").style(f"font-size:20px; font-weight:700; color:{ACCENT}; margin-bottom:4px;")
-                    ui.label(f"{symbol}{price}{period}").style(
+                with ui.card().style(f"{_CARD} {border}"):
+                    with ui.row().classes("items-center gap-2"):
+                        ui.label(f"Pro {plan_name}").style(
+                            f"font-size:20px; font-weight:700; color:{ACCENT}; margin-bottom:4px;"
+                        )
+                        if is_recommended:
+                            ui.label("Best value").style(
+                                f"font-size:10px; font-weight:600; color:white; background:{ACCENT};"
+                                f" border-radius:4px; padding:2px 8px; margin-bottom:4px;"
+                            )
+                    ui.label(f"{symbol}{plan_price}{period}").style(
                         f"font-size:28px; font-weight:700; color:{TEXT_PRIMARY}; margin-bottom:16px;"
                     )
                     _feature_list([
@@ -126,7 +123,9 @@ def build_pricing_page(user_id: str | None, currency: str) -> None:
                         ("Excel export", True),
                         ("Email alerts", True),
                     ])
-                    ui.html('<div style="height:12px;"></div>')
+
+                    # Spacer to push button to bottom
+                    ui.element("div").style("flex-grow:1;")
 
                     if user_is_pro:
                         ui.label("You're on Pro").style(
@@ -137,17 +136,15 @@ def build_pricing_page(user_id: str | None, currency: str) -> None:
                             "no-caps unelevated"
                         ).style(f"width:100%; background:{ACCENT}; border-radius:8px;")
                     else:
-                        async def _checkout(interval=iv):
+                        async def _checkout(iv=interval):
                             url = await run.io_bound(
-                                create_checkout_session, user_id, email, currency, interval
+                                create_checkout_session, user_id, email, currency, iv
                             )
                             ui.navigate.to(url, new_tab=False)
 
                         ui.button("Get started", on_click=_checkout).props(
                             "no-caps unelevated"
                         ).style(f"width:100%; background:{ACCENT}; border-radius:8px;")
-
-        _refresh_cards()
 
 
 def _feature_list(features: list[tuple[str, bool]]) -> None:
