@@ -473,16 +473,28 @@ body, .q-page, .nicegui-content {
     border-bottom: 1px solid rgba(255,255,255,0.03);
   }
 
+  /* Search bar: touch-friendly sizing */
+  .q-drawer .sidebar-search .q-field__control {
+    min-height: 44px !important;
+    height: 44px !important;
+    padding: 0 12px !important;
+    border-radius: 10px !important;
+  }
+  .sidebar-search .q-field__prepend .q-icon { font-size: 20px !important; }
+
   /* QSlideItem overrides for dark theme */
   .q-slide-item { background: transparent !important; }
   .q-slide-item__left { background: #2563EB !important; }
   .q-slide-item__right { background: #DC2626 !important; }
 
-  /* Action button grid */
+  /* Action button grid — full-bleed past zone padding */
   .sidebar-action-grid {
     display: flex !important;
     gap: 8px;
     margin-bottom: 10px;
+    margin-left: -20px;
+    margin-right: -20px;
+    padding: 0 12px;
   }
   .sidebar-action-grid .q-btn {
     flex: 1 !important;
@@ -496,8 +508,15 @@ body, .q-page, .nicegui-content {
   }
   .sidebar-action-grid .q-btn .q-icon { font-size: 18px !important; }
 
+  /* Currency pills — full-bleed past zone padding */
+  .sidebar-currency-pills {
+    margin-left: -20px !important;
+    margin-right: -20px !important;
+    padding: 0 12px !important;
+  }
+
   /* KPI cards: single column */
-  .kpi-row { flex-direction: column !important; gap: 8px !important; }
+  .kpi-row { grid-template-columns: 1fr !important; gap: 8px !important; }
   .kpi-card { min-width: 100%% !important; }
   .kpi-card, .kpi-card.hero { padding: 14px 16px; }
   .kpi-value { font-size: 20px; }
@@ -650,8 +669,9 @@ body, .q-page, .nicegui-content {
     min-height: calc(48px + env(safe-area-inset-top, 0px)) !important;
   }
 
-  /* Disable sidebar edge-swipe */
-  .q-drawer--left { touch-action: none !important; }
+  /* Allow panning in both axes (needed for QSlideItem horizontal swipes)
+     but block double-tap zoom. Prevent iOS back-swipe via overscroll. */
+  .q-drawer--left { touch-action: manipulation !important; overscroll-behavior-x: none !important; }
 
   /* Drawer container: invisible and non-interactive when closed.
      Quasar handles visibility internally — we just ensure the
@@ -738,6 +758,23 @@ body, .q-page, .nicegui-content {
     padding: 12px 20px !important;
     padding-top: calc(8px + env(safe-area-inset-top, 0px)) !important;
   }
+
+  /* Three-zone sidebar layout for tablets too */
+  .q-drawer__content {
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+  }
+  .q-drawer .sidebar {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 !important;
+    overflow: hidden !important;
+    min-height: 0 !important;
+  }
+  .sidebar-zone-top { flex-shrink: 0; }
+  .sidebar-zone-positions { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; min-height: 0; }
+  .sidebar-zone-bottom { flex-shrink: 0; }
 
   /* Sidebar bottom actions: sticky */
   .q-drawer .sidebar .sidebar-bottom-actions {
