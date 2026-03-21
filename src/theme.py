@@ -652,17 +652,13 @@ body, .q-page, .nicegui-content {
     padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px)) !important;
   }
 
-  /* Header: show hamburger, hide desktop controls */
-  .hamburger-btn {
-    display: flex !important;
-    min-width: 44px !important;
-    min-height: 44px !important;
-    color: #F1F5F9 !important;
-    opacity: 1 !important;
-  }
-  .hamburger-btn .q-icon { font-size: 24px !important; }
+  /* Header: hide hamburger + desktop controls on touch */
+  .hamburger-btn { display: none !important; }
   .header-export-btn { display: none !important; }
   .header-info-btn { display: none !important; }
+
+  /* Hide sidebar entirely on touch devices */
+  .q-drawer-container { display: none !important; }
   .header-currency-pills { display: none !important; }
 
   /* Topbar: safe area for standalone PWA */
