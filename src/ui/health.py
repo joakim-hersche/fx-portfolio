@@ -1003,6 +1003,8 @@ def _render_rebalancing_calculator(
                     target_weights[t] = w
                     if t in target_inputs:
                         target_inputs[t].value = round(w)
+                deposit_ref["value"] = 0.0
+                deposit_input.value = 0
                 _recalculate()
 
             ui.button("Reset", on_click=_reset_targets).props(
