@@ -346,7 +346,7 @@ function triggerSwipeHint() {
                 ui.html(
                     f'<div style="display:flex;align-items:center;gap:5px;margin-left:8px;">'
                     f'<div style="width:7px;height:7px;border-radius:50%;background:{color};"></div>'
-                    f'<span style="font-size:10px;color:{TEXT_FAINT};font-weight:500;">{ex_name} {label}</span>'
+                    f'<span style="font-size:11px;color:{TEXT_FAINT};font-weight:500;">{ex_name} {label}</span>'
                     f'</div>'
                 )
             market_status_indicator()
@@ -679,6 +679,8 @@ function triggerSwipeHint() {
             ("Overview", "Overview", "grid_view"),
             ("Positions", "Positions", "list"),
             ("Health", "Portfolio Health", "monitor_heart"),
+            ("Income", "Income", "payments"),
+            ("Forecast", "Forecast", "trending_up"),
             ("Research", "Research", "search"),
             ("Guide", "Guide", "menu_book"),
         ]
@@ -840,5 +842,5 @@ ui.run(
     port=int(os.environ.get("PORT", "8080")),
     dark=True,
     storage_secret=get_storage_secret(),
-    viewport="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover",
+    viewport="width=device-width, initial-scale=1, viewport-fit=cover",
 )

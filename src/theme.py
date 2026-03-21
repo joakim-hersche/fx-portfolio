@@ -466,6 +466,15 @@ body, .q-page, .nicegui-content {
     padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
   }
 
+  /* Pin search bar at top of sidebar scroll area */
+  .q-drawer .sidebar-search {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: #161719;
+    padding: 8px 12px;
+  }
+
   /* Mobile position rows */
   .mobile-position-row {
     display: flex;
