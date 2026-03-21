@@ -34,6 +34,8 @@ _SUFFIX_TO_REGION: dict[str, str] = {
 
 def compute_concentration_score(weights: dict[str, float]) -> tuple[float, float]:
     """Return (score out of 30, HHI)."""
+    if not weights:
+        return 0.0, 1.0
     hhi = sum(w ** 2 for w in weights.values())
     score = (1 - hhi) * 30
     return score, hhi
@@ -48,7 +50,8 @@ def compute_correlation_score(weighted_avg_corr: float | None) -> float:
     """Return score out of 20. None means single/no holding → full marks."""
     if weighted_avg_corr is None:
         return 20.0
-    return (1 - weighted_avg_corr) * 20
+    clamped = max(0.0, min(1.0, weighted_avg_corr))
+    return (1 - clamped) * 20
 
 
 def compute_stability_score(annualized_vol: float) -> float:
@@ -204,8 +207,8 @@ def simulate_addition(
     else:
         new_corr = new_ticker_corr_with_portfolio
 
-    # Approximate new vol: reduce by diversification benefit
-    new_vol = cp["annualized_vol"] * (1 - addition_weight * (1 - new_ticker_corr_with_portfolio))
+    # Approximate new vol: reduce by diversification benefit (0.5 dampening keeps reduction conservative)
+    new_vol = cp["annualized_vol"] * (1 - addition_weight * (1 - new_ticker_corr_with_portfolio) * 0.5)
 
     projected = compute_health_score(
         new_weights, new_sectors, new_regions, new_corr, new_vol,
