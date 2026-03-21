@@ -435,25 +435,25 @@ def _build_price_history(
         return None
 
     with ui.column().classes("chart-card w-full"):
-        # ── Title + Controls on same row ──────────────────────
-        with ui.row().classes("w-full items-center justify-between").style("margin-bottom:12px;"):
-            ui.html(f'<div class="chart-title">Price History</div>')
-            with ui.row().classes("items-center gap-3"):
-                ticker_select = ui.select(
-                    {t: f"{name_map.get(t, t)} ({t})" for t in tickers},
-                    value=tickers[0],
-                    label="Stock",
-                ).props("dense outlined").style("min-width:180px;font-size:12px;")
+        # ── Title ─────────────────────────────────────────────
+        ui.html(f'<div class="chart-title">Price History</div>')
+        # ── Controls row (wraps on narrow screens) ─────────────
+        with ui.row().classes("w-full items-center gap-3 flex-wrap"):
+            ticker_select = ui.select(
+                {t: f"{name_map.get(t, t)} ({t})" for t in tickers},
+                value=tickers[0],
+                label="Stock",
+            ).props("dense outlined").style("min-width:140px;max-width:200px;font-size:12px;flex:1 1 140px;")
 
-                range_options = {"Since Purchase": -1, "3M": 3, "6M": 6, "1Y": 12, "2Y": 24, "Max": None}
-                range_toggle = ui.toggle(
-                    list(range_options.keys()),
-                    value="Since Purchase",
-                ).props("dense size=sm no-caps").style("font-size:11px;")
+            range_options = {"Since Purchase": -1, "3M": 3, "6M": 6, "1Y": 12, "2Y": 24, "Max": None}
+            range_toggle = ui.toggle(
+                list(range_options.keys()),
+                value="Since Purchase",
+            ).props("dense size=sm no-caps").style("font-size:11px;")
 
-                fx_switch = ui.switch("Currency-adjusted", value=False).style(
-                    f"font-size:12px;color:{TEXT_MUTED};"
-                )
+            fx_switch = ui.switch("Currency-adjusted", value=False).style(
+                f"font-size:12px;color:{TEXT_MUTED};"
+            )
 
         # ── Chart container ───────────────────────────────────
         chart_container = ui.column().classes("w-full")
