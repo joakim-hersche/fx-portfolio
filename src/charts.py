@@ -378,7 +378,7 @@ def build_price_history_chart(
                 hovertemplate=f"<b>Buy</b><br>%{{x|%b %d, %Y}}<br>{currency_symbol}%{{y:,.2f}}<extra></extra>",
             ))
 
-        fig.update_layout(margin=dict(l=40, r=10, t=10, b=30))
+        fig.update_layout(margin=dict(l=40, r=10, t=10, b=30), height=200)
         fig.update_xaxes(nticks=5, tickformat="%b")
         fig.update_yaxes(nticks=4)
         _mobile_overrides(fig)

@@ -428,6 +428,7 @@ async def build_overview_tab(
                     gridcolor="rgba(255,255,255,0.04)",
                 )
                 _mobile_overrides(fig)
+                fig.update_layout(height=200)
             else:
                 fig.update_layout(
                     template="plotly",
