@@ -226,8 +226,36 @@ function switchMobileTab(el, tabName) {
     }
   }
 }
+
+// Add-to-homescreen prompt for mobile Safari/Chrome
+(function() {
+  var isStandalone = window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches;
+  var isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  var dismissed = localStorage.getItem('a2hs_dismissed');
+  if (isMobile && !isStandalone && !dismissed) {
+    setTimeout(function() {
+      var isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+      var instruction = isIOS
+        ? 'Tap <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" stroke-width="2" style="vertical-align:middle;margin:0 2px;"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg> then <b>Add to Home Screen</b>'
+        : 'Tap <b>⋮</b> then <b>Add to Home Screen</b>';
+      var banner = document.createElement('div');
+      banner.className = 'a2hs-banner';
+      banner.innerHTML =
+        '<button class="a2hs-close" onclick="this.parentElement.remove();localStorage.setItem(\'a2hs_dismissed\',\'1\')">&times;</button>' +
+        '<div style="width:40px;height:40px;border-radius:10px;background:#111318;border:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;flex-shrink:0;">' +
+        '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div>' +
+        '<div>' +
+        '<div style="font-size:13px;font-weight:600;color:#F1F5F9;">Install Market Dashboard</div>' +
+        '<div style="font-size:11px;color:#94A3B8;margin-top:2px;">' + instruction + '</div>' +
+        '</div>';
+      document.body.appendChild(banner);
+    }, 3000);
+  }
+})();
 </script>""")
     ui.add_head_html(_PWA_HEAD)
+    # Viewport meta for proper mobile rendering and no auto-zoom
+    ui.add_head_html('<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">')
 
     # Force dark mode to match design concept
     ui.dark_mode(True)
@@ -267,8 +295,16 @@ function switchMobileTab(el, tabName) {
                 )
             market_status_indicator()
 
-        # Right: currency pill + export dropdown + info
+        # Right: hamburger for mobile sidebar + desktop controls
         with ui.row().classes("items-center gap-2").style("height:32px;"):
+            # Hamburger icon (visible only on mobile via CSS)
+            ui.button(
+                icon="menu", on_click=lambda: sidebar_drawer.toggle()
+            ).props("flat dense round size=sm color=none").classes("hamburger-btn").style(
+                f"color:{TEXT_MUTED} !important;min-width:0;width:36px;height:36px;"
+            )
+
+        with ui.row().classes("items-center gap-2 header-desktop-controls").style("height:32px;"):
 
             # ── Currency segmented pill ────────────────────────
             currencies = list(CURRENCY_SYMBOLS.keys())
@@ -433,7 +469,7 @@ function switchMobileTab(el, tabName) {
     # ── Sidebar (left drawer) ──────────────────────────────
     with ui.left_drawer(value=True, fixed=True).classes("sidebar").style(
         f"width:220px; background:{BG_SIDEBAR}; border-right:1px solid {BORDER}; padding:16px 12px;"
-    ).props('width=220 :breakpoint="768"'):
+    ).props('width=220 :breakpoint="768"') as sidebar_drawer:
         build_sidebar(portfolio, stock_options, _shared, _active_tab, on_mutation=_mutation_ref)
 
     # ── Main content area ──────────────────────────────────
