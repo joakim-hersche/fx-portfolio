@@ -463,22 +463,23 @@ async def index(request: Request):
     ).props('width=220 :breakpoint="768"') as sidebar_drawer:
         _drawer_ref["drawer"] = sidebar_drawer
 
-        # Mobile close button at top of sidebar
-        with ui.element("div").classes("mobile-only").style(
-            "display:flex;justify-content:flex-end;margin:-4px -4px 4px 0;"
-        ):
-            ui.button(
-                icon="close", on_click=lambda: sidebar_drawer.hide()
-            ).props("flat dense round size=md color=none").style(
-                f"color:{TEXT_MUTED};min-width:44px;min-height:44px;"
-            )
+        # ── Zone 1: Fixed top (mobile) — title + close ──
+        with ui.element("div").classes("sidebar-zone-top mobile-only"):
+            with ui.row().classes("w-full items-center justify-between").style("margin-bottom:10px;"):
+                ui.label("Portfolio").style(
+                    f"font-size:15px;font-weight:700;color:{TEXT_PRIMARY};"
+                )
+                ui.button(
+                    icon="close", on_click=lambda: sidebar_drawer.hide()
+                ).props("flat dense round size=md color=none").style(
+                    f"color:{TEXT_MUTED};min-width:44px;min-height:44px;"
+                )
 
+        # ── Zone 2: sidebar content (search + positions scroll on mobile) ──
         build_sidebar(portfolio, stock_options, _shared, _active_tab, on_mutation=_mutation_ref)
 
-        # Mobile-only currency selector in sidebar
-        with ui.element("div").classes("mobile-only").style(
-            f"margin-top:12px;padding-top:10px;border-top:1px solid {BORDER_SUBTLE};"
-        ):
+        # ── Zone 3: Pinned bottom (mobile) — actions + currency ──
+        with ui.element("div").classes("sidebar-zone-bottom mobile-only"):
             ui.html(
                 f'<div style="font-size:10px;font-weight:700;color:{TEXT_MUTED};'
                 f'letter-spacing:0.04em;text-transform:uppercase;margin-bottom:6px;">Currency</div>'
@@ -486,17 +487,15 @@ async def index(request: Request):
             sidebar_pill = ui.element("div").classes("sidebar-currency-pills").style(
                 f"display:flex;width:100%;border:1px solid rgba(59,130,246,0.3);border-radius:8px;overflow:hidden;"
             )
-            sidebar_ccy_btns: dict[str, ui.button] = {}
             with sidebar_pill:
                 for i, ccy in enumerate(currencies):
                     style = _pill_active if ccy == currency else _pill_inactive
                     if i == 0:
                         style = style.replace("border-left:1px solid rgba(59,130,246,0.2); ", "")
-                    sbtn = ui.button(
+                    ui.button(
                         ccy,
                         on_click=lambda c=ccy: _on_pill_click(c),
                     ).props("flat dense no-caps size=sm unelevated").style(style)
-                    sidebar_ccy_btns[ccy] = sbtn
 
     # Close sidebar on mobile (it starts open for desktop, but covers everything on mobile)
     ui.run_javascript("""
