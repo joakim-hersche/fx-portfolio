@@ -379,6 +379,8 @@ body, .q-page, .nicegui-content {
   display: flex;
   flex-direction: column;
   align-items: center;
+  min-height: 44px;
+  justify-content: center;
   min-width: 48px;
   gap: 3px;
   cursor: pointer;
@@ -465,14 +467,17 @@ body, .q-page, .nicegui-content {
   }
 
   /* Header: show hamburger, hide non-essential desktop controls */
-  .hamburger-btn { display: flex !important; }
+  .hamburger-btn { display: flex !important; min-width: 36px !important; min-height: 36px !important; }
   .header-export-btn { display: none !important; }
   .header-info-btn { display: none !important; }
   .header-currency-pills { display: none !important; }
 
-  /* Disable sidebar edge-swipe on mobile (hamburger only) */
+  /* Disable sidebar edge-swipe; prevent closed drawer from blocking touches */
   .q-drawer__backdrop { touch-action: none !important; }
   .q-drawer--left { touch-action: none !important; }
+  .q-drawer-container { pointer-events: none !important; }
+  .q-drawer--opened { pointer-events: auto !important; }
+  .q-drawer__backdrop[style*="display: block"] { pointer-events: auto !important; }
 
   /* Health findings: stack vertically on mobile */
   .findings-row { flex-direction: column !important; }
@@ -504,8 +509,11 @@ body, .q-page, .nicegui-content {
   .js-plotly-plot, .plotly { width: 100%% !important; }
   .js-plotly-plot .main-svg { width: 100%% !important; }
 
-  /* Prevent iOS zoom on input focus (must be >= 16px) */
-  input, select, textarea, .q-field__native, .q-select__input {
+  /* Prevent iOS zoom on input focus (must be >= 16px on mobile) */
+  input, select, textarea,
+  .q-field__native, .q-field__input, .q-select__input,
+  .q-header .q-field__native,
+  .sidebar .q-field__native, .sidebar .q-field__input {
     font-size: 16px !important;
   }
 
