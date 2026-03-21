@@ -224,22 +224,28 @@ async def index(request: Request):
         : 'Tap <b>⋮</b> then <b>Add to Home Screen</b>';
       var banner = document.createElement('div');
       banner.className = 'a2hs-banner';
-      banner.innerHTML =
-        '<button class="a2hs-close" onclick="this.parentElement.remove();localStorage.setItem(\'a2hs_dismissed\',\'1\')">&times;</button>' +
-        '<div style="width:40px;height:40px;border-radius:10px;background:#111318;border:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;flex-shrink:0;">' +
-        '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div>' +
-        '<div>' +
-        '<div style="font-size:13px;font-weight:600;color:#F1F5F9;">Install Market Dashboard</div>' +
-        '<div style="font-size:11px;color:#94A3B8;margin-top:2px;">' + instruction + '</div>' +
-        '</div>';
+      var closeBtn = document.createElement('button');
+      closeBtn.className = 'a2hs-close';
+      closeBtn.innerHTML = '&times;';
+      closeBtn.addEventListener('click', function() {
+        banner.remove();
+        localStorage.setItem('a2hs_dismissed', '1');
+      });
+      var iconDiv = document.createElement('div');
+      iconDiv.style.cssText = 'width:40px;height:40px;border-radius:10px;background:#111318;border:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;flex-shrink:0;';
+      iconDiv.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>';
+      var textDiv = document.createElement('div');
+      textDiv.innerHTML = '<div style="font-size:13px;font-weight:600;color:#F1F5F9;">Install Market Dashboard</div>' +
+        '<div style="font-size:11px;color:#94A3B8;margin-top:2px;">' + instruction + '</div>';
+      banner.appendChild(closeBtn);
+      banner.appendChild(iconDiv);
+      banner.appendChild(textDiv);
       document.body.appendChild(banner);
     }, 3000);
   }
 })();
 </script>""")
     ui.add_head_html(_PWA_HEAD)
-    # Viewport meta for proper mobile rendering and no auto-zoom
-    ui.add_head_html('<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">')
 
     # Force dark mode to match design concept
     ui.dark_mode(True)
@@ -477,6 +483,16 @@ async def index(request: Request):
                     ).props("flat dense no-caps size=sm unelevated").style(style)
                     sidebar_ccy_btns[ccy] = sbtn
 
+    # Close sidebar on mobile (it starts open for desktop, but covers everything on mobile)
+    ui.run_javascript("""
+        if (window.innerWidth <= 767) {
+            setTimeout(function() {
+                var backdrop = document.querySelector('.q-drawer__backdrop');
+                if (backdrop) backdrop.click();
+            }, 200);
+        }
+    """)
+
     # ── Main content area ──────────────────────────────────
     with ui.column().classes("w-full").style(f"background:{BG_MAIN}; min-height:100vh;"):
 
@@ -659,4 +675,5 @@ ui.run(
     port=int(os.environ.get("PORT", "8080")),
     dark=True,
     storage_secret=get_storage_secret(),
+    viewport="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover",
 )
