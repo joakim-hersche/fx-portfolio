@@ -157,6 +157,87 @@ def fetch_price_history_range(ticker: str, period: str) -> pd.DataFrame:
         return pd.DataFrame()
 
 
+@cached(short_cache)
+def fetch_ticker_news(ticker: str) -> list[dict]:
+    """Fetch recent news for a ticker. Cached for 5 minutes."""
+    try:
+        news = yf.Ticker(ticker).news
+        if not news:
+            return []
+        return [
+            {
+                "title": item.get("title", ""),
+                "publisher": item.get("publisher", ""),
+                "link": item.get("link", ""),
+                "providerPublishTime": item.get("providerPublishTime", 0),
+            }
+            for item in news
+        ]
+    except Exception:
+        return []
+
+
+@cached(long_cache_fundamentals, key=lenient_key)
+def fetch_sector_peers(sector, candidate_tickers, target_ticker, max_peers=4):
+    """Find same-sector peers from candidate tickers. Cached for 24 hours."""
+    peers = []
+    for ticker in candidate_tickers:
+        if len(peers) >= max_peers:
+            break
+        if ticker == target_ticker:
+            continue
+        try:
+            info = yf.Ticker(ticker).info
+            if info.get("sector", "") != sector:
+                continue
+            hist = yf.Ticker(ticker).history(period="1y")
+            return_1y = None
+            if not hist.empty and "Close" in hist.columns:
+                close = hist["Close"].dropna()
+                if len(close) >= 2:
+                    return_1y = round((close.iloc[-1] / close.iloc[0] - 1) * 100, 1)
+            peers.append({
+                "ticker": ticker,
+                "name": info.get("shortName", ticker),
+                "pe": info.get("trailingPE"),
+                "div_yield": round(info.get("dividendYield", 0) * 100, 2) if info.get("dividendYield") else None,
+                "beta": info.get("beta"),
+                "return_1y": return_1y,
+            })
+        except Exception:
+            continue
+    return peers
+
+
+@cached(long_cache_fundamentals, key=lenient_key)
+def fetch_sector_medians(sector, candidate_tickers, max_samples=10):
+    """Compute median P/E and dividend yield for a sector. Cached for 24 hours."""
+    import statistics
+
+    pe_values, dy_values = [], []
+    sampled = 0
+    for ticker in candidate_tickers:
+        if sampled >= max_samples:
+            break
+        try:
+            info = yf.Ticker(ticker).info
+            if info.get("sector") != sector:
+                continue
+            sampled += 1
+            pe = info.get("trailingPE")
+            if pe and pe > 0:
+                pe_values.append(pe)
+            dy = info.get("dividendYield")
+            if dy and dy > 0:
+                dy_values.append(dy * 100)
+        except Exception:
+            continue
+    return {
+        "median_pe": round(statistics.median(pe_values), 1) if pe_values else None,
+        "median_div_yield": round(statistics.median(dy_values), 2) if dy_values else None,
+    }
+
+
 @cached(long_cache, key=lenient_key)
 def cached_run_monte_carlo_backtest(portfolio: dict, price_data: dict) -> dict:
     """Cached wrapper for run_monte_carlo_backtest. Recomputes when portfolio or price data changes."""
