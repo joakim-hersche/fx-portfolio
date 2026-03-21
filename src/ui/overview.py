@@ -240,10 +240,57 @@ async def build_overview_tab(
         font_size="20px",
     )
 
+    # Desktop: 5-column KPI grid
     ui.html(
-        f'<div class="kpi-row" style="grid-template-columns:1fr 1fr 1fr 1fr 1fr;">'
+        f'<div class="kpi-row desktop-only" style="grid-template-columns:1fr 1fr 1fr 1fr 1fr;">'
         f'{card_1}{card_2}{card_3}{card_4}{card_5}</div>'
     ).classes("w-full")
+
+    # Mobile: consolidated hero card
+    sign_pnl_m = "+" if daily_pnl >= 0 else ""
+    sign_ret_m = "+" if total_return >= 0 else ""
+    pnl_color_m = "#16A34A" if daily_pnl >= 0 else "#DC2626"
+    ret_color_m = "#16A34A" if total_return >= 0 else "#DC2626"
+    pnl_bg_m = "rgba(22,163,74,0.15)" if daily_pnl >= 0 else "rgba(220,38,38,0.15)"
+
+    ui.html(f'''<div class="mobile-only" style="margin-bottom:16px;">
+  <div style="background:{BG_CARD};border-radius:10px;padding:16px;
+    border:1px solid {BORDER};">
+    <div style="font-size:10px;color:{TEXT_MUTED};text-transform:uppercase;
+      letter-spacing:0.08em;">Portfolio Value</div>
+    <div style="font-size:28px;font-weight:700;color:{TEXT_PRIMARY};margin-top:4px;">
+      {val_int}<span style="font-size:16px;color:{TEXT_DIM};">.{val_dec}</span></div>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+      <span style="font-size:12px;color:{pnl_color_m};font-weight:600;">
+        {sign_pnl_m}{currency_symbol}{daily_pnl:,.2f}</span>
+      <span style="font-size:10px;background:{pnl_bg_m};color:{pnl_color_m};
+        padding:2px 6px;border-radius:4px;font-weight:600;">
+        {sign_pnl_m}{daily_pnl_pct:,.2f}%</span>
+      <span style="font-size:10px;color:{TEXT_DIM};">today</span>
+    </div>
+    <div style="border-top:1px solid {BORDER_SUBTLE};margin:12px 0;"></div>
+    <div style="display:flex;justify-content:space-between;">
+      <div>
+        <div style="font-size:9px;color:{TEXT_DIM};text-transform:uppercase;
+          letter-spacing:0.06em;">Total Return</div>
+        <div style="font-size:14px;font-weight:600;color:{ret_color_m};margin-top:2px;">
+          {sign_ret_m}{currency_symbol}{total_return:,.2f}
+          <span style="font-size:10px;opacity:0.7;">
+            {sign_ret_m}{total_ret_pct:,.2f}%</span></div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:9px;color:{TEXT_DIM};text-transform:uppercase;
+          letter-spacing:0.06em;">Positions</div>
+        <div style="font-size:14px;font-weight:600;color:{TEXT_PRIMARY};margin-top:2px;">
+          {n_positions} <span style="font-size:10px;color:{TEXT_DIM};">stocks</span></div>
+      </div>
+    </div>
+  </div>
+  <div style="display:flex;justify-content:space-between;padding:0 4px;margin-top:8px;">
+    <div style="font-size:10px;color:{TEXT_DIM};">Contributed:
+      <span style="color:{TEXT_MUTED};font-weight:500;">{currency_symbol}{total_contributed:,.2f}</span></div>
+  </div>
+</div>''').classes("w-full")
 
     # ── Allocation + Comparison side by side ───────────────
     with ui.element("div").classes("charts-row w-full").style("width:100%;"):
