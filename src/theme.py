@@ -359,7 +359,7 @@ body, .q-page, .nicegui-content {
 
 /* ── Mobile utility classes ── */
 .mobile-only { display: none !important; }
-.desktop-only { display: revert !important; }
+.desktop-only { /* visible by default; hidden via media query on mobile */ }
 
 /* ── Bottom tab bar (base — hidden on desktop) ── */
 .mobile-tab-bar {
