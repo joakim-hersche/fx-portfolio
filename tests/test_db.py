@@ -153,3 +153,48 @@ def test_last_alert_ids_default_empty():
     user = db.get_user_by_id(user_id)
     import json
     assert json.loads(user["last_alert_ids"]) == []
+
+
+# ── Tier and Stripe queries ──
+
+
+def test_tier_defaults_to_free():
+    user_id = db.create_user("tier@example.com", "hash", b"key")
+    user = db.get_user_by_id(user_id)
+    assert user["tier"] == "free"
+
+
+def test_set_tier():
+    user_id = db.create_user("pro@example.com", "hash", b"key")
+    db.set_tier(user_id, "pro")
+    user = db.get_user_by_id(user_id)
+    assert user["tier"] == "pro"
+
+
+def test_set_stripe_ids():
+    user_id = db.create_user("stripe@example.com", "hash", b"key")
+    db.set_stripe_ids(user_id, "cus_abc123", "sub_xyz789")
+    user = db.get_user_by_id(user_id)
+    assert user["stripe_customer_id"] == "cus_abc123"
+    assert user["stripe_subscription_id"] == "sub_xyz789"
+
+
+def test_get_user_by_stripe_customer():
+    user_id = db.create_user("lookup@example.com", "hash", b"key")
+    db.set_stripe_ids(user_id, "cus_lookup", None)
+    user = db.get_user_by_stripe_customer("cus_lookup")
+    assert user is not None
+    assert user["id"] == user_id
+
+
+def test_get_user_by_stripe_customer_not_found():
+    assert db.get_user_by_stripe_customer("cus_nonexistent") is None
+
+
+def test_get_all_users():
+    db.create_user("all1@example.com", "hash", b"key")
+    db.create_user("all2@example.com", "hash", b"key")
+    users = db.get_all_users()
+    emails = [u["email"] for u in users]
+    assert "all1@example.com" in emails
+    assert "all2@example.com" in emails
