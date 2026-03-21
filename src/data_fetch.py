@@ -164,15 +164,32 @@ def fetch_ticker_news(ticker: str) -> list[dict]:
         news = yf.Ticker(ticker).news
         if not news:
             return []
-        return [
-            {
-                "title": item.get("title", ""),
-                "publisher": item.get("publisher", ""),
-                "link": item.get("link", ""),
-                "providerPublishTime": item.get("providerPublishTime", 0),
-            }
-            for item in news
-        ]
+        results = []
+        for item in news:
+            # yfinance >= 0.2.36 nests data under 'content'
+            content = item.get("content", item)
+            provider = content.get("provider", {})
+            canonical = content.get("canonicalUrl", {})
+            # Parse pubDate (ISO string) or fall back to providerPublishTime (unix)
+            pub_time = 0
+            pub_date = content.get("pubDate", "")
+            if pub_date:
+                from datetime import datetime, timezone
+                try:
+                    pub_time = int(datetime.fromisoformat(
+                        pub_date.replace("Z", "+00:00")
+                    ).timestamp())
+                except (ValueError, TypeError):
+                    pub_time = item.get("providerPublishTime", 0)
+            else:
+                pub_time = item.get("providerPublishTime", 0)
+            results.append({
+                "title": content.get("title", item.get("title", "")),
+                "publisher": provider.get("displayName", item.get("publisher", "")),
+                "link": canonical.get("url", item.get("link", "")),
+                "providerPublishTime": pub_time,
+            })
+        return results
     except Exception:
         return []
 
