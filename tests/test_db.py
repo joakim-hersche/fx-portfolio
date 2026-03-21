@@ -95,3 +95,61 @@ def test_update_password_hash():
     db.update_password_hash(user_id, "new_hash")
     user = db.get_user_by_id(user_id)
     assert user["password_hash"] == "new_hash"
+
+
+# ── Email alert preference queries ──
+
+
+def test_email_alerts_default_is_none():
+    """New users have email_alerts = None (never asked)."""
+    user_id = db.create_user("alerts@example.com", "hash", b"key")
+    user = db.get_user_by_id(user_id)
+    assert user["email_alerts"] is None
+
+
+def test_set_and_get_email_alerts():
+    user_id = db.create_user("toggle@example.com", "hash", b"key")
+    db.set_email_alerts(user_id, True)
+    assert db.get_email_alerts(user_id) is True
+    db.set_email_alerts(user_id, False)
+    assert db.get_email_alerts(user_id) is False
+
+
+def test_get_alerted_users():
+    """Only verified users with email_alerts=True are returned."""
+    u1 = db.create_user("on@example.com", "hash", b"key")
+    db.mark_email_verified(u1)
+    db.set_email_alerts(u1, True)
+
+    u2 = db.create_user("off@example.com", "hash", b"key")
+    db.mark_email_verified(u2)
+    db.set_email_alerts(u2, False)
+
+    u3 = db.create_user("unverified@example.com", "hash", b"key")
+    db.set_email_alerts(u3, True)  # verified=False, should be excluded
+
+    u4 = db.create_user("null@example.com", "hash", b"key")
+    db.mark_email_verified(u4)
+    # email_alerts is None — should be excluded
+
+    users = db.get_alerted_users()
+    ids = [u["id"] for u in users]
+    assert u1 in ids
+    assert u2 not in ids
+    assert u3 not in ids
+    assert u4 not in ids
+
+
+def test_update_last_alert_ids():
+    user_id = db.create_user("last@example.com", "hash", b"key")
+    db.update_last_alert_ids(user_id, ["concentration_AAPL", "correlation_MSFT_GOOGL"])
+    user = db.get_user_by_id(user_id)
+    import json
+    assert json.loads(user["last_alert_ids"]) == ["concentration_AAPL", "correlation_MSFT_GOOGL"]
+
+
+def test_last_alert_ids_default_empty():
+    user_id = db.create_user("empty_alerts@example.com", "hash", b"key")
+    user = db.get_user_by_id(user_id)
+    import json
+    assert json.loads(user["last_alert_ids"]) == []
