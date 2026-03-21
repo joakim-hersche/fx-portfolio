@@ -120,7 +120,7 @@ def _render_company_header(
 
     with ui.row().classes("w-full items-center justify-between").style(
         f"background:{BG_CARD};border:1px solid {BORDER};border-radius:10px;"
-        f"padding:16px 20px;margin-bottom:12px;"
+        f"padding:10px 16px;"
     ):
         # Left: company info
         with ui.column().style("gap:2px;"):
