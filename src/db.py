@@ -8,11 +8,13 @@ from __future__ import annotations
 import datetime
 import os
 import sqlite3
+import threading
 import uuid
 from typing import Any
 
 _conn: sqlite3.Connection | Any = None
 _backend: str = "sqlite"  # "sqlite" or "postgres"
+_lock = threading.Lock()
 
 
 class DuplicateEmailError(Exception):
@@ -47,33 +49,36 @@ def _close_connection() -> None:
 
 def _execute(sql: str, params: tuple = ()) -> Any:
     """Execute a query and return the cursor."""
-    cur = _conn.cursor()
-    cur.execute(sql, params)
-    _conn.commit()
-    return cur
+    with _lock:
+        cur = _conn.cursor()
+        cur.execute(sql, params)
+        _conn.commit()
+        return cur
 
 
 def _fetchone(sql: str, params: tuple = ()) -> dict | None:
-    cur = _conn.cursor()
-    cur.execute(sql, params)
-    row = cur.fetchone()
-    if row is None:
-        return None
-    if _backend == "sqlite":
-        return dict(row)
-    # psycopg returns tuples; use description for column names
-    cols = [d.name for d in cur.description]
-    return dict(zip(cols, row))
+    with _lock:
+        cur = _conn.cursor()
+        cur.execute(sql, params)
+        row = cur.fetchone()
+        if row is None:
+            return None
+        if _backend == "sqlite":
+            return dict(row)
+        # psycopg returns tuples; use description for column names
+        cols = [d.name for d in cur.description]
+        return dict(zip(cols, row))
 
 
 def _fetchall(sql: str, params: tuple = ()) -> list[dict]:
-    cur = _conn.cursor()
-    cur.execute(sql, params)
-    rows = cur.fetchall()
-    if _backend == "sqlite":
-        return [dict(r) for r in rows]
-    cols = [d.name for d in cur.description]
-    return [dict(zip(cols, row)) for row in rows]
+    with _lock:
+        cur = _conn.cursor()
+        cur.execute(sql, params)
+        rows = cur.fetchall()
+        if _backend == "sqlite":
+            return [dict(r) for r in rows]
+        cols = [d.name for d in cur.description]
+        return [dict(zip(cols, row)) for row in rows]
 
 
 def _table_names() -> list[str]:
@@ -84,11 +89,6 @@ def _table_names() -> list[str]:
         "SELECT tablename FROM pg_tables WHERE schemaname = 'public'"
     )
     return [r["tablename"] for r in rows]
-
-
-def _placeholder(index: int) -> str:
-    """Return the parameter placeholder for the current backend."""
-    return "%s" if _backend == "postgres" else "?"
 
 
 def _p(n: int) -> tuple[str, ...]:
@@ -215,10 +215,10 @@ def set_verify_code(user_id: str, code: str, minutes: int) -> None:
 
 
 def mark_email_verified(user_id: str) -> None:
-    ph = _p(1)[0]
+    ph = _p(2)
     verified_val = True if _backend == "postgres" else 1
     _execute(
-        f"UPDATE users SET email_verified = {_p(1)[0]}, verify_code = NULL WHERE id = {ph}",
+        f"UPDATE users SET email_verified = {ph[0]}, verify_code = NULL WHERE id = {ph[1]}",
         (verified_val, user_id),
     )
 
@@ -241,18 +241,17 @@ def get_portfolio(user_id: str) -> dict | None:
 
 def upsert_portfolio(user_id: str, data: bytes) -> None:
     now = datetime.datetime.now(datetime.timezone.utc).isoformat()
-    existing = get_portfolio(user_id)
-    if existing:
-        ph = _p(3)
+    port_id = str(uuid.uuid4())
+    ph = _p(4)
+    if _backend == "sqlite":
         _execute(
-            f"UPDATE portfolios SET data = {ph[0]}, updated_at = {ph[1]} WHERE user_id = {ph[2]}",
-            (data, now, user_id),
+            f"INSERT OR REPLACE INTO portfolios (id, user_id, data, updated_at) VALUES ({', '.join(ph)})",
+            (port_id, user_id, data, now),
         )
     else:
-        port_id = str(uuid.uuid4())
-        ph = _p(4)
         _execute(
-            f"INSERT INTO portfolios (id, user_id, data, updated_at) VALUES ({', '.join(ph)})",
+            f"INSERT INTO portfolios (id, user_id, data, updated_at) VALUES ({', '.join(ph)})"
+            " ON CONFLICT (user_id) DO UPDATE SET data = EXCLUDED.data, updated_at = EXCLUDED.updated_at",
             (port_id, user_id, data, now),
         )
 
