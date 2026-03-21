@@ -486,8 +486,9 @@ body, .q-page, .nicegui-content {
   .preview-grid { grid-template-columns: 1fr; }
   .diag-row > * { min-width: 0; flex-basis: 100%%; }
 
-  /* Show mobile */
+  /* Show mobile — override Quasar's body:not(.mobile) .mobile-only rule */
   .mobile-only { display: block !important; }
+  body:not(.mobile) .mobile-only { display: block !important; }
 
   /* Health findings: stack vertically on mobile */
   .findings-row { flex-direction: column !important; }
@@ -568,9 +569,11 @@ body, .q-page, .nicegui-content {
   .q-btn-toggle .q-btn { min-height: 44px !important; min-width: 44px !important; }
   .position-row .q-btn { opacity: 1 !important; min-width: 32px !important; min-height: 32px !important; }
 
-  /* Utility classes: show touch, hide desktop */
+  /* Utility classes: show touch, hide desktop — override Quasar specificity */
   .touch-only { display: block !important; }
+  body:not(.mobile) .touch-only { display: block !important; }
   .desktop-only { display: none !important; }
+  body:not(.mobile) .desktop-only { display: none !important; }
 
   /* Bottom tab bar visible */
   .mobile-tab-bar { display: flex !important; }
@@ -612,12 +615,11 @@ body, .q-page, .nicegui-content {
     min-height: calc(48px + env(safe-area-inset-top, 0px)) !important;
   }
 
-  /* Disable sidebar edge-swipe; prevent closed drawer from blocking touches */
-  .q-drawer__backdrop { touch-action: none !important; }
+  /* Disable sidebar edge-swipe */
   .q-drawer--left { touch-action: none !important; }
+  /* Let drawer container pass through touches when closed, but allow backdrop + open drawer */
   .q-drawer-container { pointer-events: none !important; }
-  .q-drawer--opened { pointer-events: auto !important; }
-  .q-drawer__backdrop[style*="display: block"] { pointer-events: auto !important; }
+  .q-drawer-container * { pointer-events: auto !important; }
 
   /* Sidebar backdrop */
   .q-drawer__backdrop {
@@ -637,8 +639,11 @@ body, .q-page, .nicegui-content {
     font-size: 13px !important;
   }
 
-  /* Sidebar: ensure touch-only elements render */
+  /* Sidebar: ensure touch/mobile elements render — override Quasar specificity */
   .q-drawer .touch-only { display: block !important; visibility: visible !important; }
+  body:not(.mobile) .q-drawer .touch-only { display: block !important; visibility: visible !important; }
+  .q-drawer .mobile-only { display: block !important; visibility: visible !important; }
+  body:not(.mobile) .q-drawer .mobile-only { display: block !important; visibility: visible !important; }
 
   /* Plotly: hide modebar on touch */
   .modebar-container { display: none !important; }

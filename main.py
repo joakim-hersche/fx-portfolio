@@ -637,6 +637,9 @@ function triggerSwipeHint() {
                     el.classes(add="active")
                 else:
                     el.classes(remove="active")
+            # Close sidebar if open
+            if _drawer_ref["drawer"]:
+                _drawer_ref["drawer"].hide()
 
         with ui.element("div").classes("mobile-tab-bar"):
             for label, tab_name, icon_name in _MOBILE_TABS:
