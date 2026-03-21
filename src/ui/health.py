@@ -1277,16 +1277,18 @@ async def build_health_tab(portfolio: dict, currency: str) -> None:
     with ui.element("div").classes("risk-sections w-full"):
         _render_sector_breakdown(fund_rows, portfolio_df, portfolio_color_map)
 
-        # Collapsible detailed metrics
-        with ui.expansion("Detailed Metrics").classes("w-full"):
-            _render_flat_table(
-                portfolio_df, analytics_df, fund_rows, price_data_1y,
-                currency_symbol, portfolio_color_map, base_currency=currency,
-            )
-            if len(tickers) >= 2:
-                _render_correlation_heatmap(price_data_1y, tickers)
+        # Collapsible detailed metrics (hidden on mobile)
+        with ui.element("div").classes("detailed-metrics-section"):
+            with ui.expansion("Detailed Metrics").classes("w-full"):
+                _render_flat_table(
+                    portfolio_df, analytics_df, fund_rows, price_data_1y,
+                    currency_symbol, portfolio_color_map, base_currency=currency,
+                )
+                if len(tickers) >= 2:
+                    _render_correlation_heatmap(price_data_1y, tickers)
 
-        _render_rebalancing_calculator(fund_rows, portfolio_df, currency_symbol)
+        with ui.element("div").classes("rebalancer-section"):
+            _render_rebalancing_calculator(fund_rows, portfolio_df, currency_symbol)
 
     _section_header("Portfolio News")
     await _render_portfolio_news(tickers, portfolio_color_map)
