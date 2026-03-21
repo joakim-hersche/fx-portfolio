@@ -9,7 +9,7 @@ import re
 import pandas as pd
 from nicegui import run, ui
 
-from src.charts import FALLBACK_COLORS
+from src.charts import CHART_COLORS, FALLBACK_COLORS
 from src.fx import CURRENCY_SYMBOLS, get_fx_rate, get_historical_fx_rate, get_ticker_currency
 from src.portfolio import fetch_buy_price
 from src.theme import (
