@@ -175,6 +175,20 @@ def init_schema() -> None:
     except Exception:
         pass  # Column already exists
 
+    # C: tier and Stripe billing
+    try:
+        _execute("ALTER TABLE users ADD COLUMN tier TEXT DEFAULT 'free'")
+    except Exception:
+        pass
+    try:
+        _execute("ALTER TABLE users ADD COLUMN stripe_customer_id TEXT")
+    except Exception:
+        pass
+    try:
+        _execute("ALTER TABLE users ADD COLUMN stripe_subscription_id TEXT")
+    except Exception:
+        pass
+
 
 # ── User queries ──────────────────────────────────────────
 
@@ -289,6 +303,42 @@ def update_last_alert_ids(user_id: str, rule_ids: list[str]) -> None:
         f"UPDATE users SET last_alert_ids = {ph[0]} WHERE id = {ph[1]}",
         (json.dumps(rule_ids), user_id),
     )
+
+
+# ── Tier and Stripe queries ───────────────────────────────
+
+
+def set_tier(user_id: str, tier: str) -> None:
+    """Set user tier ('free' or 'pro')."""
+    ph = _p(2)
+    _execute(f"UPDATE users SET tier = {ph[0]} WHERE id = {ph[1]}", (tier, user_id))
+
+
+def get_user_by_stripe_customer(customer_id: str) -> dict | None:
+    """Look up a user by their Stripe customer ID."""
+    ph = _p(1)[0]
+    row = _fetchone(f"SELECT * FROM users WHERE stripe_customer_id = {ph}", (customer_id,))
+    if row and _backend == "sqlite":
+        row["email_verified"] = bool(row["email_verified"])
+    return row
+
+
+def set_stripe_ids(user_id: str, customer_id: str | None, subscription_id: str | None) -> None:
+    """Store Stripe customer and subscription IDs."""
+    ph = _p(3)
+    _execute(
+        f"UPDATE users SET stripe_customer_id = {ph[0]}, stripe_subscription_id = {ph[1]} WHERE id = {ph[2]}",
+        (customer_id, subscription_id, user_id),
+    )
+
+
+def get_all_users() -> list[dict]:
+    """Return all users (for admin dashboard)."""
+    rows = _fetchall("SELECT * FROM users ORDER BY created_at DESC")
+    if _backend == "sqlite":
+        for r in rows:
+            r["email_verified"] = bool(r["email_verified"])
+    return rows
 
 
 # ── Portfolio queries ─────────────────────────────────────
