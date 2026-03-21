@@ -207,7 +207,7 @@ def _render_health_score(score_result: dict) -> None:
 # ── Findings ─────────────────────────────────────────────────────────────────
 
 def _render_findings(findings: list[dict]) -> None:
-    """Render diagnostic finding cards."""
+    """Render diagnostic finding cards in a horizontal row."""
     if not findings:
         return
 
@@ -220,16 +220,22 @@ def _render_findings(findings: list[dict]) -> None:
         "green": "rgba(22,163,74,0.06)",
     }
 
+    cards_html = ""
     for finding in findings:
         color = severity_colors.get(finding["severity"], "#94A3B8")
         bg = severity_bgs.get(finding["severity"], "transparent")
-        ui.html(
-            f'<div style="background:{bg};border-left:3px solid {color};'
-            f'padding:10px 14px;border-radius:0 6px 6px 0;margin-bottom:6px;">'
+        cards_html += (
+            f'<div style="flex:1;min-width:0;background:{bg};border-left:3px solid {color};'
+            f'padding:10px 14px;border-radius:0 6px 6px 0;">'
             f'<div style="font-weight:600;color:#F1F5F9;font-size:13px;">{finding["headline"]}</div>'
             f'<div style="color:#94A3B8;font-size:12px;margin-top:3px;">{finding["body"]}</div>'
             f'</div>'
         )
+
+    ui.html(
+        f'<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+        f'{cards_html}</div>'
+    )
 
 
 # ── Weighted correlation & portfolio volatility helpers ──────────────────────

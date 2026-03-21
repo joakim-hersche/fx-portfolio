@@ -104,14 +104,14 @@ def generate_findings(
     """Generate plain-language diagnostic cards. Never uses advisory language."""
     findings: list[dict] = []
 
-    # Single holding > 25%
-    for ticker, w_pct in top_holdings:
-        if w_pct > 25:
-            findings.append({
-                "severity": "red",
-                "headline": "High concentration risk",
-                "body": f"{ticker} represents {w_pct:.1f}% of the portfolio.",
-            })
+    # Single holding > 25% (report only the largest)
+    if top_holdings and top_holdings[0][1] > 25:
+        ticker, w_pct = top_holdings[0]
+        findings.append({
+            "severity": "red",
+            "headline": "High concentration risk",
+            "body": f"{ticker} represents {w_pct:.1f}% of the portfolio.",
+        })
 
     # Top 3 > 65%
     top3_weight = sum(w for _, w in top_holdings[:3])
@@ -165,7 +165,9 @@ def generate_findings(
             "body": f"Annualized volatility is {annualized_vol:.1%}.",
         })
 
-    return findings
+    # Cap at 5: prioritize red, then amber, then green
+    findings.sort(key=lambda f: {"red": 0, "amber": 1, "green": 2}.get(f["severity"], 3))
+    return findings[:5]
 
 
 # ── Portfolio fit simulation ─────────────────────────────────────────────────
