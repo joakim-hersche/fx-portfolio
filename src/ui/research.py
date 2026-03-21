@@ -626,7 +626,7 @@ async def build_research_tab(
     for group_tickers in stock_options.values():
         if isinstance(group_tickers, dict):
             for t, name in group_tickers.items():
-                select_opts[t] = f"{t} — {name}" if name != t else t
+                select_opts[t] = f"{name} ({t})" if name != t else t
         elif isinstance(group_tickers, list):
             for t in group_tickers:
                 select_opts[t] = t
