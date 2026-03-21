@@ -1290,9 +1290,23 @@ async def build_health_tab(portfolio: dict, currency: str) -> None:
                 )
                 if len(tickers) >= 2:
                     _render_correlation_heatmap(price_data_1y, tickers)
+        ui.html(
+            '<div class="touch-only" style="padding:12px 16px;font-size:12px;'
+            f'color:{TEXT_DIM};background:{BG_PILL};border-radius:8px;'
+            f'border:1px solid {BORDER_SUBTLE};text-align:center;">'
+            'Detailed analytics table is available on desktop.'
+            '</div>'
+        )
 
         with ui.element("div").classes("rebalancer-section"):
             _render_rebalancing_calculator(fund_rows, portfolio_df, currency_symbol)
+        ui.html(
+            '<div class="touch-only" style="padding:12px 16px;font-size:12px;'
+            f'color:{TEXT_DIM};background:{BG_PILL};border-radius:8px;'
+            f'border:1px solid {BORDER_SUBTLE};text-align:center;">'
+            'Rebalancing calculator is available on desktop.'
+            '</div>'
+        )
 
     _section_header("Portfolio News")
     await _render_portfolio_news(tickers, portfolio_color_map)

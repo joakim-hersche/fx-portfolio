@@ -569,7 +569,6 @@ body, .q-page, .nicegui-content {
   /* Hide sections on mobile */
   .rebalancer-section { display: none !important; }
   .detailed-metrics-section { display: none !important; }
-  .price-chart-section { display: none !important; }
 
   /* Positions card list */
   .position-cards { display: flex !important; flex-direction: column; gap: 6px; }

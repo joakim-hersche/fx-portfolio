@@ -768,7 +768,7 @@ async def build_research_tab(
                     ).props("flat dense no-caps size=sm").style(
                         f"font-size:11px;color:{TEXT_MUTED};background:{BG_PILL};"
                         f"border:1px solid {BORDER_SUBTLE};border-radius:4px;"
-                        f"padding:2px 8px;min-height:0;"
+                        f"padding:6px 10px;min-height:28px;"
                     )
 
     _refresh_recent()
