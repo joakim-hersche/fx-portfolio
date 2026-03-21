@@ -15,6 +15,7 @@ from src.charts import (
     build_fan_chart,
     build_portfolio_histogram,
     build_qq_plot,
+    is_mobile,
 )
 from src.data_fetch import (
     cached_run_monte_carlo_backtest,
@@ -131,6 +132,7 @@ def _render_portfolio_outlook(
     price_data: dict,
     currency: str,
     currency_symbol: str,
+    chart_h: int = 400,
 ) -> None:
     """Render the Portfolio Outlook section with fan chart and risk metrics."""
     start_prices = _get_start_prices(tickers, price_data, currency)
@@ -167,10 +169,10 @@ def _render_portfolio_outlook(
         ).props("dense size=sm no-caps")
 
     # Containers that update on horizon change
-    with ui.column().classes("chart-card w-full").style("gap:8px; min-height:400px;") as chart_card:
+    with ui.column().classes("chart-card w-full").style(f"gap:8px; min-height:{chart_h}px;") as chart_card:
         chart_container = ui.column().classes("w-full").style("gap:8px;")
     metrics_container = ui.column().classes("w-full").style("gap:8px;")
-    with ui.column().classes("chart-card w-full").style("gap:8px; min-height:350px;") as hist_card:
+    with ui.column().classes("chart-card w-full").style(f"gap:8px; min-height:{chart_h - 50}px;") as hist_card:
         hist_container = ui.column().classes("w-full").style("gap:8px;")
     caption_container = ui.column().classes("w-full").style("gap:8px;")
 
@@ -311,6 +313,7 @@ def _render_position_outlook(
     price_data: dict,
     currency: str,
     currency_symbol: str,
+    chart_h: int = 400,
 ) -> None:
     """Render the Position Outlook section with per-ticker fan chart."""
     # Header row with controls
@@ -321,16 +324,16 @@ def _render_position_outlook(
     horizon_options = {"3 months": 63, "6 months": 126, "1 year": 252}
     lookback_options = {"1 year": 252, "2 years": 504, "5 years": None}
 
-    with ui.row().classes("w-full items-center justify-between"):
-        with ui.column().style("gap:2px;"):
+    with ui.column().classes("w-full").style("gap:8px;"):
+        with ui.row().classes("w-full items-center justify-between"):
             _section_header("Position Outlook")
             ui.html(f'<div style="font-size:12px;color:{TEXT_DIM};">Per-ticker Monte Carlo simulation</div>')
-        with ui.row().classes("items-center").style("gap:10px;"):
+        with ui.row().classes("w-full items-center gap-3 flex-wrap"):
             ticker_select = ui.select(
                 options=ticker_names,
                 value=tickers[0],
                 label="Position",
-            ).style("min-width:200px;")
+            ).style("min-width:140px;max-width:220px;flex:1 1 140px;")
             horizon_toggle = ui.toggle(
                 list(horizon_options.keys()), value="6 months"
             ).props("dense size=sm no-caps")
@@ -338,7 +341,7 @@ def _render_position_outlook(
                 list(lookback_options.keys()), value="2 years"
             ).props("dense size=sm no-caps")
 
-    with ui.column().classes("chart-card w-full").style("gap:8px; min-height:400px;") as pos_chart_card:
+    with ui.column().classes("chart-card w-full").style(f"gap:8px; min-height:{chart_h}px;") as pos_chart_card:
         chart_container = ui.column().classes("w-full").style("gap:8px;")
     metrics_container = ui.column().classes("w-full").style("gap:8px;")
     info_container = ui.column().classes("w-full").style("gap:8px;")
@@ -641,7 +644,7 @@ def _render_model_diagnostics(
         options=ticker_names,
         value=diag_tickers[0],
         label="Select ticker for QQ plot",
-    ).style("min-width:300px;")
+    ).style("min-width:140px;max-width:300px;width:100%;")
 
     # Side by side: QQ plot | test table
     with ui.row().classes("diag-row w-full"):
@@ -769,11 +772,14 @@ async def build_forecast_tab(portfolio: dict, currency: str) -> None:
         _empty_state("No price data available for simulation. Check your positions and try reloading.")
         return
 
-    _render_portfolio_outlook(portfolio, tickers, price_data, currency, currency_symbol)
+    mobile = is_mobile()
+    chart_h = 280 if mobile else 400
+
+    _render_portfolio_outlook(portfolio, tickers, price_data, currency, currency_symbol, chart_h=chart_h)
 
     ui.html('<hr class="content-divider">')
 
-    _render_position_outlook(portfolio, tickers, price_data, currency, currency_symbol)
+    _render_position_outlook(portfolio, tickers, price_data, currency, currency_symbol, chart_h=chart_h)
 
     # ── Model Diagnostics (collapsible advanced section) ──
     ui.html('<hr class="content-divider">')
