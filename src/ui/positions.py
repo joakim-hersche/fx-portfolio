@@ -319,7 +319,7 @@ def _build_positions_table(
         body_rows.append(total_row)
 
         tbody = f"<tbody>{''.join(body_rows)}</tbody>"
-        html = f'<div style="overflow-x:auto;"><div class="table-wrap"><table>{header}{tbody}</table></div></div>'
+        html = f'<div class="desktop-only" style="overflow-x:auto;"><div class="table-wrap"><table>{header}{tbody}</table></div></div>'
 
         with table_container:
             ui.html(html)
@@ -337,6 +337,78 @@ def _build_positions_table(
         ).style(f"font-size:12px;color:{TEXT_MUTED};").props("dense")
 
     _render_table()
+
+
+def _build_mobile_position_cards(
+    df: pd.DataFrame,
+    name_map: dict[str, str],
+    currency_symbol: str,
+    portfolio_color_map: dict[str, str] | None = None,
+) -> None:
+    """Render positions as mobile-friendly cards (hidden on desktop via CSS)."""
+    agg_rows = []
+    for ticker, group in df.groupby("Ticker", sort=False):
+        total_val = group["Total Value"].sum()
+        total_cost = (group["Buy Price"] * group["Shares"]).sum()
+        total_shares = group["Shares"].sum()
+        total_divs = group["Dividends"].sum()
+        daily = group["Daily P&L"].sum()
+        ret_pct = (
+            (total_val + total_divs - total_cost) / total_cost * 100
+            if total_cost else 0.0
+        )
+        weight = group["Weight (%)"].sum()
+        agg_rows.append({
+            "Ticker": ticker,
+            "Company": name_map.get(ticker, ticker),
+            "Shares": total_shares,
+            "Total Value": total_val,
+            "Daily P&L": daily,
+            "Return (%)": ret_pct,
+            "Weight (%)": weight,
+        })
+    agg_rows.sort(key=lambda r: r["Weight (%)"], reverse=True)
+
+    cards_html = f'<div style="font-size:11px;color:#94A3B8;margin-bottom:12px;">{len(agg_rows)} positions</div>'
+
+    for r in agg_rows:
+        ticker = r["Ticker"]
+        dot_color = (portfolio_color_map or {}).get(ticker, "#64748B")
+        val_str = f"{currency_symbol}{r['Total Value']:,.0f}"
+        ret = r["Return (%)"]
+        ret_color = "#16A34A" if ret >= 0 else "#DC2626"
+        ret_str = f"{'+' if ret >= 0 else ''}{ret:.1f}%"
+        daily = r["Daily P&L"]
+        daily_color = "#16A34A" if daily >= 0 else "#DC2626"
+        daily_str = f"{'+' if daily >= 0 else ''}{currency_symbol}{daily:,.0f} today"
+        shares = r["Shares"]
+        shares_str = f"{int(shares):,}" if shares == int(shares) else f"{shares:g}"
+        weight_str = f"{r['Weight (%)']:.1f}%"
+
+        cards_html += (
+            f'<div style="background:#1C1D26;border-radius:8px;padding:12px;'
+            f'margin-bottom:6px;border:1px solid rgba(255,255,255,0.06);">'
+            f'<div style="display:flex;justify-content:space-between;align-items:flex-start;">'
+            f'<div style="display:flex;align-items:center;gap:8px;">'
+            f'<div style="width:6px;height:6px;border-radius:50%;background:{dot_color};'
+            f'flex-shrink:0;margin-top:2px;"></div>'
+            f'<div>'
+            f'<div style="font-size:13px;font-weight:700;color:#F1F5F9;">{ticker}</div>'
+            f'<div style="font-size:10px;color:#64748B;overflow:hidden;text-overflow:ellipsis;'
+            f'white-space:nowrap;max-width:160px;">{r["Company"]}</div>'
+            f'</div></div>'
+            f'<div style="text-align:right;">'
+            f'<div style="font-size:13px;font-weight:600;color:#F1F5F9;">{val_str}</div>'
+            f'<div style="font-size:10px;color:{ret_color};font-weight:500;">{ret_str}</div>'
+            f'</div></div>'
+            f'<div style="display:flex;justify-content:space-between;margin-top:8px;padding-top:8px;'
+            f'border-top:1px solid rgba(255,255,255,0.04);">'
+            f'<div style="font-size:10px;color:#64748B;">{shares_str} shares \u00b7 {weight_str}</div>'
+            f'<div style="font-size:10px;color:{daily_color};">{daily_str}</div>'
+            f'</div></div>'
+        )
+
+    ui.html(f'<div class="position-cards mobile-only">{cards_html}</div>').classes("w-full")
 
 
 # ---------------------------------------------------------------------------
@@ -589,6 +661,11 @@ async def build_positions_tab(portfolio: dict, currency: str) -> None:
         on_click_bridge_id=bridge.id,
         target_prices=target_prices,
         unavailable_tickers=unavailable_tickers,
+    )
+
+    _build_mobile_position_cards(
+        df, name_map, currency_symbol,
+        portfolio_color_map=portfolio_color_map,
     )
 
     # ── Divider ───────────────────────────────────────────
