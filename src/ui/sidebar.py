@@ -66,8 +66,16 @@ def build_sidebar(
     portfolio: dict, stock_options: dict, shared: dict,
     active_tab: dict,
     on_mutation=None,
+    *,
+    search_container=None,
+    actions_container=None,
 ) -> None:
-    """Build the sidebar: search-first add form + positions list + action icons."""
+    """Build the sidebar: search-first add form + positions list + action icons.
+
+    Optional container args for mobile three-zone layout:
+    - search_container: if given, search bar + add form render here instead of inline
+    - actions_container: if given, mobile action buttons render here instead of inline
+    """
 
     # Build flat ticker->label map from all markets for the unified search
     all_tickers: dict[str, str] = {}
@@ -78,6 +86,10 @@ def build_sidebar(
             all_tickers.update({t: t for t in opts})
 
     # ── Unified Search Bar ─────────────────────────────────
+    # If search_container provided (mobile), render search there
+    _search_ctx = search_container if search_container is not None else None
+    if _search_ctx is not None:
+        _search_ctx.__enter__()
     ui.html(
         f'<div style="font-size:10px;font-weight:700;color:{TEXT_MUTED};letter-spacing:0.04em;'
         f'text-transform:uppercase;margin-bottom:4px;">Add Position</div>'
@@ -181,6 +193,10 @@ def build_sidebar(
             f"background:{ACCENT};color:white;font-size:11px;font-weight:600;"
             f"padding:5px 0;min-height:28px;border-radius:5px;"
         )
+
+    # Close search container context if we opened one
+    if _search_ctx is not None:
+        _search_ctx.__exit__(None, None, None)
 
     # ── Show/hide detail fields on ticker selection ────────
     def _on_ticker_change(e):
@@ -743,6 +759,9 @@ def build_sidebar(
         )
 
     # Mobile: compact action grid
+    _actions_ctx = actions_container if actions_container is not None else None
+    if _actions_ctx is not None:
+        _actions_ctx.__enter__()
     with ui.element("div").classes("sidebar-action-grid touch-only"):
         ui.button("Import", icon="upload",
             on_click=lambda: ui.run_javascript(
@@ -757,3 +776,6 @@ def build_sidebar(
         ui.button("Clear", icon="delete_outline",
             on_click=on_clear_all,
         ).props('flat no-caps').style(f"color:{TEXT_DIM} !important;")
+    # Close actions container context if we opened one
+    if _actions_ctx is not None:
+        _actions_ctx.__exit__(None, None, None)

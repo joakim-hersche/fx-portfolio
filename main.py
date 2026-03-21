@@ -619,8 +619,9 @@ function triggerSwipeHint() {
     ).props(':width="$q.screen.lt.md ? $q.screen.width : 220" :breakpoint="768"') as sidebar_drawer:
         _drawer_ref["drawer"] = sidebar_drawer
 
-        # ── Zone 1: Fixed top (mobile) — title + close ──
-        with ui.element("div").classes("sidebar-zone-top touch-only"):
+        # ── Zone 1: Fixed top (mobile) — title + close + search ──
+        zone_top = ui.element("div").classes("sidebar-zone-top touch-only")
+        with zone_top:
             with ui.row().classes("w-full items-center justify-between").style("margin-bottom:10px;"):
                 ui.label("Portfolio").style(
                     f"font-size:15px;font-weight:700;color:{TEXT_PRIMARY};"
@@ -630,12 +631,29 @@ function triggerSwipeHint() {
                 ).props("flat dense round size=md color=none").style(
                     f"color:{TEXT_MUTED};min-width:44px;min-height:44px;"
                 )
+            # Search bar will be rendered here via search_container arg
 
-        # ── Zone 2: sidebar content (search + positions scroll on mobile) ──
-        build_sidebar(portfolio, stock_options, _shared, _active_tab, on_mutation=_mutation_ref)
+        # ── Zone 2: Scrollable middle (visible on all devices, styled by media query) ──
+        zone_mid = ui.element("div").classes("sidebar-zone-mid")
 
         # ── Zone 3: Pinned bottom (mobile) — actions + currency ──
-        with ui.element("div").classes("sidebar-zone-bottom touch-only"):
+        zone_bottom = ui.element("div").classes("sidebar-zone-bottom touch-only")
+        with zone_bottom:
+            # Action buttons will be rendered here via actions_container arg
+            pass
+
+        # Build sidebar content — search goes to zone_top, actions go to zone_bottom
+        # Positions and desktop elements render inline (inside zone_mid on mobile)
+        with zone_mid:
+            build_sidebar(
+                portfolio, stock_options, _shared, _active_tab,
+                on_mutation=_mutation_ref,
+                search_container=zone_top,
+                actions_container=zone_bottom,
+            )
+
+        # Currency pills in zone-bottom (after action buttons)
+        with zone_bottom:
             ui.html(
                 f'<div style="font-size:10px;font-weight:700;color:{TEXT_MUTED};'
                 f'letter-spacing:0.04em;text-transform:uppercase;margin-bottom:6px;">Currency</div>'
@@ -653,82 +671,14 @@ function triggerSwipeHint() {
                         on_click=lambda c=ccy: _on_pill_click(c),
                     ).props("flat dense no-caps size=sm unelevated").style(style)
 
-    # On mobile: restructure sidebar DOM into three-zone layout, then auto-close
+    # Close sidebar on mobile (it starts open for desktop, but covers everything on mobile)
     ui.run_javascript("""
-    (function() {
-        if (!window.matchMedia('(pointer: coarse)').matches && window.innerWidth > 767) return;
-
-        setTimeout(function() {
-            var drawerContent = document.querySelector('.q-drawer__content');
-            if (!drawerContent) return;
-
-            // Find the key elements
-            var zoneTop = drawerContent.querySelector('.sidebar-zone-top');
-            var zoneBottom = drawerContent.querySelector('.sidebar-zone-bottom');
-            var search = drawerContent.querySelector('.sidebar-search');
-            var actionGrid = drawerContent.querySelector('.sidebar-action-grid');
-
-            // Create the three-zone wrapper
-            var wrapper = document.createElement('div');
-            wrapper.className = 'sidebar-mobile-wrapper';
-
-            // Zone 1: top (title + close + search)
-            if (zoneTop) {
-                wrapper.appendChild(zoneTop);
-                // Move search bar into zone-top
-                if (search) {
-                    // search is inside a NiceGUI wrapper div — move the wrapper
-                    var searchParent = search.closest('.nicegui-content > div') || search.parentElement;
-                    zoneTop.appendChild(searchParent);
-                }
-            }
-
-            // Zone 2: scrollable mid — everything else except zone-bottom and action-grid
-            var mid = document.createElement('div');
-            mid.className = 'sidebar-zone-mid';
-
-            // Move all remaining content into mid
-            var content = drawerContent.querySelector('.nicegui-content') ||
-                          drawerContent.querySelector('.sidebar');
-            if (content) {
-                // Move all children of content into mid
-                while (content.firstChild) {
-                    var child = content.firstChild;
-                    // Skip zone-top and zone-bottom (already moved or will be)
-                    if (child === zoneTop || child === zoneBottom) {
-                        content.removeChild(child);
-                        continue;
-                    }
-                    mid.appendChild(child);
-                }
-            }
-            wrapper.appendChild(mid);
-
-            // Zone 3: bottom (actions + currency)
-            if (zoneBottom) {
-                // Move action grid into zone-bottom (before currency)
-                if (actionGrid) {
-                    var agParent = actionGrid.parentElement;
-                    zoneBottom.insertBefore(actionGrid, zoneBottom.firstChild);
-                    // Clean up empty parent if needed
-                    if (agParent && agParent !== mid && agParent.children.length === 0) {
-                        agParent.remove();
-                    }
-                }
-                wrapper.appendChild(zoneBottom);
-            }
-
-            // Replace drawer content
-            drawerContent.innerHTML = '';
-            drawerContent.appendChild(wrapper);
-
-            // Auto-close sidebar on mobile
+        if (window.innerWidth <= 767) {
             setTimeout(function() {
                 var backdrop = document.querySelector('.q-drawer__backdrop');
                 if (backdrop) backdrop.click();
-            }, 100);
-        }, 500);
-    })();
+            }, 200);
+        }
     """)
 
     # ── Main content area ──────────────────────────────────

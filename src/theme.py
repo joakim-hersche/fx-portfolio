@@ -424,11 +424,19 @@ body, .q-page, .nicegui-content {
   /* Utility class */
   .not-phone { display: none !important; }
 
-  /* ── Mobile sidebar: JS creates wrapper with three zones ── */
+  /* ── Mobile sidebar: three-zone flex layout ── */
   .q-drawer { width: 100vw !important; max-width: 100vw !important; }
-
-  /* The wrapper is injected by JS around the drawer content */
-  .sidebar-mobile-wrapper {
+  .q-drawer__content {
+    height: 100%% !important;
+    overflow: hidden !important;
+  }
+  .q-drawer .sidebar {
+    height: 100%% !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+  }
+  /* NiceGUI content wrapper becomes the flex container */
+  .q-drawer .sidebar > div {
     display: flex !important;
     flex-direction: column !important;
     height: 100%% !important;
@@ -437,14 +445,15 @@ body, .q-page, .nicegui-content {
 
   /* Zone 1: Fixed top — title + close + search */
   .sidebar-zone-top {
-    flex-shrink: 0;
-    padding: 12px 20px 8px;
+    flex-shrink: 0 !important;
+    padding: 12px 20px 12px;
     padding-top: calc(12px + env(safe-area-inset-top, 0px));
+    border-bottom: 1px solid rgba(255,255,255,0.06);
   }
 
   /* Zone 2: Scrollable middle */
   .sidebar-zone-mid {
-    flex: 1 !important;
+    flex: 1 1 0%% !important;
     overflow-y: auto !important;
     -webkit-overflow-scrolling: touch;
     min-height: 0 !important;
@@ -453,7 +462,7 @@ body, .q-page, .nicegui-content {
 
   /* Zone 3: Pinned bottom — actions + currency */
   .sidebar-zone-bottom {
-    flex-shrink: 0;
+    flex-shrink: 0 !important;
     border-top: 1px solid rgba(255,255,255,0.08);
     background: #161719;
     padding: 12px 20px;
