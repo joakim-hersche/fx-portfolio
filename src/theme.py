@@ -345,18 +345,6 @@ body, .q-page, .nicegui-content {
   .kpi-row { grid-template-columns: 1fr 1fr; gap: 10px; }
 }
 
-/* ── Responsive: Tablet (< 1024px) ────────────────────── */
-@media (max-width: 1023px) {
-  .charts-row { grid-template-columns: 1fr; gap: 12px; }
-  .risk-triple { grid-template-columns: 1fr; gap: 12px; }
-  .risk-grid { grid-template-columns: 1fr; }
-  .metric-grid-4 { grid-template-columns: repeat(2, 1fr); }
-  .metric-grid-3 { grid-template-columns: repeat(2, 1fr); }
-  .preview-grid { grid-template-columns: repeat(2, 1fr); }
-  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  .table-wrap table { min-width: 600px; }
-}
-
 /* ── Device-tier utility classes ── */
 .mobile-only { display: none !important; }
 .desktop-only { /* visible by default; hidden via pointer queries */ }
@@ -394,8 +382,11 @@ body, .q-page, .nicegui-content {
 .mobile-tab-bar .tab-item.active svg { stroke: #3B82F6; }
 .mobile-tab-bar .tab-item.active .tab-label { color: #3B82F6; font-weight: 600; }
 
-/* ── Responsive: Mobile (< 768px) ─────────────────────── */
-@media (max-width: 767px) {
+/* ── Touch-small tier (phones) ───────────────────────── */
+@media (pointer: coarse) and (max-width: 767px) {
+  /* Utility class */
+  .not-phone { display: none !important; }
+
   /* ── Mobile sidebar: three-zone flex layout ── */
   .q-drawer { width: 100vw !important; max-width: 100vw !important; }
   .q-drawer__content {
@@ -677,6 +668,56 @@ body, .q-page, .nicegui-content {
 
   /* Sidebar section headers */
   .sidebar-section-header { font-size: 10px; }
+}
+
+/* ── Touch-large tier (tablets: iPad etc.) ────────────── */
+@media (pointer: coarse) and (min-width: 768px) {
+  /* Utility classes */
+  .touch-large-only { display: block !important; }
+  .mobile-only { display: none !important; }
+
+  /* Grids: 2-column layout */
+  .kpi-row { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .charts-row { grid-template-columns: 1fr 1fr; gap: 12px; }
+  .risk-triple { grid-template-columns: 1fr 1fr; gap: 12px; }
+  .risk-grid { grid-template-columns: 1fr 1fr; }
+  .metric-grid-4 { grid-template-columns: repeat(2, 1fr); }
+  .metric-grid-3 { grid-template-columns: repeat(2, 1fr); }
+  .preview-grid { grid-template-columns: repeat(2, 1fr); }
+
+  /* Sidebar: partial-width overlay, not full-screen */
+  .q-drawer { width: min(320px, 75vw) !important; max-width: min(320px, 75vw) !important; }
+  .q-drawer .sidebar {
+    padding: 12px 20px !important;
+    padding-top: calc(8px + env(safe-area-inset-top, 0px)) !important;
+  }
+
+  /* Sidebar bottom actions: sticky */
+  .q-drawer .sidebar .sidebar-bottom-actions {
+    position: sticky !important;
+    bottom: 0 !important;
+    background: #161719 !important;
+    padding-top: 8px !important;
+    margin: 0 -20px !important;
+    padding-left: 20px !important;
+    padding-right: 20px !important;
+    padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px)) !important;
+    z-index: 1;
+  }
+  .q-drawer .sidebar .q-field { margin-bottom: 0 !important; }
+
+  /* Tables: horizontal scroll */
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .table-wrap table { min-width: 600px; }
+
+  /* Diag row: 2-col */
+  .diag-row > * { min-width: 0; flex-basis: calc(50%% - var(--grid-gap)); }
+
+  /* Chart card padding */
+  .chart-card { padding: 12px !important; }
+
+  /* Health score: compact */
+  .health-score-container { padding: 14px !important; }
 }
 
 /* ── Quasar notification dark theme overrides ─────────── */
