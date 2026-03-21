@@ -351,7 +351,7 @@ function triggerSwipeHint() {
                 )
             market_status_indicator()
 
-        # Right: currency pill + export dropdown + info
+        # Right: currency pill + info + export dropdown
         with ui.row().classes("items-center gap-2").style("height:32px;"):
 
             # ── Currency segmented pill ────────────────────────
@@ -388,40 +388,7 @@ function triggerSwipeHint() {
                     ).props("flat dense no-caps size=sm unelevated").style(style)
                     currency_buttons[ccy] = btn
 
-            # ── Export dropdown ────────────────────────────────
-            import json as _json
-
-            def _export_json():
-                if not portfolio:
-                    ui.notify("No positions to export.", type="warning")
-                    return
-                ui.download(_json.dumps(portfolio, indent=2).encode(), "portfolio.json")
-                ui.notify("Portfolio backup downloaded.", type="positive")
-
-            with ui.button("Export", icon="expand_more").classes("header-export-btn").props(
-                'flat dense no-caps size=sm color=none'
-            ).style(
-                f"border:1px solid {BORDER_INPUT}; border-radius:6px; padding:0 12px;"
-                f" height:32px; color:{TEXT_MUTED} !important; font-size:12px;"
-            ):
-                with ui.menu().style(
-                    f"background:{BG_CARD}; border:1px solid rgba(255,255,255,0.12);"
-                    f" border-radius:10px; min-width:260px;"
-                ):
-                    with ui.menu_item(on_click=lambda: export_excel(portfolio, currency)).style("padding:10px 14px;"):
-                        with ui.row().classes("items-center gap-3 no-wrap"):
-                            ui.html('<span style="font-size:16px;">📊</span>')
-                            with ui.column().style("gap:1px;"):
-                                ui.label("Excel Report").style(f"font-size:13px; color:{TEXT_PRIMARY}; font-weight:500;")
-                                ui.label("Full workbook with charts and analytics").style(f"font-size:11px; color:{TEXT_DIM};")
-                    ui.separator().style("margin:4px 14px; opacity:0.15;")
-                    with ui.menu_item(on_click=_export_json).style("padding:10px 14px;"):
-                        with ui.row().classes("items-center gap-3 no-wrap"):
-                            ui.html('<span style="font-size:16px;">💾</span>')
-                            with ui.column().style("gap:1px;"):
-                                ui.label("Portfolio Backup").style(f"font-size:13px; color:{TEXT_PRIMARY}; font-weight:500;")
-                                ui.label("Save positions as JSON for re-import").style(f"font-size:11px; color:{TEXT_DIM};")
-
+            # ── Info button + dialog ─────────────────────────
             with ui.dialog() as about_dlg, ui.card().style(
                 f"min-width:380px; max-width:480px; background:{BG_CARD}; border:1px solid rgba(255,255,255,0.12);"
                 f" border-radius:10px; padding:20px;"
@@ -461,6 +428,41 @@ function triggerSwipeHint() {
             ).style(
                 f"color:{TEXT_MUTED} !important; min-width:0; width:32px; height:32px;"
             )
+
+            # ── Export dropdown ────────────────────────────────
+            import json as _json
+
+            def _export_json():
+                if not portfolio:
+                    ui.notify("No positions to export.", type="warning")
+                    return
+                ui.download(_json.dumps(portfolio, indent=2).encode(), "portfolio.json")
+                ui.notify("Portfolio backup downloaded.", type="positive")
+
+            with ui.button("Export", icon="expand_more").classes("header-export-btn").props(
+                'flat dense no-caps size=sm color=none'
+            ).style(
+                f"border:1px solid {BORDER_INPUT}; border-radius:6px; padding:0 12px;"
+                f" height:32px; color:{TEXT_MUTED} !important; font-size:12px;"
+            ):
+                with ui.menu().style(
+                    f"background:{BG_CARD}; border:1px solid rgba(255,255,255,0.12);"
+                    f" border-radius:10px; min-width:260px;"
+                ):
+                    with ui.menu_item(on_click=lambda: export_excel(portfolio, currency)).style("padding:10px 14px;"):
+                        with ui.row().classes("items-center gap-3 no-wrap"):
+                            ui.html('<span style="font-size:16px;">📊</span>')
+                            with ui.column().style("gap:1px;"):
+                                ui.label("Excel Report").style(f"font-size:13px; color:{TEXT_PRIMARY}; font-weight:500;")
+                                ui.label("Full workbook with charts and analytics").style(f"font-size:11px; color:{TEXT_DIM};")
+                    ui.separator().style("margin:4px 14px; opacity:0.15;")
+                    with ui.menu_item(on_click=_export_json).style("padding:10px 14px;"):
+                        with ui.row().classes("items-center gap-3 no-wrap"):
+                            ui.html('<span style="font-size:16px;">💾</span>')
+                            with ui.column().style("gap:1px;"):
+                                ui.label("Portfolio Backup").style(f"font-size:13px; color:{TEXT_PRIMARY}; font-weight:500;")
+                                ui.label("Save positions as JSON for re-import").style(f"font-size:11px; color:{TEXT_DIM};")
+
 
             # ── Auth button ───────────────────────────────
             auth_user_id = app.storage.user.get("user_id")
@@ -555,7 +557,7 @@ function triggerSwipeHint() {
     # ── Sidebar (left drawer) ──────────────────────────────
     with ui.left_drawer(value=True, fixed=True).classes("sidebar").style(
         f"width:220px; background:{BG_SIDEBAR}; border-right:1px solid {BORDER}; padding:16px 12px;"
-    ).props('width=600 :breakpoint="768"') as sidebar_drawer:
+    ).props(':width="$q.screen.lt.md ? $q.screen.width : 220" :breakpoint="768"') as sidebar_drawer:
         _drawer_ref["drawer"] = sidebar_drawer
 
         # ── Zone 1: Fixed top (mobile) — title + close ──
