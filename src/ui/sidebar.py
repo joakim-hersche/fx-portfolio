@@ -129,14 +129,14 @@ def build_sidebar(
         with ui.row().classes("w-full").style("gap:6px;"):
             with ui.column().classes("w-full").style("gap:0; min-width:0; flex:1;"):
                 shares_label = ui.html(
-                    f'<label style="font-size:9px;font-weight:600;color:{TEXT_DIM};letter-spacing:0.04em;text-transform:uppercase;">Shares</label>'
+                    f'<label style="font-size:11px;font-weight:600;color:{TEXT_DIM};letter-spacing:0.04em;text-transform:uppercase;">Shares</label>'
                 ).classes("w-full")
                 shares_input = ui.number(placeholder="10", min=0.01).props(
                     "dense outlined"
                 ).classes("w-full").style("font-size:11px;")
             with ui.column().classes("w-full").style("gap:0; min-width:0; flex:1;"):
                 ui.html(
-                    f'<label style="font-size:9px;font-weight:600;color:{TEXT_DIM};letter-spacing:0.04em;text-transform:uppercase;">Date</label>'
+                    f'<label style="font-size:11px;font-weight:600;color:{TEXT_DIM};letter-spacing:0.04em;text-transform:uppercase;">Date</label>'
                 ).classes("w-full")
                 date_input = ui.input(placeholder="2024-01-15").props(
                     'dense outlined mask="####-##-##"'
@@ -153,7 +153,7 @@ def build_sidebar(
         with ui.row().classes("w-full").style("gap:6px;") as price_row:
             with ui.column().classes("w-full").style("gap:0; min-width:0; flex:1;"):
                 ui.html(
-                    f'<label style="font-size:9px;font-weight:600;color:{TEXT_DIM};letter-spacing:0.04em;text-transform:uppercase;">Buy Price</label>'
+                    f'<label style="font-size:11px;font-weight:600;color:{TEXT_DIM};letter-spacing:0.04em;text-transform:uppercase;">Buy Price</label>'
                 ).classes("w-full")
                 price_input = ui.number(placeholder="150.00", min=0, step=0.01).props(
                     "dense outlined"
@@ -161,11 +161,11 @@ def build_sidebar(
         price_row.set_visibility(False)
 
         ui.html(
-            f'<div style="font-size:9px;color:{TEXT_DIM};margin:-2px 0 2px 0;">'
+            f'<div style="font-size:11px;color:{TEXT_DIM};margin:-2px 0 2px 0;">'
             'Price is fetched automatically from the purchase date.</div>'
         )
         manual_checkbox = ui.checkbox("Enter price manually", value=False).style(
-            f"font-size:10px;color:{TEXT_DIM};"
+            f"font-size:11px;color:{TEXT_DIM};min-height:44px;"
         )
 
         # Placeholder — real handler assigned after definition below
@@ -193,7 +193,7 @@ def build_sidebar(
             is_alt = market in _ALT_ASSETS if market else False
             ticker_info.content = (
                 f'<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;">'
-                f'<span style="font-size:9px;font-weight:600;padding:1px 6px;border-radius:3px;'
+                f'<span style="font-size:11px;font-weight:600;padding:1px 6px;border-radius:3px;'
                 f'background:{ACCENT_DARK};color:#93C5FD;">{market_label}</span>'
                 f'<span style="font-size:10px;color:{TEXT_MUTED};white-space:nowrap;overflow:hidden;'
                 f'text-overflow:ellipsis;">{company}</span>'
@@ -203,7 +203,7 @@ def build_sidebar(
             # Update shares label for alt assets
             label_text = f"Amount ({shared['currency']})" if is_alt else "Shares"
             shares_label.content = (
-                f'<label style="font-size:9px;font-weight:600;color:{TEXT_DIM};'
+                f'<label style="font-size:11px;font-weight:600;color:{TEXT_DIM};'
                 f'letter-spacing:0.04em;text-transform:uppercase;">{label_text}</label>'
             )
             shares_label.update()
@@ -367,7 +367,7 @@ def build_sidebar(
 
                 with ui.column().classes("w-full").style("gap:8px;"):
                     ui.html(
-                        f'<label style="font-size:9px;font-weight:600;color:{TEXT_DIM};'
+                        f'<label style="font-size:11px;font-weight:600;color:{TEXT_DIM};'
                         f'letter-spacing:0.04em;text-transform:uppercase;">Shares</label>'
                     )
                     edit_shares = ui.number(
@@ -375,7 +375,7 @@ def build_sidebar(
                     ).props("dense outlined").classes("w-full").style("font-size:11px;")
 
                     ui.html(
-                        f'<label style="font-size:9px;font-weight:600;color:{TEXT_DIM};'
+                        f'<label style="font-size:11px;font-weight:600;color:{TEXT_DIM};'
                         f'letter-spacing:0.04em;text-transform:uppercase;">Buy Price</label>'
                     )
                     edit_price = ui.number(
@@ -383,7 +383,7 @@ def build_sidebar(
                     ).props("dense outlined").classes("w-full").style("font-size:11px;")
 
                     ui.html(
-                        f'<label style="font-size:9px;font-weight:600;color:{TEXT_DIM};'
+                        f'<label style="font-size:11px;font-weight:600;color:{TEXT_DIM};'
                         f'letter-spacing:0.04em;text-transform:uppercase;">Purchase Date</label>'
                     )
                     edit_date = ui.input(
