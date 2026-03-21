@@ -52,6 +52,8 @@ from src.ui.shared import load_portfolio, save_portfolio, get_storage_secret
 from src import db
 from src.ui.auth import show_auth_ui, build_reset_complete_form
 from src.alert_job import start_alert_scheduler
+from src.billing import is_pro, is_tab_locked, create_portal_session, is_admin, FREE_POSITION_LIMIT
+from src.ui.paywall import render_locked_overlay, build_pricing_page
 from src.ui.sidebar import build_sidebar
 from src.theme import (
     ACCENT, BG_CARD, BG_INPUT, BG_MAIN, BG_SIDEBAR, BG_TOPBAR,
@@ -300,6 +302,23 @@ function triggerSwipeHint() {
 
     # ── Load persisted state ───────────────────────────────
     stored = load_portfolio()
+
+    # Stripe checkout return — detect via URL param, show toast, clean URL
+    ui.run_javascript('''
+        const params = new URLSearchParams(window.location.search);
+        if (params.get("upgraded") === "1") {
+            window.history.replaceState({}, "", "/");
+            setTimeout(() => {
+                Quasar.Notify.create({
+                    message: "Welcome to Pro! All features are now unlocked.",
+                    color: "positive",
+                    timeout: 5000,
+                    position: "top"
+                });
+            }, 1000);
+        }
+    ''', respond=False)
+
     portfolio = stored.get("portfolio", {})
     currency = stored.get("currency", list(CURRENCY_SYMBOLS.keys())[0])
 
@@ -488,7 +507,13 @@ function triggerSwipeHint() {
                     f"background:{BG_CARD}; border:1px solid rgba(255,255,255,0.12);"
                     f" border-radius:10px; min-width:260px;"
                 ):
-                    with ui.menu_item(on_click=lambda: export_excel(portfolio, currency)).style("padding:10px 14px;"):
+                    async def _export_excel_gated():
+                        if not is_pro(app.storage.user.get("user_id")):
+                            ui.notify("Excel export is a Pro feature.", type="warning")
+                            return
+                        export_excel(portfolio, currency)
+
+                    with ui.menu_item(on_click=_export_excel_gated).style("padding:10px 14px;"):
                         with ui.row().classes("items-center gap-3 no-wrap"):
                             ui.html('<span style="font-size:16px;">📊</span>')
                             with ui.column().style("gap:1px;"):
@@ -507,31 +532,62 @@ function triggerSwipeHint() {
             auth_email = app.storage.user.get("auth_email")
 
             if auth_user_id:
-                with ui.button(auth_email or "", icon="expand_more").props(
+                _user_tier = "Pro" if is_pro(auth_user_id) else "Free"
+                _tier_color = ACCENT if _user_tier == "Pro" else TEXT_DIM
+
+                with ui.button(f"{auth_email or ''}", icon="expand_more").props(
                     "flat dense no-caps size=sm color=none"
                 ).style(
                     f"border:1px solid {BORDER_INPUT}; border-radius:6px; padding:0 10px;"
                     f" height:28px; color:{TEXT_MUTED} !important; font-size:11px;"
-                    f" max-width:180px; overflow:hidden; text-overflow:ellipsis;"
+                    f" max-width:200px; overflow:hidden; text-overflow:ellipsis;"
                 ):
                     with ui.menu().style(
                         f"background:{BG_CARD}; border:1px solid rgba(255,255,255,0.12);"
                         f" border-radius:10px; min-width:220px;"
                     ):
-                        # Email alerts toggle
+                        # Tier badge
+                        with ui.menu_item().style("padding:6px 14px;"):
+                            ui.label(_user_tier).style(
+                                f"font-size:11px; font-weight:600; color:{_tier_color};"
+                                f" background:rgba(59,130,246,0.1); border-radius:4px; padding:2px 8px;"
+                            )
+
+                        ui.separator().style("margin:4px 14px; opacity:0.15;")
+
+                        # Email alerts toggle (Pro only)
                         with ui.menu_item().style("padding:10px 14px;"):
                             with ui.row().classes("items-center gap-3 no-wrap w-full"):
                                 ui.label("Email alerts").style(
                                     f"font-size:13px; color:{TEXT_PRIMARY}; font-weight:500;"
                                 )
-                                alert_pref = app.storage.user.get("_email_alerts_cached")
-                                alert_switch = ui.switch(value=bool(alert_pref)).props("dense")
+                                if is_pro(auth_user_id):
+                                    alert_pref = app.storage.user.get("_email_alerts_cached")
+                                    alert_switch = ui.switch(value=bool(alert_pref)).props("dense")
 
-                                async def _toggle_alerts(e):
-                                    await run.io_bound(db.set_email_alerts, auth_user_id, e.value)
-                                    app.storage.user["_email_alerts_cached"] = e.value
+                                    async def _toggle_alerts(e):
+                                        await run.io_bound(db.set_email_alerts, auth_user_id, e.value)
+                                        app.storage.user["_email_alerts_cached"] = e.value
 
-                                alert_switch.on_value_change(_toggle_alerts)
+                                    alert_switch.on_value_change(_toggle_alerts)
+                                else:
+                                    ui.label("Pro").style(
+                                        f"font-size:10px; color:{TEXT_DIM}; background:rgba(255,255,255,0.06);"
+                                        f" border-radius:3px; padding:1px 6px;"
+                                    )
+
+                        # Manage subscription (Pro with Stripe only)
+                        _fresh_user = db.get_user_by_id(auth_user_id) or {}
+                        _stripe_cust = _fresh_user.get("stripe_customer_id")
+                        if is_pro(auth_user_id) and _stripe_cust:
+                            async def _manage_sub():
+                                url = await run.io_bound(create_portal_session, _stripe_cust)
+                                ui.navigate.to(url, new_tab=False)
+
+                            with ui.menu_item(on_click=_manage_sub).style("padding:10px 14px;"):
+                                ui.label("Manage subscription").style(
+                                    f"font-size:13px; color:{TEXT_PRIMARY};"
+                                )
 
                         ui.separator().style("margin:4px 14px; opacity:0.15;")
 
@@ -708,6 +764,16 @@ function triggerSwipeHint() {
         async def _build_tab(name: str) -> None:
             """Build (or rebuild) a single tab's content."""
             container = _tab_containers[name]
+
+            # Feature gate — show paywall for locked tabs
+            auth_uid = app.storage.user.get("user_id")
+            if is_tab_locked(name) and not is_pro(auth_uid):
+                container.clear()
+                with container:
+                    render_locked_overlay(name, currency)
+                _tab_built[name] = True
+                return
+
             container.clear()
             with container:
                 spinner = ui.spinner('dots', size='xl').classes('self-center')
@@ -911,6 +977,120 @@ async def reset_page(token: str = ""):
         ui.label("Invalid reset link.").style(f"color:{TEXT_MUTED}; padding:40px;")
         return
     build_reset_complete_form(token)
+
+@ui.page("/pricing")
+async def pricing_page():
+    """Pricing page — Free vs Pro comparison."""
+    user_id = app.storage.user.get("user_id")
+    currency = "EUR"
+    if user_id:
+        stored = load_portfolio()
+        currency = stored.get("currency", "EUR")
+    build_pricing_page(user_id, currency)
+
+@app.post("/stripe/webhook")
+async def stripe_webhook(request: Request):
+    """Handle Stripe webhook events."""
+    import stripe
+    from starlette.responses import JSONResponse
+    payload = await request.body()
+    sig = request.headers.get("stripe-signature", "")
+    webhook_secret = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+
+    try:
+        event = stripe.Webhook.construct_event(payload, sig, webhook_secret)
+    except (ValueError, stripe.SignatureVerificationError):
+        return JSONResponse({"error": "Invalid signature"}, status_code=400)
+
+    if event["type"] == "checkout.session.completed":
+        session = event["data"]["object"]
+        user_id = session.get("client_reference_id")
+        customer_id = session.get("customer")
+        subscription_id = session.get("subscription")
+        if user_id:
+            from src.billing import handle_checkout_completed
+            await run.io_bound(handle_checkout_completed, user_id, customer_id, subscription_id)
+
+    elif event["type"] == "customer.subscription.deleted":
+        customer_id = event["data"]["object"].get("customer")
+        if customer_id:
+            from src.billing import handle_subscription_deleted
+            await run.io_bound(handle_subscription_deleted, customer_id)
+
+    return JSONResponse({"status": "ok"})
+
+@ui.page("/admin")
+async def admin_page():
+    """Admin dashboard — user management and subscription summary."""
+    auth_email = app.storage.user.get("auth_email")
+    if not is_admin(auth_email):
+        ui.label("Access denied.").style(f"color:{TEXT_MUTED}; padding:40px;")
+        return
+
+    users = await run.io_bound(db.get_all_users)
+
+    with ui.column().classes("w-full").style(f"background:{BG_MAIN}; min-height:100vh; padding:24px;"):
+        ui.label("Admin Dashboard").style(
+            f"font-size:22px; font-weight:700; color:{TEXT_PRIMARY}; margin-bottom:20px;"
+        )
+
+        # Summary cards
+        total = len(users)
+        pro_count = sum(1 for u in users if u.get("tier") == "pro")
+        free_count = total - pro_count
+        sub_count = sum(1 for u in users if u.get("stripe_subscription_id"))
+
+        with ui.row().classes("gap-4 flex-wrap").style("margin-bottom:24px;"):
+            for label, value in [("Total users", total), ("Pro", pro_count), ("Free", free_count), ("Subscriptions", sub_count)]:
+                with ui.card().style(
+                    f"background:{BG_CARD}; border:1px solid rgba(255,255,255,0.08);"
+                    f" border-radius:10px; padding:16px 24px; min-width:120px;"
+                ):
+                    ui.label(str(value)).style(f"font-size:28px; font-weight:700; color:{TEXT_PRIMARY};")
+                    ui.label(label).style(f"font-size:12px; color:{TEXT_DIM};")
+
+        # User table
+        columns = [
+            {"name": "email", "label": "Email", "field": "email", "align": "left"},
+            {"name": "tier", "label": "Tier", "field": "tier", "align": "left"},
+            {"name": "created_at", "label": "Signed up", "field": "created_at", "align": "left"},
+            {"name": "stripe_customer_id", "label": "Stripe", "field": "stripe_customer_id", "align": "left"},
+        ]
+        rows = [
+            {
+                "id": u["id"],
+                "email": u["email"],
+                "tier": u.get("tier", "free"),
+                "created_at": (u.get("created_at") or "")[:10],
+                "stripe_customer_id": u.get("stripe_customer_id") or "",
+            }
+            for u in users
+        ]
+
+        table = ui.table(columns=columns, rows=rows, row_key="id").style(
+            f"background:{BG_CARD}; border-radius:10px; width:100%;"
+        ).props("flat bordered")
+
+        # Tier override
+        ui.label("Tier Override").style(
+            f"font-size:16px; font-weight:600; color:{TEXT_PRIMARY}; margin-top:24px; margin-bottom:8px;"
+        )
+        with ui.row().classes("items-end gap-3"):
+            email_input = ui.input("User email").props("outlined dense").style("width:250px;")
+            tier_select = ui.select(["free", "pro"], value="pro").props("outlined dense").style("width:100px;")
+
+            async def _override_tier():
+                target = await run.io_bound(db.get_user_by_email, email_input.value.strip().lower())
+                if not target:
+                    ui.notify("User not found.", type="warning")
+                    return
+                await run.io_bound(db.set_tier, target["id"], tier_select.value)
+                ui.notify(f"Set {email_input.value} to {tier_select.value}.", type="positive")
+                ui.navigate.to("/admin")
+
+            ui.button("Apply", on_click=_override_tier).props("no-caps unelevated").style(
+                f"background:{ACCENT}; border-radius:6px;"
+            )
 
 # ── Run ────────────────────────────────────────────────────
 ui.run(
