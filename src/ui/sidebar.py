@@ -684,7 +684,7 @@ def build_sidebar(
         f" width:100%; justify-content:center;"
     )
 
-    with ui.column().classes("w-full").style("gap:6px;"):
+    with ui.column().classes("w-full sidebar-bottom-actions").style("gap:6px;"):
         ui.button(
             "Import Portfolio", icon="upload",
             on_click=lambda: ui.run_javascript(

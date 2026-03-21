@@ -393,17 +393,26 @@ body, .q-page, .nicegui-content {
 
 /* ── Responsive: Mobile (< 768px) ─────────────────────── */
 @media (max-width: 767px) {
-  /* Sidebar: fullscreen on mobile, compact layout */
+  /* Sidebar: fullscreen on mobile, scrollable content */
   .q-drawer { width: 100vw !important; max-width: 100vw !important; }
   .q-drawer .sidebar {
     padding: 12px 20px !important;
     padding-top: calc(8px + env(safe-area-inset-top, 0px)) !important;
   }
-  /* Tighten all vertical gaps in sidebar */
-  .q-drawer .sidebar .q-field { margin-bottom: 0 !important; }
-  .q-drawer .sidebar .q-column, .q-drawer .sidebar .column {
-    gap: 4px !important;
+  /* Sidebar bottom actions: sticky at bottom */
+  .q-drawer .sidebar .sidebar-bottom-actions {
+    position: sticky !important;
+    bottom: 0 !important;
+    background: #161719 !important;
+    padding-top: 8px !important;
+    margin: 0 -20px !important;
+    padding-left: 20px !important;
+    padding-right: 20px !important;
+    padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px)) !important;
+    z-index: 1;
   }
+  /* Tighten vertical gaps */
+  .q-drawer .sidebar .q-field { margin-bottom: 0 !important; }
   /* Sidebar buttons: touch-friendly but compact */
   .sidebar .q-btn, .sidebar .sidebar-btn {
     min-height: 40px !important;
