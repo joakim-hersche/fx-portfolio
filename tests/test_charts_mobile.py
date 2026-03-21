@@ -162,3 +162,17 @@ def test_price_history_desktop_still_has_hlines():
     shapes = fig.layout.shapes or []
     hlines = [s for s in shapes if hasattr(s, 'type') and s.type == 'line' and s.y0 == s.y1]
     assert len(hlines) >= 1
+
+
+def test_mobile_overrides_applied_to_inline_figure():
+    """Verify _mobile_overrides works on an inline-built figure (like contribution chart)."""
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=[1, 2, 3], y=[100, 200, 300], name="Value"))
+    fig.update_layout(
+        xaxis=dict(title="Date"),
+        yaxis=dict(title="Value (USD)"),
+    )
+    _mobile_overrides(fig)
+    assert fig.layout.dragmode is False
+    assert fig.layout.xaxis.title.text is None
+    assert fig.layout.yaxis.tickfont.size == 9

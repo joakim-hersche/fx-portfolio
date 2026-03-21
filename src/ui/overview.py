@@ -385,56 +385,105 @@ async def build_overview_tab(
         timeline = await run.io_bound(build_contribution_timeline, portfolio, currency)
         if timeline is not None and not timeline.empty:
             import plotly.graph_objects as go
+            from src.charts import _mobile_overrides
+
+            mobile = is_mobile()
+
             fig = go.Figure()
             fig.add_trace(go.Scatter(
                 x=timeline.index, y=timeline["Contributed"],
-                mode="lines", name="Contributed",
+                mode="lines", name="In" if mobile else "Contributed",
                 line=dict(color=TEXT_FAINT, width=1.5, dash="dot"),
                 fill="tozeroy",
                 fillcolor="rgba(132,148,167,0.08)",
             ))
             fig.add_trace(go.Scatter(
                 x=timeline.index, y=timeline["Portfolio Value"],
-                mode="lines", name="Portfolio Value",
+                mode="lines", name="Value" if mobile else "Portfolio Value",
                 line=dict(color=ACCENT, width=2),
                 fill="tonexty",
                 fillcolor="rgba(59,130,246,0.10)",
             ))
-            fig.update_layout(
-                template="plotly",
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(0,0,0,0)",
-                xaxis=dict(title="Date"),
-                yaxis=dict(tickprefix=currency_symbol, title=f"Value ({currency})"),
-                legend=dict(
-                    orientation="h", yanchor="bottom", y=1.02,
-                    xanchor="left", x=0,
-                    font=dict(size=10, color="#94A3B8"),
-                    bgcolor="rgba(0,0,0,0)",
-                ),
-                margin=dict(l=40, r=20, t=30, b=40),
-                hoverlabel=dict(
-                    bgcolor="#1C1D26", bordercolor="#1E293B",
-                    font=dict(color="#F1F5F9", size=11, family="Inter, sans-serif"),
-                    namelength=-1,
-                ),
-                modebar=dict(
-                    bgcolor="rgba(0,0,0,0)",
-                    color="#64748B",
-                    activecolor="#94A3B8",
-                ),
-            )
-            fig.update_xaxes(gridcolor="rgba(255,255,255,0.04)", tickfont=dict(color="#CBD5E1", size=10), title_font=dict(color="#CBD5E1", size=11))
-            fig.update_yaxes(gridcolor="rgba(255,255,255,0.04)", tickfont=dict(color="#CBD5E1", size=10), title_font=dict(color="#CBD5E1", size=11))
+
+            if mobile:
+                fig.update_layout(
+                    template="plotly",
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    legend=dict(
+                        orientation="h", yanchor="bottom", y=1.02,
+                        xanchor="left", x=0,
+                        font=dict(size=9, color="#94A3B8"),
+                        bgcolor="rgba(0,0,0,0)",
+                    ),
+                    margin=dict(l=45, r=10, t=10, b=30),
+                )
+                fig.update_xaxes(
+                    tickformat="%b '%y",
+                    gridcolor="rgba(255,255,255,0.04)",
+                )
+                fig.update_yaxes(
+                    tickprefix=currency_symbol,
+                    tickformat="~s",
+                    gridcolor="rgba(255,255,255,0.04)",
+                )
+                _mobile_overrides(fig)
+            else:
+                fig.update_layout(
+                    template="plotly",
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    xaxis=dict(title="Date"),
+                    yaxis=dict(tickprefix=currency_symbol, title=f"Value ({currency})"),
+                    legend=dict(
+                        orientation="h", yanchor="bottom", y=1.02,
+                        xanchor="left", x=0,
+                        font=dict(size=10, color="#94A3B8"),
+                        bgcolor="rgba(0,0,0,0)",
+                    ),
+                    margin=dict(l=40, r=20, t=30, b=40),
+                    hoverlabel=dict(
+                        bgcolor="#1C1D26", bordercolor="#1E293B",
+                        font=dict(color="#F1F5F9", size=11, family="Inter, sans-serif"),
+                        namelength=-1,
+                    ),
+                    modebar=dict(
+                        bgcolor="rgba(0,0,0,0)",
+                        color="#64748B",
+                        activecolor="#94A3B8",
+                    ),
+                )
+                fig.update_xaxes(gridcolor="rgba(255,255,255,0.04)", tickfont=dict(color="#CBD5E1", size=10), title_font=dict(color="#CBD5E1", size=11))
+                fig.update_yaxes(gridcolor="rgba(255,255,255,0.04)", tickfont=dict(color="#CBD5E1", size=10), title_font=dict(color="#CBD5E1", size=11))
+
             with ui.column().classes("chart-card w-full").style("min-width:0;"):
                 ui.html('<div class="chart-title">Contributions vs. Portfolio Value</div>')
-                ui.html(
-                    f'<p style="font-size:11px;color:{TEXT_DIM};margin:0 0 6px 0;line-height:1.5;">'
-                    "The blue line is what you put in (total money invested). "
-                    "The green line is what it's worth now. "
-                    "The gap between them is your real investment gain or loss."
-                    "</p>"
-                )
+
+                if mobile:
+                    # Inline gain summary instead of paragraph
+                    contributed = timeline["Contributed"].iloc[-1]
+                    value = timeline["Portfolio Value"].iloc[-1]
+                    delta = value - contributed
+                    delta_pct = (delta / contributed * 100) if contributed > 0 else 0
+                    delta_color = "#16A34A" if delta >= 0 else "#DC2626"
+                    sign = "+" if delta >= 0 else ""
+                    if abs(delta) >= 1000:
+                        delta_str = f"{sign}{currency_symbol}{delta/1000:,.1f}K"
+                    else:
+                        delta_str = f"{sign}{currency_symbol}{delta:,.0f}"
+                    ui.html(
+                        f'<div style="font-size:11px;color:{delta_color};font-weight:600;margin-bottom:4px;">'
+                        f'{delta_str} ({sign}{delta_pct:.1f}%)'
+                        f'</div>'
+                    )
+                else:
+                    ui.html(
+                        f'<p style="font-size:11px;color:{TEXT_DIM};margin:0 0 6px 0;line-height:1.5;">'
+                        "The blue line is what you put in (total money invested). "
+                        "The green line is what it's worth now. "
+                        "The gap between them is your real investment gain or loss."
+                        "</p>"
+                    )
                 ui.plotly(fig).classes("w-full")
 
     await _build_contribution_chart()
