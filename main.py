@@ -244,6 +244,47 @@ async def index(request: Request):
     }, 3000);
   }
 })();
+
+// Swipe hint: peek first position row on first sidebar open
+function triggerSwipeHint() {
+  if (localStorage.getItem('sidebar_swipe_hint')) return;
+  localStorage.setItem('sidebar_swipe_hint', '1');
+  setTimeout(function() {
+    var firstSlide = document.querySelector('.mobile-only .q-slide-item .q-slide-item__content');
+    if (!firstSlide) return;
+    firstSlide.style.transition = 'transform 0.4s ease-out';
+    firstSlide.style.transform = 'translateX(-40px)';
+    setTimeout(function() {
+      firstSlide.style.transition = 'transform 0.6s ease-in-out';
+      firstSlide.style.transform = 'translateX(0)';
+    }, 1500);
+  }, 500);
+}
+
+// Watch for sidebar open to trigger hint
+(function() {
+  var hintObserver = new MutationObserver(function(muts) {
+    for (var i = 0; i < muts.length; i++) {
+      var target = muts[i].target;
+      if (target.classList && target.classList.contains('q-layout__drawer--left')
+          && !target.classList.contains('q-layout__drawer--mini')) {
+        // Check if drawer just became visible
+        var drawer = document.querySelector('.q-drawer--left');
+        if (drawer && getComputedStyle(drawer).visibility === 'visible') {
+          triggerSwipeHint();
+          break;
+        }
+      }
+    }
+  });
+  // Start observing after a delay to let the page render
+  setTimeout(function() {
+    var layout = document.querySelector('.q-layout');
+    if (layout) {
+      hintObserver.observe(layout, {attributes: true, subtree: true, attributeFilter: ['class']});
+    }
+  }, 2000);
+})();
 </script>""")
     ui.add_head_html(_PWA_HEAD)
 
