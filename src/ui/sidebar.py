@@ -375,7 +375,7 @@ def build_sidebar(
     date_input.on("keydown.enter", on_add_position)
 
     # ── Positions list ─────────────────────────────────────
-    positions_zone = ui.element("div").classes("sidebar-zone-positions")
+    positions_zone = ui.element("div").classes("sidebar-zone-positions w-full")
     with positions_zone:
         ui.html('<hr class="sidebar-divider" style="margin-top:4px;">')
         ui.html('<div class="sidebar-section-header">Positions</div>')
@@ -515,17 +515,17 @@ def build_sidebar(
                         ui.html(
                             f'<div style="display:flex;align-items:center;gap:8px;width:100%;'
                             f'background:{BG_PILL};border:1px solid {BORDER_SUBTLE};'
-                            f'border-radius:6px;padding:7px 8px 7px 10px;box-sizing:border-box;">'
-                            f'<div style="width:6px;height:6px;border-radius:50%;background:{color};flex-shrink:0;"></div>'
+                            f'border-radius:6px;padding:8px 10px;box-sizing:border-box;">'
+                            f'<div style="width:7px;height:7px;border-radius:50%;background:{color};flex-shrink:0;"></div>'
                             f'{warn_html}'
-                            f'<div style="flex:1;min-width:0;font-size:11px;font-weight:600;color:{TEXT_PRIMARY};'
+                            f'<div style="flex:1;min-width:0;font-size:12px;font-weight:600;color:{TEXT_PRIMARY};'
                             f'line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="{company_name}">'
                             f'{ticker} <span style="font-weight:400;color:{TEXT_DIM};">{value_text}</span></div>'
                             f'<div onclick="{edit_onclick}" '
-                            f'style="flex-shrink:0;cursor:pointer;color:{TEXT_MUTED};font-size:12px;line-height:1;'
+                            f'style="flex-shrink:0;cursor:pointer;color:{TEXT_MUTED};font-size:14px;line-height:1;'
                             f'padding:2px;" title="Edit {_t}">\u270e</div>'
                             f'<div onclick="document.getElementById(\'{bridge_id}\').dispatchEvent(new Event(\'remove_click\'))" '
-                            f'style="flex-shrink:0;cursor:pointer;color:{TEXT_MUTED};font-size:14px;line-height:1;'
+                            f'style="flex-shrink:0;cursor:pointer;color:{TEXT_MUTED};font-size:15px;line-height:1;'
                             f'padding:2px;" title="Remove {_t}">&times;</div>'
                             f'</div>'
                         ).classes("w-full not-phone")
@@ -742,8 +742,8 @@ def build_sidebar(
         dialog.open()
 
     _action_btn_style = (
-        f"border:1px solid {BORDER_SUBTLE}; border-radius:6px; padding:6px 0;"
-        f" color:{TEXT_MUTED} !important; font-size:11px; text-transform:none;"
+        f"border:1px solid {BORDER_SUBTLE}; border-radius:6px; padding:8px 0;"
+        f" color:{TEXT_MUTED} !important; font-size:12px; text-transform:none;"
         f" width:100%; justify-content:center;"
     )
 

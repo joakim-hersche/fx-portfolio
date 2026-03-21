@@ -2,7 +2,7 @@
 
 A real-time stock portfolio tracker with Monte Carlo simulations, multi-currency support, and risk analytics. Built for European investors. Self-hostable.
 
-[![Live Demo](https://img.shields.io/badge/Live_Demo-Try_it-green)](https://market-dashboard-currency-adjusted.fly.dev)
+[![Live Demo](https://img.shields.io/badge/Live_Demo-Try_it-green)](https://fxportfolio.app)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 
 ![Market Dashboard](Screenshots/dark/01_overview_hero.png)

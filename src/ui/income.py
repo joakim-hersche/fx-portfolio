@@ -147,7 +147,7 @@ async def build_income_tab(
 
     # ── KPI Cards ─────────────────────────────────────────
     ui.html(f"""
-        <div class="kpi-row">
+        <div class="kpi-row" style="grid-template-columns:1fr 1fr 1fr;">
             <div class="kpi-card">
                 <div class="kpi-label">Trailing 12M Income</div>
                 <div class="kpi-value">{_fmt_currency(trailing_12m, currency_symbol)}</div>

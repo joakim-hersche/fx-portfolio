@@ -47,7 +47,7 @@ async def build_overview_tab(
                         Sign in and add your portfolio on a desktop browser.
                         Your positions will sync automatically to this device.</div>
                     <div style="font-size:12px;color:{TEXT_FAINT};line-height:1.5;">
-                        Open <b style="color:{TEXT_PRIMARY};">market-dashboard-currency-adjusted.fly.dev</b>
+                        Open <b style="color:{TEXT_PRIMARY};">fxportfolio.app</b>
                         on your computer to get started.</div>
                 </div>
             ''')

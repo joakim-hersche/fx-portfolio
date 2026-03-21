@@ -1,6 +1,6 @@
 {
-  "name": "Market Dashboard",
-  "short_name": "Market",
+  "name": "FX Portfolio",
+  "short_name": "FX Portfolio",
   "description": "Track your stock portfolio in real time.",
   "start_url": "/",
   "display": "standalone",

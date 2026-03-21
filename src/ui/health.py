@@ -759,7 +759,7 @@ def _render_sector_breakdown(
             )
             for ticker, weight in sector_tickers.get(sector, []):
                 bar_width = (weight / max_ticker * 100) if max_ticker > 0 else 0
-                ticker_color = (color_map or {}).get(ticker, color)  # fallback to sector color
+                ticker_color = (portfolio_color_map or {}).get(ticker, color)  # fallback to sector color
                 rows_html += (
                     f'<div class="alloc-bar" style="display:flex;align-items:center;gap:8px;'
                     f'padding:1px 0 1px 20px;position:relative;">'

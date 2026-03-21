@@ -167,7 +167,7 @@ def build_alert_email(alerts: list) -> tuple[str, str]:
 
     html = (
         f'<div style="font-family:sans-serif; max-width:500px; margin:0 auto;">'
-        f'<h2 style="font-size:18px; margin-bottom:4px;">Market Dashboard — Portfolio Alerts</h2>'
+        f'<h2 style="font-size:18px; margin-bottom:4px;">FX Portfolio — Portfolio Alerts</h2>'
         f'<p style="color:#666; font-size:14px;">'
         f'{len(alerts)} new alert{"s" if len(alerts) != 1 else ""} detected for your portfolio:</p>'
         f'{"".join(cards)}'
@@ -187,7 +187,7 @@ def build_alert_email(alerts: list) -> tuple[str, str]:
 def _send_alert_email(to_email: str, subject: str, html: str) -> None:
     """Send an alert digest email via Resend."""
     api_key = os.environ.get("RESEND_API_KEY")
-    from_email = os.environ.get("FROM_EMAIL", "noreply@example.com")
+    from_email = os.environ.get("FROM_EMAIL", "noreply@fxportfolio.app")
     if not api_key:
         _log.warning("RESEND_API_KEY not set — skipping alert email to %s", to_email)
         return

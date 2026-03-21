@@ -1,1 +1,1 @@
-"""UI modules for the Market Dashboard."""
+"""UI modules for FX Portfolio."""

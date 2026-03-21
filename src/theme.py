@@ -128,6 +128,14 @@ body, .q-page, .nicegui-content {
   gap: 4px !important;
 }
 .sidebar .nicegui-content { padding: 0 !important; }
+/* Ensure all sidebar zones and their children stretch full width */
+.sidebar .sidebar-zone-top,
+.sidebar .sidebar-zone-mid,
+.sidebar .sidebar-zone-positions,
+.sidebar .sidebar-zone-top > *,
+.sidebar .sidebar-zone-mid > *,
+.sidebar .sidebar-zone-positions > * { width: 100%% !important; box-sizing: border-box !important; }
+.sidebar .nicegui-column { width: 100%% !important; }
 
 /* Add button Quasar override */
 .sidebar .add-btn.q-btn { min-height: 32px !important; padding: 8px 0 !important; }
