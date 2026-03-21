@@ -188,7 +188,7 @@ def _render_fundamentals(
                     f"font-size:10px;color:{TEXT_DIM};margin-top:2px;"
                 )
 
-    with ui.element("div").style(
+    with ui.element("div").classes("fundamentals-grid").style(
         "display:grid;grid-template-columns:repeat(3,1fr);gap:var(--grid-gap);width:100%;"
     ):
         # P/E
@@ -732,8 +732,9 @@ async def build_research_tab(
                         ticker, fund, extra_info, portfolio, currency
                     )
 
-            # Price chart
-            _render_price_chart(ticker, hist)
+            # Price chart (hidden on mobile)
+            with ui.element("div").classes("price-chart-section"):
+                _render_price_chart(ticker, hist)
 
             # Peer comparison
             await _render_peers(ticker, fund, stock_options, currency_symbol)
