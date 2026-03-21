@@ -41,6 +41,7 @@ from src.ui.forecast import build_forecast_tab
 from src.ui.income import build_income_tab
 from src.ui.positions import build_positions_tab
 from src.ui.health import build_health_tab
+from src.ui.research import build_research_tab
 from src.data_fetch import fetch_company_name, load_stock_options
 from src.fx import CURRENCY_SYMBOLS
 from src.portfolio import build_portfolio_df
@@ -118,7 +119,7 @@ def _get_market_status(currency: str = "USD") -> tuple[str, str, str]:
     return exchange, "Closed", RED
 
 
-_TAB_NAMES = ["Overview", "Positions", "Portfolio Health", "Income", "Forecast", "Guide"]
+_TAB_NAMES = ["Overview", "Positions", "Portfolio Health", "Income", "Forecast", "Research", "Guide"]
 
 
 def _tab_url(tab_name: str | None = None) -> str:
@@ -459,6 +460,8 @@ async def index(request: Request):
                         await build_income_tab(portfolio, currency, portfolio_color_map)
                     elif name == "Forecast":
                         await build_forecast_tab(portfolio, currency)
+                    elif name == "Research":
+                        await build_research_tab(portfolio, currency, stock_options)
                     elif name == "Guide":
                         build_guide_tab()
             finally:
