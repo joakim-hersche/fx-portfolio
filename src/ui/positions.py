@@ -18,6 +18,7 @@ from src.charts import (
     C_NEUTRAL,
     C_POSITIVE,
     build_price_history_chart,
+    is_mobile,
 )
 from src.data_fetch import fetch_company_name, fetch_fundamentals, fetch_price_history_long
 from src.fx import CURRENCY_SYMBOLS, get_fx_rate, get_ticker_currency
@@ -543,6 +544,8 @@ def _build_price_history(
             fx_rate = 1.0
         date_to = pd.Timestamp.today()
 
+        mobile = is_mobile()
+
         fig = build_price_history_chart(
             hist_converted,
             y_label,
@@ -554,9 +557,36 @@ def _build_price_history(
             effective_from,
             date_to,
             title=t,
+            mobile=mobile,
         )
 
         with chart_container:
+            # Buy-detail chips on mobile
+            if mobile and lots:
+                current_price = hist_converted["Close"].iloc[-1] if not hist_converted.empty else None
+                chips_html = '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">'
+                for i, lot in enumerate(lots):
+                    bp = lot["buy_price"]
+                    if fx_adjust:
+                        bp_display = round(bp * fx_rate, 2)
+                    else:
+                        bp_display = bp
+                    if current_price and bp_display > 0:
+                        gain_pct = (current_price - bp_display) / bp_display * 100
+                        gain_color = "#16A34A" if gain_pct >= 0 else "#DC2626"
+                        gain_str = f'<span style="color:{gain_color};">{gain_pct:+.0f}%</span>'
+                    else:
+                        gain_str = ""
+                    chips_html += (
+                        f'<div style="padding:4px 8px;background:rgba(217,119,6,0.1);'
+                        f'border:1px solid rgba(217,119,6,0.2);border-radius:4px;'
+                        f'font-size:9px;color:#FBBF24;">'
+                        f'Buy {i+1}: {currency_symbol}{bp_display:,.2f} {gain_str}'
+                        f'</div>'
+                    )
+                chips_html += '</div>'
+                ui.html(chips_html)
+
             ui.plotly(fig).classes("w-full")
 
     # Wire up reactive updates

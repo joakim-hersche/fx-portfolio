@@ -340,6 +340,7 @@ def build_price_history_chart(
     effective_from: pd.Timestamp,
     date_to,
     title: str | None = None,
+    mobile: bool = False,
 ) -> go.Figure:
     fig = px.line(x=hist.index, y=hist["Close"], color_discrete_sequence=[line_color])
     fig.update_traces(
@@ -352,23 +353,54 @@ def build_price_history_chart(
         xaxis_range=[str(pd.Timestamp(effective_from).date()), str(date_to)],
         showlegend=False,
     )
-    for i, lot in enumerate(lots):
-        if fx_adjusted:
-            buy_price_display = round(lot["buy_price"] * fx_rate, 2)
-            buy_label = f"Buy {i + 1}  {currency_symbol}{buy_price_display}"
-        else:
-            buy_price_display = lot["buy_price"]
-            buy_label = f"Buy {i + 1}  {buy_price_display}"
-        fig.add_hline(
-            y=buy_price_display,
-            line_dash="dash", line_color=C_AMBER,
-            annotation_text=buy_label, annotation_position="top left",
-        )
-        if lot["purchase_date"]:
-            fig.add_vline(
-                x=str(pd.Timestamp(lot["purchase_date"]).date()),
-                line_dash="dash", line_color="gray",
+
+    if mobile:
+        buy_x, buy_y = [], []
+        for lot in lots:
+            if lot.get("purchase_date"):
+                buy_date = pd.Timestamp(lot["purchase_date"])
+                if buy_date in hist.index:
+                    buy_y.append(hist.loc[buy_date, "Close"])
+                    buy_x.append(buy_date)
+                else:
+                    nearest_idx = hist.index.get_indexer([buy_date], method="nearest")[0]
+                    if 0 <= nearest_idx < len(hist):
+                        buy_y.append(hist.iloc[nearest_idx]["Close"])
+                        buy_x.append(hist.index[nearest_idx])
+
+        if buy_x:
+            fig.add_trace(go.Scatter(
+                x=buy_x, y=buy_y,
+                mode="markers",
+                marker=dict(size=8, color="#D97706", line=dict(width=1.5, color="#111318")),
+                name="Buy",
+                showlegend=False,
+                hovertemplate=f"<b>Buy</b><br>%{{x|%b %d, %Y}}<br>{currency_symbol}%{{y:,.2f}}<extra></extra>",
+            ))
+
+        fig.update_layout(margin=dict(l=40, r=10, t=10, b=30))
+        fig.update_xaxes(nticks=5, tickformat="%b")
+        fig.update_yaxes(nticks=4)
+        _mobile_overrides(fig)
+    else:
+        for i, lot in enumerate(lots):
+            if fx_adjusted:
+                buy_price_display = round(lot["buy_price"] * fx_rate, 2)
+                buy_label = f"Buy {i + 1}  {currency_symbol}{buy_price_display}"
+            else:
+                buy_price_display = lot["buy_price"]
+                buy_label = f"Buy {i + 1}  {buy_price_display}"
+            fig.add_hline(
+                y=buy_price_display,
+                line_dash="dash", line_color=C_AMBER,
+                annotation_text=buy_label, annotation_position="top left",
             )
+            if lot["purchase_date"]:
+                fig.add_vline(
+                    x=str(pd.Timestamp(lot["purchase_date"]).date()),
+                    line_dash="dash", line_color="gray",
+                )
+
     if title:
         fig.update_layout(
             title=dict(text=title, font=dict(size=12, color="#94A3B8"), x=0, y=0.98),
