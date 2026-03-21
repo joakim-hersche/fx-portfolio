@@ -393,43 +393,95 @@ body, .q-page, .nicegui-content {
 
 /* ── Responsive: Mobile (< 768px) ─────────────────────── */
 @media (max-width: 767px) {
-  /* Sidebar: fullscreen on mobile, scrollable content */
+  /* ── Mobile sidebar: three-zone flex layout ── */
   .q-drawer { width: 100vw !important; max-width: 100vw !important; }
+  .q-drawer__content {
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+  }
   .q-drawer .sidebar {
-    padding: 12px 20px !important;
-    padding-top: calc(8px + env(safe-area-inset-top, 0px)) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 !important;
+    overflow: hidden !important;
+    min-height: 0 !important;
+    padding: 0 !important;
   }
-  /* Sidebar bottom actions: sticky at bottom */
-  .q-drawer .sidebar .sidebar-bottom-actions {
-    position: sticky !important;
-    bottom: 0 !important;
-    background: #161719 !important;
-    padding-top: 8px !important;
-    margin: 0 -20px !important;
-    padding-left: 20px !important;
-    padding-right: 20px !important;
-    padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px)) !important;
-    z-index: 1;
+
+  /* Zone 1: Fixed top — title + close + search */
+  .sidebar-zone-top {
+    flex-shrink: 0;
+    padding: 12px 20px 8px;
+    padding-top: calc(12px + env(safe-area-inset-top, 0px));
+    border-bottom: 1px solid rgba(255,255,255,0.06);
   }
-  /* Tighten vertical gaps */
-  .q-drawer .sidebar .q-field { margin-bottom: 0 !important; }
-  /* Sidebar buttons: touch-friendly but compact */
-  .sidebar .q-btn, .sidebar .sidebar-btn {
-    min-height: 40px !important;
-    font-size: 13px !important;
+
+  /* Zone 2: Scrollable middle — positions */
+  .sidebar-zone-positions {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    min-height: 0;
+    padding: 8px 0;
   }
-  /* Ensure mobile-only elements inside sidebar render */
+
+  /* Zone 3: Pinned bottom — actions + currency */
+  .sidebar-zone-bottom {
+    flex-shrink: 0;
+    border-top: 1px solid rgba(255,255,255,0.08);
+    background: #161719;
+    padding: 12px 20px;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Mobile position rows */
+  .mobile-position-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+  }
+
+  /* QSlideItem overrides for dark theme */
+  .q-slide-item { background: transparent !important; }
+  .q-slide-item__left { background: #2563EB !important; }
+  .q-slide-item__right { background: #DC2626 !important; }
+
+  /* Action button grid */
+  .sidebar-action-grid {
+    display: flex !important;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .sidebar-action-grid .q-btn {
+    flex: 1 !important;
+    flex-direction: column !important;
+    gap: 2px !important;
+    padding: 10px 4px !important;
+    min-height: 56px !important;
+    font-size: 11px !important;
+    border: 1px solid rgba(255,255,255,0.06) !important;
+    border-radius: 8px !important;
+  }
+  .sidebar-action-grid .q-btn .q-icon { font-size: 18px !important; }
+
+  /* Ensure mobile-only elements render inside drawer */
   .q-drawer .mobile-only { display: block !important; visibility: visible !important; }
-  /* Mobile currency selector: fill width */
-  .q-drawer .mobile-only .sidebar-currency-pills {
+  .q-drawer .desktop-only { display: none !important; }
+
+  /* Mobile currency pills: fill width */
+  .sidebar-currency-pills {
     display: flex !important;
     width: 100%% !important;
   }
-  .q-drawer .mobile-only .sidebar-currency-pills .q-btn {
+  .sidebar-currency-pills .q-btn {
     flex: 1 !important;
     min-width: 0 !important;
     padding: 8px 4px !important;
     font-size: 13px !important;
+    min-height: 36px !important;
   }
 
   /* KPI cards: single column */
