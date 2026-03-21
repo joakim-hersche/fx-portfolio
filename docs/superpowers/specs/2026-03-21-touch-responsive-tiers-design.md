@@ -36,6 +36,7 @@ Pure CSS detection using `pointer: coarse` (touch) vs `pointer: fine` (mouse/tra
 | `mobile-only` | Touch-small | Desktop, Touch-large |
 | `touch-only` | Touch-large + Touch-small | Desktop |
 | `touch-large-only` | Touch-large | Desktop, Touch-small |
+| `not-phone` | Desktop + Touch-large | Touch-small |
 
 ## CSS Structure
 
@@ -75,7 +76,7 @@ Both components are rendered; CSS controls visibility:
 - Position cards: `touch-only` class (visible on all touch devices)
 
 If testing shows tables work better on iPad:
-- Position table gets `desktop-only touch-large-only` → visible on desktop + iPad
+- Position table gets `not-phone` → visible on desktop + iPad
 - Position cards get `mobile-only` → visible on phones only
 
 ### Other mobile-only / desktop-only usage
@@ -92,9 +93,16 @@ If testing shows tables work better on iPad:
 - Not full-screen (unlike phone)
 - Closes on backdrop tap or close button
 
+## Edge Cases
+
+- **Dual-input devices** (e.g., Surface Pro with keyboard): these report `pointer: coarse` in some browsers and would get the touch UI. This is acceptable — the target devices are MacBooks and iPads. If needed later, `@media (hover: hover) and (pointer: fine)` can disambiguate.
+- **Browsers without `pointer` support**: fall through to default desktop styles. Acceptable fallback.
+- **Dual rendering**: both table and card components are rendered server-side and toggled via CSS. Acceptable for a personal dashboard with limited position counts.
+
 ## Testing
 
 - Use Chrome DevTools device emulation to test iPad (pointer: coarse + 1024x768)
+- Test on a real iPad to verify safe-area-inset, drawer touch handling, and viewport behavior
 - Test both portrait and landscape orientations
 - Verify sidebar partial-width overlay on iPad
 - Verify full-width overlay on phone
