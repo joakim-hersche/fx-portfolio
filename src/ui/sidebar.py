@@ -28,7 +28,7 @@ _SAMPLE_PATH = os.path.join(
 # ── Market names list (matches load_stock_options keys) ──
 _MARKETS = [
     "US — S&P 500", "UK — FTSE 100", "Germany — DAX", "France — CAC 40",
-    "Switzerland — SMI", "Netherlands — AEX", "Spain — IBEX 35",
+    "Switzerland — SMI", "Switzerland — SMIM", "Netherlands — AEX", "Spain — IBEX 35",
     "Sweden — OMX 30",
     "ETFs", "REITs", "Bonds", "Emerging Markets", "Crypto", "Commodities",
 ]

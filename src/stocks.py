@@ -62,6 +62,37 @@ def get_smi_stocks():
         suffix=""
     )
 
+_SMIM_FALLBACK = {
+    "BAER.SW": "Julius Baer (BAER.SW)",
+    "SREN.SW": "Swiss Re (SREN.SW)",
+    "SCMN.SW": "Swisscom (SCMN.SW)",
+    "GEBN.SW": "Geberit (GEBN.SW)",
+    "SGSN.SW": "SGS (SGSN.SW)",
+    "TEMN.SW": "Temenos (TEMN.SW)",
+    "PGHN.SW": "Partners Group (PGHN.SW)",
+    "BARN.SW": "Barry Callebaut (BARN.SW)",
+    "STMN.SW": "Straumann (STMN.SW)",
+    "VACN.SW": "VAT Group (VACN.SW)",
+    "SOON.SW": "Sonova (SOON.SW)",
+    "SANN.SW": "Sandoz (SANN.SW)",
+    "BEAN.SW": "Belimo (BEAN.SW)",
+    "SIGN.SW": "SIG Group (SIGN.SW)",
+    "KNIN.SW": "Kuehne+Nagel (KNIN.SW)",
+    "DKSH.SW": "DKSH (DKSH.SW)",
+    "SFZN.SW": "Siegfried (SFZN.SW)",
+    "LISP.SW": "Chocoladefabriken Lindt (LISP.SW)",
+    "BANB.SW": "Bachem (BANB.SW)",
+}
+
+def get_smim_stocks():
+    result = fetch_wikipedia_table(
+        url="https://en.wikipedia.org/wiki/Swiss_Market_Index_Mid",
+        ticker_col="Ticker",
+        name_col="Company",
+        suffix=""
+    )
+    return result if result else _SMIM_FALLBACK
+
 def get_aex_stocks():
     return fetch_wikipedia_table(
         url="https://en.wikipedia.org/wiki/AEX_index",

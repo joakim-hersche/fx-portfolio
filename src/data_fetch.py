@@ -34,7 +34,7 @@ from src.fx import get_ticker_currency, CURRENCY_SYMBOLS
 from src.monte_carlo import run_monte_carlo_backtest, run_monte_carlo_portfolio, run_monte_carlo_ticker
 from src.stocks import (
     get_sp500_stocks, get_ftse100_stocks, get_dax_stocks,
-    get_cac40_stocks, get_smi_stocks, get_aex_stocks,
+    get_cac40_stocks, get_smi_stocks, get_smim_stocks, get_aex_stocks,
     get_ibex_stocks, get_omx30_stocks, get_etfs, get_crypto,
     get_commodities, get_reits, get_bonds, get_emerging_markets,
 )
@@ -320,6 +320,7 @@ def load_stock_options() -> dict:
         ("Germany — DAX",      get_dax_stocks),
         ("France — CAC 40",    get_cac40_stocks),
         ("Switzerland — SMI",  get_smi_stocks),
+        ("Switzerland — SMIM", get_smim_stocks),
         ("Netherlands — AEX",  get_aex_stocks),
         ("Spain — IBEX 35",    get_ibex_stocks),
         ("Sweden — OMX 30",    get_omx30_stocks),
