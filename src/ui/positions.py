@@ -320,7 +320,7 @@ def _build_positions_table(
         body_rows.append(total_row)
 
         tbody = f"<tbody>{''.join(body_rows)}</tbody>"
-        html = f'<div class="not-phone" style="overflow-x:auto;"><div class="table-wrap"><table>{header}{tbody}</table></div></div>'
+        html = f'<div class="not-phone" style="overflow-x:auto;"><div class="table-wrap"><table class="wide-table">{header}{tbody}</table></div></div>'
 
         with table_container:
             ui.html(html)

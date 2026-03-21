@@ -504,7 +504,7 @@ def _render_flat_table(
 
         ui.html(f'''
         <div class="table-wrap" style="overflow-x:auto;">
-        <table style="min-width:1200px;border-collapse:separate;border-spacing:0;">
+        <table class="wide-table" style="min-width:1200px;border-collapse:separate;border-spacing:0;">
             <thead>
               <tr>
                 <th rowspan="2">Ticker</th>
