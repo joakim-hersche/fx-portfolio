@@ -52,7 +52,7 @@ from src.ui.sidebar import build_sidebar
 from src.theme import (
     ACCENT, BG_CARD, BG_INPUT, BG_MAIN, BG_SIDEBAR, BG_TOPBAR,
     BORDER, BORDER_INPUT, BORDER_SUBTLE, GLOBAL_CSS,
-    GREEN, AMBER, RED, TEXT_FAINT,
+    GREEN, RED, TEXT_FAINT,
     TEXT_DIM, TEXT_MUTED, TEXT_PRIMARY,
 )
 
@@ -83,115 +83,39 @@ _PWA_HEAD = """
 """
 
 
-def _get_market_status() -> tuple[str, str]:
-    """Return (label, color) for current NYSE market status.
+_EXCHANGE_MAP = {
+    "USD": ("NYSE", "America/New_York", (9, 30), (16, 0)),
+    "CHF": ("SIX", "Europe/Zurich", (9, 0), (17, 30)),
+    "EUR": ("XETRA", "Europe/Berlin", (9, 0), (17, 30)),
+    "GBP": ("LSE", "Europe/London", (8, 0), (16, 30)),
+    "SEK": ("OMX", "Europe/Stockholm", (9, 0), (17, 30)),
+}
 
-    Uses pure timezone calculation with rule-based US holidays.
+
+def _get_market_status(currency: str = "USD") -> tuple[str, str, str]:
+    """Return (exchange_name, label, color) for the local market.
+
+    Uses timezone-based business hours check. Does not track per-exchange
+    holidays — shows 'Open' on national holidays if they fall on a weekday.
     """
     from zoneinfo import ZoneInfo
 
-    et = datetime.datetime.now(ZoneInfo("America/New_York"))
-    weekday = et.weekday()  # 0=Mon, 6=Sun
-    hour, minute = et.hour, et.minute
-    t = hour * 60 + minute  # minutes since midnight
+    exchange, tz_name, (open_h, open_m), (close_h, close_m) = _EXCHANGE_MAP.get(
+        currency, _EXCHANGE_MAP["USD"]
+    )
+    now = datetime.datetime.now(ZoneInfo(tz_name))
+    weekday = now.weekday()
+    t = now.hour * 60 + now.minute
 
-    # Rule-based US market holidays
-    year = et.year
-    holidays: set[tuple[int, int]] = set()
+    if weekday >= 5:
+        return exchange, "Closed", RED
 
-    # New Year's Day — Jan 1 (if Sunday, observed Monday)
-    d = datetime.date(year, 1, 1)
-    if d.weekday() == 6:
-        holidays.add((1, 2))
-    else:
-        holidays.add((1, 1))
+    open_t = open_h * 60 + open_m
+    close_t = close_h * 60 + close_m
 
-    # MLK Day — 3rd Monday of January
-    jan1 = datetime.date(year, 1, 1)
-    first_mon = jan1 + datetime.timedelta(days=(7 - jan1.weekday()) % 7)
-    mlk = first_mon + datetime.timedelta(weeks=2)
-    holidays.add((mlk.month, mlk.day))
-
-    # Presidents' Day — 3rd Monday of February
-    feb1 = datetime.date(year, 2, 1)
-    first_mon = feb1 + datetime.timedelta(days=(7 - feb1.weekday()) % 7)
-    pres = first_mon + datetime.timedelta(weeks=2)
-    holidays.add((pres.month, pres.day))
-
-    # Good Friday — 2 days before Easter (anonymous algorithm)
-    a = year % 19
-    b, c = divmod(year, 100)
-    d_v, e = divmod(b, 4)
-    f = (b + 8) // 25
-    g = (b - f + 1) // 3
-    h = (19 * a + b - d_v - g + 15) % 30
-    i, k = divmod(c, 4)
-    l = (32 + 2 * e + 2 * i - h - k) % 7
-    m = (a + 11 * h + 22 * l) // 451
-    month_e = (h + l - 7 * m + 114) // 31
-    day_e = ((h + l - 7 * m + 114) % 31) + 1
-    easter = datetime.date(year, month_e, day_e)
-    good_friday = easter - datetime.timedelta(days=2)
-    holidays.add((good_friday.month, good_friday.day))
-
-    # Memorial Day — last Monday of May
-    may31 = datetime.date(year, 5, 31)
-    memorial = may31 - datetime.timedelta(days=(may31.weekday()) % 7)
-    holidays.add((memorial.month, memorial.day))
-
-    # Juneteenth — June 19 (observed)
-    d = datetime.date(year, 6, 19)
-    if d.weekday() == 5:
-        holidays.add((6, 18))
-    elif d.weekday() == 6:
-        holidays.add((6, 20))
-    else:
-        holidays.add((6, 19))
-
-    # Independence Day — July 4 (observed)
-    d = datetime.date(year, 7, 4)
-    if d.weekday() == 5:
-        holidays.add((7, 3))
-    elif d.weekday() == 6:
-        holidays.add((7, 5))
-    else:
-        holidays.add((7, 4))
-
-    # Labor Day — 1st Monday of September
-    sep1 = datetime.date(year, 9, 1)
-    labor = sep1 + datetime.timedelta(days=(7 - sep1.weekday()) % 7)
-    holidays.add((labor.month, labor.day))
-
-    # Thanksgiving — 4th Thursday of November
-    nov1 = datetime.date(year, 11, 1)
-    first_thu = nov1 + datetime.timedelta(days=(3 - nov1.weekday()) % 7)
-    thanks = first_thu + datetime.timedelta(weeks=3)
-    holidays.add((thanks.month, thanks.day))
-
-    # Christmas — Dec 25 (observed)
-    d = datetime.date(year, 12, 25)
-    if d.weekday() == 5:
-        holidays.add((12, 24))
-    elif d.weekday() == 6:
-        holidays.add((12, 26))
-    else:
-        holidays.add((12, 25))
-
-    is_holiday = (et.month, et.day) in holidays
-
-    if weekday >= 5 or is_holiday:
-        return "Closed", RED
-
-    # Pre-market: 4:00-9:30 ET
-    if 240 <= t < 570:
-        return "Pre-market", AMBER
-    # Regular hours: 9:30-16:00 ET
-    if 570 <= t < 960:
-        return "Open", GREEN
-    # After hours: 16:00-20:00 ET
-    if 960 <= t < 1200:
-        return "After hours", AMBER
-    return "Closed", RED
+    if open_t <= t < close_t:
+        return exchange, "Open", GREEN
+    return exchange, "Closed", RED
 
 
 _TAB_NAMES = ["Overview", "Positions", "Risk & Analytics", "Income", "Forecast", "Guide"]
@@ -314,11 +238,11 @@ async def index(request: Request):
                 f"font-size:14px; font-weight:700; color:{TEXT_PRIMARY}; letter-spacing:0.02em;"
             )
             # Market status indicator
-            status_label, status_color = _get_market_status()
+            exchange_name, status_label, status_color = _get_market_status(currency)
             ui.html(
                 f'<div style="display:flex;align-items:center;gap:5px;margin-left:8px;">'
                 f'<div style="width:7px;height:7px;border-radius:50%;background:{status_color};"></div>'
-                f'<span style="font-size:10px;color:{TEXT_FAINT};font-weight:500;">NYSE {status_label}</span>'
+                f'<span style="font-size:10px;color:{TEXT_FAINT};font-weight:500;">{exchange_name} {status_label}</span>'
                 f'</div>'
             )
 
