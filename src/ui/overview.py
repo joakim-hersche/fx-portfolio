@@ -457,22 +457,30 @@ async def build_comparison(
                 results = list(ex.map(_fetch_one, portfolio))
             data = {t: series for t, series in results if series is not None}
 
-            # Fetch SPY benchmark if requested
-            spy_series = None
-            if show_bench:
+            # Fetch local market benchmark if requested
+            bench_series = None
+            _BENCH_MAP = {
+                "USD": ("SPY", "S&P 500"),
+                "CHF": ("^SSMI", "SMI"),
+                "EUR": ("^STOXX50E", "Euro Stoxx 50"),
+                "GBP": ("^FTSE", "FTSE 100"),
+                "SEK": ("^OMX", "OMX Stockholm 30"),
+            }
+            bench_ticker, bench_name = _BENCH_MAP.get(base_currency, ("SPY", "S&P 500"))
+            if show_bench and bench_ticker not in portfolio:
                 try:
                     period = selected_range if selected_range != "since" else "max"
-                    spy_hist = fetch_price_history_range("SPY", period)
-                    if selected_range == "since" and earliest_date and not spy_hist.empty:
-                        spy_hist = spy_hist[spy_hist.index >= pd.Timestamp(earliest_date)]
-                    if not spy_hist.empty:
-                        spy_series = spy_hist["Close"]
+                    bench_hist = fetch_price_history_range(bench_ticker, period)
+                    if selected_range == "since" and earliest_date and not bench_hist.empty:
+                        bench_hist = bench_hist[bench_hist.index >= pd.Timestamp(earliest_date)]
+                    if not bench_hist.empty:
+                        bench_series = bench_hist["Close"]
                 except Exception:
                     pass
 
-            return data, spy_series
+            return data, bench_series, bench_name
 
-        comparison_data, spy_series = await run.io_bound(_fetch_comparison_data)
+        comparison_data, bench_series, bench_name = await run.io_bound(_fetch_comparison_data)
 
         comparison_df = pd.DataFrame(comparison_data).dropna()
         if not comparison_df.empty:
@@ -484,15 +492,15 @@ async def build_comparison(
             title="Portfolio Comparison",
         )
 
-        # Add SPY benchmark overlay
-        if show_bench and spy_series is not None and not spy_series.empty:
-            spy_rebased = spy_series / spy_series.iloc[0] * 100
+        # Add local market benchmark overlay
+        if show_bench and bench_series is not None and not bench_series.empty:
+            bench_rebased = bench_series / bench_series.iloc[0] * 100
             import plotly.graph_objects as go
             fig.add_trace(go.Scatter(
-                x=spy_rebased.index, y=spy_rebased.values,
-                mode="lines", name="SPY",
-                line=dict(color="gray", width=1.5, dash="dash"),
-                hovertemplate="SPY: %{y:.1f}<extra></extra>",
+                x=bench_rebased.index, y=bench_rebased.values,
+                mode="lines", name=bench_name,
+                line=dict(color="#F59E0B", width=2),
+                hovertemplate=f"{bench_name}: %{{y:.1f}}<extra></extra>",
             ))
 
         if chart_height:
