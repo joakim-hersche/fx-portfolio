@@ -357,6 +357,37 @@ body, .q-page, .nicegui-content {
   .table-wrap table { min-width: 600px; }
 }
 
+/* ── Mobile utility classes ── */
+.mobile-only { display: none !important; }
+.desktop-only { display: block !important; }
+
+/* ── Bottom tab bar (base — hidden on desktop) ── */
+.mobile-tab-bar {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 2000;
+  background: #161719;
+  border-top: 1px solid rgba(255,255,255,0.07);
+  justify-content: space-around;
+  padding: 8px 0 env(safe-area-inset-bottom, 20px) 0;
+}
+.mobile-tab-bar .tab-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 48px;
+  gap: 3px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.mobile-tab-bar .tab-item svg { stroke: #64748B; }
+.mobile-tab-bar .tab-item .tab-label { font-size: 9px; color: #64748B; }
+.mobile-tab-bar .tab-item.active svg { stroke: #3B82F6; }
+.mobile-tab-bar .tab-item.active .tab-label { color: #3B82F6; font-weight: 600; }
+
 /* ── Responsive: Mobile (< 768px) ─────────────────────── */
 @media (max-width: 767px) {
   /* Sidebar: collapse via NiceGUI drawer breakpoint; reduce width when open */
@@ -421,6 +452,37 @@ body, .q-page, .nicegui-content {
     pointer-events: none;
     z-index: 1;
   }
+
+  /* Show mobile, hide desktop */
+  .mobile-only { display: block !important; }
+  .desktop-only { display: none !important; }
+
+  /* Bottom tab bar visible */
+  .mobile-tab-bar { display: flex !important; }
+
+  /* Hide top tab bar */
+  .tab-bar-wrapper { display: none !important; }
+
+  /* Body padding for fixed bottom bar */
+  .q-page, .nicegui-content { padding-bottom: 72px !important; }
+
+  /* Hide sections on mobile */
+  .rebalancer-section { display: none !important; }
+  .detailed-metrics-section { display: none !important; }
+  .price-chart-section { display: none !important; }
+
+  /* Positions card list */
+  .position-cards { display: flex !important; flex-direction: column; gap: 6px; }
+  .table-wrap { display: none !important; }
+
+  /* Research fundamentals 2-col */
+  .fundamentals-grid { grid-template-columns: 1fr 1fr !important; }
+
+  /* Research charts-row stack on mobile */
+  .charts-row { grid-template-columns: 1fr !important; }
+
+  /* Plotly modebar hidden on touch */
+  .modebar-container { display: none !important; }
 }
 
 /* ── Responsive: Small mobile (< 480px) ───────────────── */
