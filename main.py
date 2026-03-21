@@ -465,7 +465,7 @@ async def index(request: Request):
 
         # Mobile close button at top of sidebar
         with ui.element("div").classes("mobile-only").style(
-            "display:flex;justify-content:flex-end;margin:-8px -4px 8px 0;"
+            "display:flex;justify-content:flex-end;margin:-4px -4px 4px 0;"
         ):
             ui.button(
                 icon="close", on_click=lambda: sidebar_drawer.hide()
@@ -477,14 +477,14 @@ async def index(request: Request):
 
         # Mobile-only currency selector in sidebar
         with ui.element("div").classes("mobile-only").style(
-            f"margin-top:16px;padding-top:12px;border-top:1px solid {BORDER_SUBTLE};"
+            f"margin-top:12px;padding-top:10px;border-top:1px solid {BORDER_SUBTLE};"
         ):
             ui.html(
                 f'<div style="font-size:10px;font-weight:700;color:{TEXT_MUTED};'
                 f'letter-spacing:0.04em;text-transform:uppercase;margin-bottom:6px;">Currency</div>'
             )
-            sidebar_pill = ui.element("div").style(
-                f"display:flex;border:1px solid rgba(59,130,246,0.3);border-radius:8px;overflow:hidden;"
+            sidebar_pill = ui.element("div").classes("sidebar-currency-pills").style(
+                f"display:flex;width:100%;border:1px solid rgba(59,130,246,0.3);border-radius:8px;overflow:hidden;"
             )
             sidebar_ccy_btns: dict[str, ui.button] = {}
             with sidebar_pill:

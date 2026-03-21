@@ -359,7 +359,7 @@ body, .q-page, .nicegui-content {
 
 /* ── Mobile utility classes ── */
 .mobile-only { display: none !important; }
-.desktop-only { display: block !important; }
+.desktop-only { display: revert !important; }
 
 /* ── Bottom tab bar (base — hidden on desktop) ── */
 .mobile-tab-bar {
@@ -393,21 +393,35 @@ body, .q-page, .nicegui-content {
 
 /* ── Responsive: Mobile (< 768px) ─────────────────────── */
 @media (max-width: 767px) {
-  /* Sidebar: fullscreen on mobile with proper spacing */
+  /* Sidebar: fullscreen on mobile, compact layout */
   .q-drawer { width: 100vw !important; max-width: 100vw !important; }
   .q-drawer .sidebar {
-    padding: 16px 20px !important;
-    padding-top: calc(16px + env(safe-area-inset-top, 0px)) !important;
+    padding: 12px 20px !important;
+    padding-top: calc(8px + env(safe-area-inset-top, 0px)) !important;
   }
-  /* Sidebar buttons: touch-friendly sizing */
+  /* Tighten all vertical gaps in sidebar */
+  .q-drawer .sidebar .q-field { margin-bottom: 0 !important; }
+  .q-drawer .sidebar .q-column, .q-drawer .sidebar .column {
+    gap: 4px !important;
+  }
+  /* Sidebar buttons: touch-friendly but compact */
   .sidebar .q-btn, .sidebar .sidebar-btn {
-    min-height: 44px !important;
-    font-size: 14px !important;
+    min-height: 40px !important;
+    font-size: 13px !important;
   }
-  /* Sidebar section headers: readable */
-  .sidebar .sidebar-section-header { font-size: 12px !important; }
   /* Ensure mobile-only elements inside sidebar render */
   .q-drawer .mobile-only { display: block !important; visibility: visible !important; }
+  /* Mobile currency selector: fill width */
+  .q-drawer .mobile-only .sidebar-currency-pills {
+    display: flex !important;
+    width: 100%% !important;
+  }
+  .q-drawer .mobile-only .sidebar-currency-pills .q-btn {
+    flex: 1 !important;
+    min-width: 0 !important;
+    padding: 8px 4px !important;
+    font-size: 13px !important;
+  }
 
   /* KPI cards: single column */
   .kpi-row { flex-direction: column !important; gap: 8px !important; }
