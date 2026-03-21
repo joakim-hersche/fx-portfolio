@@ -38,14 +38,16 @@ FREE_POSITION_LIMIT = 10
 
 def is_pro(user_id: str | None) -> bool:
     """Check if a user has Pro access."""
-    if os.environ.get("TESTING_MODE", "").lower() == "true":
-        return True
-    if not user_id:
-        return False
-    user = db.get_user_by_id(user_id)
-    if not user:
-        return False
-    return user.get("tier") == "pro"
+    # TODO: re-enable paywall when pricing is ready
+    return True
+    # if os.environ.get("TESTING_MODE", "").lower() == "true":
+    #     return True
+    # if not user_id:
+    #     return False
+    # user = db.get_user_by_id(user_id)
+    # if not user:
+    #     return False
+    # return user.get("tier") == "pro"
 
 
 def is_tab_locked(tab_name: str) -> bool:

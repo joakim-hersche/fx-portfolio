@@ -1,4 +1,4 @@
-"""Market Dashboard — NiceGUI entry point.
+"""FX Portfolio — NiceGUI entry point.
 
 Replaces the Streamlit app.py with a reactive, WebSocket-driven UI that
 matches the approved design_proposal.html visual concept.
@@ -15,6 +15,7 @@ from nicegui import app, run, ui
 from nicegui.json import orjson_wrapper
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
+from starlette.responses import RedirectResponse
 
 # Patch NiceGUI's JSON serializer to handle pd.Timestamp (used in Plotly chart data)
 _original_converter = orjson_wrapper._orjson_converter
@@ -83,7 +84,7 @@ _PWA_HEAD = """
 <link rel="apple-touch-icon" sizes="180x180" href="/static/icon-180.png">
 <link rel="apple-touch-icon" sizes="192x192" href="/static/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Market-Dashboard">
+<meta name="apple-mobile-web-app-title" content="FX Portfolio">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#0F1117">
 """
@@ -244,7 +245,7 @@ async def index(request: Request):
       iconDiv.style.cssText = 'width:40px;height:40px;border-radius:10px;background:#111318;border:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;flex-shrink:0;';
       iconDiv.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>';
       var textDiv = document.createElement('div');
-      textDiv.innerHTML = '<div style="font-size:13px;font-weight:600;color:#F1F5F9;">Install Market Dashboard</div>' +
+      textDiv.innerHTML = '<div style="font-size:13px;font-weight:600;color:#F1F5F9;">Install FX Portfolio</div>' +
         '<div style="font-size:11px;color:#94A3B8;margin-top:2px;">' + instruction + '</div>';
       banner.appendChild(closeBtn);
       banner.appendChild(iconDiv);
@@ -394,7 +395,7 @@ function triggerSwipeHint() {
             ui.html(
                 f'<div style="width:8px;height:8px;border-radius:50%;background:{ACCENT};"></div>'
             )
-            ui.label("Market Dashboard").style(
+            ui.label("FX Portfolio").style(
                 f"font-size:14px; font-weight:700; color:{TEXT_PRIMARY}; letter-spacing:0.02em;"
             )
             # Market status indicator (refreshable so it updates on currency change)
@@ -451,7 +452,7 @@ function triggerSwipeHint() {
                 f"min-width:380px; max-width:480px; background:{BG_CARD}; border:1px solid rgba(255,255,255,0.12);"
                 f" border-radius:10px; padding:20px;"
             ):
-                ui.label("Market Dashboard").style(
+                ui.label("FX Portfolio").style(
                     f"font-size:16px; font-weight:700; color:{TEXT_PRIMARY}; margin-bottom:4px;"
                 )
                 ui.label("v2.0 — NiceGUI Edition").style(
@@ -676,9 +677,9 @@ function triggerSwipeHint() {
         _drawer_ref["drawer"] = sidebar_drawer
 
         # ── Zone 1: Fixed top (mobile) — title + close + search ──
-        zone_top = ui.element("div").classes("sidebar-zone-top touch-only")
+        zone_top = ui.element("div").classes("sidebar-zone-top w-full")
         with zone_top:
-            with ui.row().classes("w-full items-center justify-between").style("margin-bottom:10px;"):
+            with ui.row().classes("w-full items-center justify-between touch-only").style("margin-bottom:10px;"):
                 ui.label("Portfolio").style(
                     f"font-size:15px;font-weight:700;color:{TEXT_PRIMARY};"
                 )
@@ -690,7 +691,7 @@ function triggerSwipeHint() {
             # Search bar will be rendered here via search_container arg
 
         # ── Zone 2: Scrollable middle (visible on all devices, styled by media query) ──
-        zone_mid = ui.element("div").classes("sidebar-zone-mid")
+        zone_mid = ui.element("div").classes("sidebar-zone-mid w-full")
 
         # ── Zone 3: Pinned bottom (mobile) — actions + currency ──
         zone_bottom = ui.element("div").classes("sidebar-zone-bottom touch-only")
@@ -958,6 +959,19 @@ function triggerSwipeHint() {
             _mutation_ref["sidebar_refresh"]()
 
 
+# ── Domain redirect middleware ─────────────────────────────
+_CANONICAL_HOST = "fxportfolio.app"
+
+class _DomainRedirectMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        host = request.headers.get("host", "").split(":")[0]
+        if host.endswith(".fly.dev"):
+            url = request.url.replace(scheme="https", hostname=_CANONICAL_HOST, port=443)
+            return RedirectResponse(str(url), status_code=301)
+        return await call_next(request)
+
+app.add_middleware(_DomainRedirectMiddleware)
+
 # ── Security headers middleware ────────────────────────────
 class _SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
@@ -1061,7 +1075,7 @@ async def admin_page():
                 "id": u["id"],
                 "email": u["email"],
                 "tier": u.get("tier", "free"),
-                "created_at": (u.get("created_at") or "")[:10],
+                "created_at": str(u.get("created_at") or "")[:10],
                 "stripe_customer_id": u.get("stripe_customer_id") or "",
             }
             for u in users
@@ -1094,7 +1108,7 @@ async def admin_page():
 
 # ── Run ────────────────────────────────────────────────────
 ui.run(
-    title="Market Dashboard",
+    title="FX Portfolio",
     host=os.environ.get("HOST", "127.0.0.1"),
     port=int(os.environ.get("PORT", "8080")),
     dark=True,
