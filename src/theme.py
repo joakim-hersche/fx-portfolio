@@ -470,10 +470,6 @@ body, .q-page, .nicegui-content {
   }
   .sidebar-action-grid .q-btn .q-icon { font-size: 18px !important; }
 
-  /* Ensure mobile-only elements render inside drawer */
-  .q-drawer .mobile-only { display: block !important; visibility: visible !important; }
-  .q-drawer .desktop-only { display: none !important; }
-
   /* Mobile currency pills: fill width */
   .sidebar-currency-pills {
     display: flex !important;
@@ -503,79 +499,17 @@ body, .q-page, .nicegui-content {
   .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .table-wrap table { min-width: 600px; }
 
-  /* Tab panels: reduce padding */
-  .q-tab-panels, .q-tab-panel { padding: 12px !important; }
-
-  /* Tabs: scroll horizontally if many tabs */
-  .q-tabs { overflow-x: auto; }
-  .q-tab { font-size: 11px !important; min-width: auto !important; padding: 0 10px !important; }
-
-  /* Topbar: tighten + safe area for standalone PWA */
-  .q-header {
-    padding-left: 8px !important;
-    padding-right: 8px !important;
-    padding-top: env(safe-area-inset-top, 0px) !important;
-    min-height: calc(48px + env(safe-area-inset-top, 0px)) !important;
-  }
-
   /* Metric cards: stack */
   .metric-card { padding: 10px 12px; }
   .metric-value { font-size: 18px; }
-
-  /* Sidebar section headers */
-  .sidebar-section-header { font-size: 10px; }
 
   .metric-grid-4 { grid-template-columns: 1fr 1fr; }
   .metric-grid-3 { grid-template-columns: 1fr; }
   .preview-grid { grid-template-columns: 1fr; }
   .diag-row > * { min-width: 0; flex-basis: 100%%; }
 
-  .q-drawer__backdrop {
-    background: rgba(0, 0, 0, 0.5) !important;
-  }
-
-  /* Show mobile, hide desktop */
+  /* Show mobile */
   .mobile-only { display: block !important; }
-  .desktop-only { display: none !important; }
-
-  /* Bottom tab bar visible */
-  .mobile-tab-bar { display: flex !important; }
-
-  /* Hide top tab bar visually but keep clickable for JS switching */
-  .tab-bar-wrapper {
-    position: absolute !important;
-    opacity: 0 !important;
-    pointer-events: none !important;
-    height: 1px !important;
-    overflow: hidden !important;
-    z-index: -1 !important;
-  }
-  .tab-bar-wrapper::after { display: none !important; }
-
-  /* Body padding for fixed bottom bar (with safe area for iPhone) */
-  .q-page, .nicegui-content {
-    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px)) !important;
-  }
-
-  /* Header: show hamburger (bright, large touch target), hide desktop controls */
-  .hamburger-btn {
-    display: flex !important;
-    min-width: 44px !important;
-    min-height: 44px !important;
-    color: #F1F5F9 !important;
-    opacity: 1 !important;
-  }
-  .hamburger-btn .q-icon { font-size: 24px !important; }
-  .header-export-btn { display: none !important; }
-  .header-info-btn { display: none !important; }
-  .header-currency-pills { display: none !important; }
-
-  /* Disable sidebar edge-swipe; prevent closed drawer from blocking touches */
-  .q-drawer__backdrop { touch-action: none !important; }
-  .q-drawer--left { touch-action: none !important; }
-  .q-drawer-container { pointer-events: none !important; }
-  .q-drawer--opened { pointer-events: auto !important; }
-  .q-drawer__backdrop[style*="display: block"] { pointer-events: auto !important; }
 
   /* Health findings: stack vertically on mobile */
   .findings-row { flex-direction: column !important; }
@@ -601,19 +535,6 @@ body, .q-page, .nicegui-content {
 
   /* Research charts-row stack on mobile */
   .charts-row { grid-template-columns: 1fr !important; }
-
-  /* Plotly: hide modebar, make charts responsive */
-  .modebar-container { display: none !important; }
-  .js-plotly-plot, .plotly { width: 100%% !important; }
-  .js-plotly-plot .main-svg { width: 100%% !important; }
-
-  /* Prevent iOS zoom on input focus (must be >= 16px on mobile) */
-  input, select, textarea,
-  .q-field__native, .q-field__input, .q-select__input,
-  .q-header .q-field__native,
-  .sidebar .q-field__native, .sidebar .q-field__input {
-    font-size: 16px !important;
-  }
 
   /* Research search dropdown: full width on mobile */
   .q-menu { max-width: 100vw !important; left: 0 !important; right: 0 !important; }
@@ -659,14 +580,103 @@ body, .q-page, .nicegui-content {
   .table-wrap tbody td { padding: 7px 8px; }
 }
 
-/* ── Touch-friendly targets ───────────────────────────── */
+/* ── Shared touch tier (all touch devices) ────────────── */
 @media (pointer: coarse) {
+  /* Touch targets */
   .pill { padding: 6px 12px; font-size: 11px; }
   .add-btn { padding: 10px 0; font-size: 12px; }
   .sidebar-btn { padding: 10px 0; font-size: 12px; }
   .position-row { padding: 8px 6px; }
   .q-btn-toggle .q-btn { min-height: 44px !important; min-width: 44px !important; }
   .position-row .q-btn { opacity: 1 !important; min-width: 32px !important; min-height: 32px !important; }
+
+  /* Utility classes: show touch, hide desktop */
+  .touch-only { display: block !important; }
+  .desktop-only { display: none !important; }
+
+  /* Bottom tab bar visible */
+  .mobile-tab-bar { display: flex !important; }
+
+  /* Hide top tab bar */
+  .tab-bar-wrapper {
+    position: absolute !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    height: 1px !important;
+    overflow: hidden !important;
+    z-index: -1 !important;
+  }
+  .tab-bar-wrapper::after { display: none !important; }
+
+  /* Body padding for fixed bottom bar */
+  .q-page, .nicegui-content {
+    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  /* Header: show hamburger, hide desktop controls */
+  .hamburger-btn {
+    display: flex !important;
+    min-width: 44px !important;
+    min-height: 44px !important;
+    color: #F1F5F9 !important;
+    opacity: 1 !important;
+  }
+  .hamburger-btn .q-icon { font-size: 24px !important; }
+  .header-export-btn { display: none !important; }
+  .header-info-btn { display: none !important; }
+  .header-currency-pills { display: none !important; }
+
+  /* Topbar: safe area for standalone PWA */
+  .q-header {
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+    padding-top: env(safe-area-inset-top, 0px) !important;
+    min-height: calc(48px + env(safe-area-inset-top, 0px)) !important;
+  }
+
+  /* Disable sidebar edge-swipe; prevent closed drawer from blocking touches */
+  .q-drawer__backdrop { touch-action: none !important; }
+  .q-drawer--left { touch-action: none !important; }
+  .q-drawer-container { pointer-events: none !important; }
+  .q-drawer--opened { pointer-events: auto !important; }
+  .q-drawer__backdrop[style*="display: block"] { pointer-events: auto !important; }
+
+  /* Sidebar backdrop */
+  .q-drawer__backdrop {
+    background: rgba(0, 0, 0, 0.5) !important;
+  }
+
+  /* Tab panels: reduce padding */
+  .q-tab-panels, .q-tab-panel { padding: 12px !important; }
+
+  /* Tabs: scroll horizontally */
+  .q-tabs { overflow-x: auto; }
+  .q-tab { font-size: 11px !important; min-width: auto !important; padding: 0 10px !important; }
+
+  /* Sidebar buttons: touch-friendly */
+  .sidebar .q-btn, .sidebar .sidebar-btn {
+    min-height: 40px !important;
+    font-size: 13px !important;
+  }
+
+  /* Sidebar: ensure touch-only elements render */
+  .q-drawer .touch-only { display: block !important; visibility: visible !important; }
+
+  /* Plotly: hide modebar on touch */
+  .modebar-container { display: none !important; }
+  .js-plotly-plot, .plotly { width: 100%% !important; }
+  .js-plotly-plot .main-svg { width: 100%% !important; }
+
+  /* Prevent iOS zoom on input focus */
+  input, select, textarea,
+  .q-field__native, .q-field__input, .q-select__input,
+  .q-header .q-field__native,
+  .sidebar .q-field__native, .sidebar .q-field__input {
+    font-size: 16px !important;
+  }
+
+  /* Sidebar section headers */
+  .sidebar-section-header { font-size: 10px; }
 }
 
 /* ── Quasar notification dark theme overrides ─────────── */
