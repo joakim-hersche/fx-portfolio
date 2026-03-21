@@ -1004,29 +1004,28 @@ def _render_rebalancing_calculator(
             )
 
         # ── Column headers ──
+        # ── Column headers ──
         ui.html(
-            f'<div style="display:flex;align-items:center;gap:4px;padding:0 0 6px 16px;'
+            f'<div style="display:flex;align-items:center;padding:0 0 6px 16px;'
             f'border-bottom:1px solid {BORDER_SUBTLE};">'
-            f'<span style="width:64px;font-size:9px;font-weight:600;text-transform:uppercase;'
-            f'letter-spacing:0.08em;color:{TEXT_MUTED};flex-shrink:0;">Ticker</span>'
-            f'<span style="width:40px;font-size:9px;font-weight:600;text-transform:uppercase;'
-            f'letter-spacing:0.08em;color:{TEXT_MUTED};text-align:right;flex-shrink:0;">Now</span>'
-            f'<span style="width:12px;flex-shrink:0;"></span>'
-            f'<span style="width:56px;font-size:9px;font-weight:600;text-transform:uppercase;'
-            f'letter-spacing:0.08em;color:{TEXT_MUTED};flex-shrink:0;">Target</span>'
-            f'<span style="flex:1;font-size:9px;font-weight:600;text-transform:uppercase;'
-            f'letter-spacing:0.08em;color:{TEXT_MUTED};">Drift</span>'
+            f'<span style="width:64px;flex-shrink:0;font-size:9px;font-weight:600;'
+            f'text-transform:uppercase;letter-spacing:0.08em;color:{TEXT_MUTED};">Ticker</span>'
+            f'<span style="width:44px;flex-shrink:0;font-size:9px;font-weight:600;'
+            f'text-transform:uppercase;letter-spacing:0.08em;color:{TEXT_MUTED};text-align:right;">Now</span>'
+            f'<span style="width:14px;flex-shrink:0;"></span>'
+            f'<span style="width:64px;flex-shrink:0;font-size:9px;font-weight:600;'
+            f'text-transform:uppercase;letter-spacing:0.08em;color:{TEXT_MUTED};">Target</span>'
+            f'<span style="flex:1;font-size:9px;font-weight:600;'
+            f'text-transform:uppercase;letter-spacing:0.08em;color:{TEXT_MUTED};">Drift</span>'
             f'</div>'
         )
 
         # ── Sector-grouped rows ──
-        max_sector_total = max(sector_totals.values()) if sector_totals else 1
         for sector in sector_order:
             color = sector_color_map[sector]
             total = sector_totals.get(sector, 0)
-            bar_w = (total / max_sector_total * 100) if max_sector_total > 0 else 0
 
-            # Sector header — full name, no bar (keeps it compact)
+            # Sector header
             ui.html(
                 f'<div style="display:flex;align-items:center;gap:8px;'
                 f'padding:10px 0 4px 0;margin-top:4px;">'
@@ -1039,34 +1038,36 @@ def _render_rebalancing_calculator(
                 f'</div>'
             )
 
-            # Ticker rows within sector
+            # Ticker rows
             for ticker in sector_tickers_grouped.get(sector, []):
                 td_row = ticker_data[ticker_data["Ticker"] == ticker]
                 if td_row.empty:
                     continue
                 current_w = td_row.iloc[0]["Weight (%)"]
 
-                with ui.row().classes("w-full items-center").style(
-                    "gap:4px;padding:2px 0 2px 16px;"
+                with ui.row().classes("w-full items-center no-wrap").style(
+                    "padding:3px 0 3px 16px;gap:2px;"
                 ):
                     ui.html(
-                        f'<span style="width:64px;font-size:11px;color:{TEXT_DIM};'
-                        f'flex-shrink:0;overflow:hidden;text-overflow:ellipsis;'
+                        f'<span style="width:64px;flex-shrink:0;font-size:11px;color:{TEXT_DIM};'
+                        f'overflow:hidden;text-overflow:ellipsis;'
                         f'white-space:nowrap;">{ticker}</span>'
                     )
                     ui.html(
-                        f'<span style="width:40px;font-size:11px;color:{TEXT_DIM};'
-                        f'text-align:right;flex-shrink:0;">{current_w:.0f}%</span>'
+                        f'<span style="width:44px;flex-shrink:0;font-size:11px;color:{TEXT_DIM};'
+                        f'text-align:right;">{current_w:.0f}%</span>'
                     )
                     ui.html(
-                        f'<span style="width:12px;font-size:10px;color:{TEXT_DIM};'
-                        f'text-align:center;flex-shrink:0;">&rarr;</span>'
+                        f'<span style="width:14px;flex-shrink:0;font-size:10px;color:{TEXT_DIM};'
+                        f'text-align:center;">&rarr;</span>'
                     )
                     inp = ui.number(
                         value=round(current_w),
                         min=0, max=100, step=1, format="%.0f",
                         suffix="%",
-                    ).props("dense borderless").style(f"width:56px;{input_style}")
+                    ).props("dense outlined").style(
+                        "font-size:11px;width:64px;flex-shrink:0;"
+                    )
                     target_inputs[ticker] = inp
 
                     def _make_handler(t):
@@ -1076,12 +1077,11 @@ def _render_rebalancing_calculator(
                         return handler
                     inp.on_value_change(_make_handler(ticker))
 
-                    bar_containers[ticker] = ui.element("div").style(
-                        "flex:1;min-width:60px;display:flex;flex-direction:column;"
-                        "justify-content:center;gap:0;"
+                    bar_containers[ticker] = ui.column().classes("flex-grow").style(
+                        "gap:0;padding:0 0 0 8px;min-width:80px;"
                     )
 
-        footer_ref["ref"] = ui.column().classes("w-full").style("margin-top:2px;")
+        footer_ref["ref"] = ui.column().classes("w-full").style("margin-top:4px;")
         _recalculate()
 
 
