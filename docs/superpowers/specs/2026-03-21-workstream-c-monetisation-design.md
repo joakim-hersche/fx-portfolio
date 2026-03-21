@@ -227,6 +227,8 @@ Add tier badge next to email in the dropdown trigger button:
 - Free users: small "Free" label
 - Pro users: small "Pro" label (styled in accent color)
 
+For Pro users with an active Stripe subscription: add a "Manage subscription" menu item that opens a Stripe Customer Portal session (for plan changes, cancellation, payment method updates).
+
 ### Success State
 
 When user returns from Stripe checkout to `/?upgraded=1`:
@@ -293,7 +295,7 @@ No revenue numbers — use Stripe Dashboard for that.
 | `src/ui/paywall.py` | **New** — locked tab overlay component, pricing page |
 | `src/db.py` | Modify — tier/stripe columns migration, new query functions |
 | `main.py` | Modify — gate checks in tab builder, pricing route, webhook route, admin route, position limit, export gate |
-| `src/alert_job.py` | Modify — skip free users in `_run_all_checks` (or rely on existing email_alerts gate) |
+| `src/alert_job.py` | Unchanged — free users can't enable email_alerts, so they're naturally excluded |
 | `src/ui/sidebar.py` | Modify — position limit check on add |
 | `requirements.txt` | Modify — add `stripe` |
 | `tests/test_billing.py` | **New** — is_pro, tier management, webhook handling tests |
