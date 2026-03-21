@@ -1013,19 +1013,21 @@ def _render_rebalancing_calculator(
             )
 
         # ── Column headers ──
-        # ── Column headers ──
+        # ── Column headers (widths match the single-block ticker row) ──
+        _hdr = (
+            f"font-size:9px;font-weight:600;text-transform:uppercase;"
+            f"letter-spacing:0.08em;color:{TEXT_MUTED};"
+        )
         ui.html(
-            f'<div style="display:flex;align-items:center;padding:0 0 6px 16px;'
+            f'<div style="display:flex;align-items:center;padding:0 0 6px 16px;gap:4px;'
             f'border-bottom:1px solid {BORDER_SUBTLE};">'
-            f'<span style="width:64px;flex-shrink:0;font-size:9px;font-weight:600;'
-            f'text-transform:uppercase;letter-spacing:0.08em;color:{TEXT_MUTED};">Ticker</span>'
-            f'<span style="width:44px;flex-shrink:0;font-size:9px;font-weight:600;'
-            f'text-transform:uppercase;letter-spacing:0.08em;color:{TEXT_MUTED};text-align:right;">Now</span>'
-            f'<span style="width:14px;flex-shrink:0;"></span>'
-            f'<span style="width:64px;flex-shrink:0;font-size:9px;font-weight:600;'
-            f'text-transform:uppercase;letter-spacing:0.08em;color:{TEXT_MUTED};">Target</span>'
-            f'<span style="flex:1;font-size:9px;font-weight:600;'
-            f'text-transform:uppercase;letter-spacing:0.08em;color:{TEXT_MUTED};">Drift</span>'
+            f'<div style="display:flex;width:130px;flex-shrink:0;">'
+            f'<span style="flex:1;{_hdr}">Ticker</span>'
+            f'<span style="width:36px;flex-shrink:0;{_hdr}text-align:right;">Now</span>'
+            f'<span style="width:20px;flex-shrink:0;"></span>'
+            f'</div>'
+            f'<span style="width:64px;flex-shrink:0;{_hdr}">Target</span>'
+            f'<span style="flex:1;{_hdr}">Drift</span>'
             f'</div>'
         )
 
@@ -1055,20 +1057,19 @@ def _render_rebalancing_calculator(
                 current_w = td_row.iloc[0]["Weight (%)"]
 
                 with ui.row().classes("w-full items-center no-wrap").style(
-                    "padding:3px 0 3px 16px;gap:2px;"
+                    "padding:3px 0 3px 16px;gap:4px;"
                 ):
+                    # Single HTML block for ticker + now% + arrow = fixed 130px
                     ui.html(
-                        f'<span style="width:64px;flex-shrink:0;font-size:11px;color:{TEXT_DIM};'
+                        f'<div style="display:flex;align-items:center;width:130px;flex-shrink:0;">'
+                        f'<span style="flex:1;font-size:11px;color:{TEXT_DIM};'
                         f'overflow:hidden;text-overflow:ellipsis;'
                         f'white-space:nowrap;">{ticker}</span>'
-                    )
-                    ui.html(
-                        f'<span style="width:44px;flex-shrink:0;font-size:11px;color:{TEXT_DIM};'
+                        f'<span style="width:36px;flex-shrink:0;font-size:11px;color:{TEXT_DIM};'
                         f'text-align:right;">{current_w:.0f}%</span>'
-                    )
-                    ui.html(
-                        f'<span style="width:14px;flex-shrink:0;font-size:10px;color:{TEXT_DIM};'
+                        f'<span style="width:20px;flex-shrink:0;font-size:10px;color:{TEXT_DIM};'
                         f'text-align:center;">&rarr;</span>'
+                        f'</div>'
                     )
                     inp = ui.number(
                         value=round(current_w),
@@ -1087,7 +1088,7 @@ def _render_rebalancing_calculator(
                     inp.on_value_change(_make_handler(ticker))
 
                     with ui.element("div").style(
-                        "flex:1 1 auto;padding:0 0 0 8px;min-width:80px;"
+                        "flex:1 1 auto;padding:0 0 0 4px;min-width:80px;"
                     ):
                         bar_containers[ticker] = ui.element("div").classes("w-full")
 
