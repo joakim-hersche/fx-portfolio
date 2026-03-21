@@ -15,6 +15,21 @@ logger = logging.getLogger(__name__)
 
 from src.cache import short_cache, long_cache, long_cache_history, long_cache_simulation, long_cache_analytics, long_cache_fundamentals, long_cache_names, lenient_key
 
+from src.providers import YFinanceProvider
+
+_provider = YFinanceProvider()
+
+
+def get_provider():
+    """Return the active data provider instance.
+
+    Currently always returns YFinanceProvider. When a paid provider
+    (e.g., EOD Historical Data) is added, this will read
+    DATA_PROVIDER env var to select the implementation.
+    """
+    return _provider
+
+
 from src.fx import get_ticker_currency, CURRENCY_SYMBOLS
 from src.monte_carlo import run_monte_carlo_backtest, run_monte_carlo_portfolio, run_monte_carlo_ticker
 from src.stocks import (
