@@ -137,11 +137,11 @@ def _render_health_score(score_result: dict) -> None:
 
     # Score circle
     ui.html(
-        f'<div style="display:flex;align-items:center;gap:20px;padding:16px;'
+        f'<div class="health-score-container" style="display:flex;align-items:center;gap:20px;padding:16px;'
         f'background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);'
         f'border-radius:12px;margin-bottom:16px;">'
         f'<div style="width:80px;height:80px;border-radius:50%;border:4px solid {color};'
-        f'display:flex;align-items:center;justify-content:center;'
+        f'display:flex;align-items:center;justify-content:center;flex-shrink:0;'
         f'font-size:2rem;font-weight:700;color:#F1F5F9;">{total:.0f}</div>'
         f'<div>'
         f'<div style="font-size:14px;font-weight:600;color:#F1F5F9;">Portfolio Health Score</div>'
@@ -233,7 +233,7 @@ def _render_findings(findings: list[dict]) -> None:
         )
 
     ui.html(
-        f'<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+        f'<div class="findings-row" style="display:flex;gap:8px;flex-wrap:wrap;">'
         f'{cards_html}</div>'
     )
 

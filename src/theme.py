@@ -372,8 +372,9 @@ body, .q-page, .nicegui-content {
   background: #161719;
   border-top: 1px solid rgba(255,255,255,0.07);
   justify-content: space-around;
-  padding: 8px 0 env(safe-area-inset-bottom, 20px) 0;
+  padding: 8px 0 calc(8px + env(safe-area-inset-bottom, 12px)) 0;
 }
+.hamburger-btn { display: none; }
 .mobile-tab-bar .tab-item {
   display: flex;
   flex-direction: column;
@@ -435,24 +436,6 @@ body, .q-page, .nicegui-content {
     background: rgba(0, 0, 0, 0.5) !important;
   }
 
-  .tab-bar-wrapper {
-    position: relative;
-    width: 100%%;
-    overflow-x: auto !important;
-    -webkit-overflow-scrolling: touch;
-  }
-  .tab-bar-wrapper::after {
-    content: '';
-    position: absolute;
-    right: 0;
-    top: 0;
-    bottom: 0;
-    width: 40px;
-    background: linear-gradient(to right, transparent, %(BG_MAIN)s);
-    pointer-events: none;
-    z-index: 1;
-  }
-
   /* Show mobile, hide desktop */
   .mobile-only { display: block !important; }
   .desktop-only { display: none !important; }
@@ -460,11 +443,29 @@ body, .q-page, .nicegui-content {
   /* Bottom tab bar visible */
   .mobile-tab-bar { display: flex !important; }
 
-  /* Hide top tab bar */
+  /* Hide top tab bar completely */
   .tab-bar-wrapper { display: none !important; }
+  .tab-bar-wrapper::after { display: none !important; }
 
-  /* Body padding for fixed bottom bar */
-  .q-page, .nicegui-content { padding-bottom: 72px !important; }
+  /* Body padding for fixed bottom bar (with safe area for iPhone) */
+  .q-page, .nicegui-content {
+    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  /* Header: hide desktop-only controls, show hamburger */
+  .header-desktop-controls { display: none !important; }
+  .hamburger-btn { display: flex !important; }
+
+  /* Health findings: stack vertically on mobile */
+  .findings-row { flex-direction: column !important; }
+  .findings-row > div { min-width: 100%% !important; flex: none !important; }
+
+  /* Health score: compact on mobile */
+  .health-score-container { flex-direction: row !important; gap: 16px !important; padding: 14px !important; }
+  .health-score-container > div:first-child {
+    width: 64px !important; height: 64px !important;
+    font-size: 1.5rem !important; border-width: 3px !important;
+  }
 
   /* Hide sections on mobile */
   .rebalancer-section { display: none !important; }
@@ -480,8 +481,47 @@ body, .q-page, .nicegui-content {
   /* Research charts-row stack on mobile */
   .charts-row { grid-template-columns: 1fr !important; }
 
-  /* Plotly modebar hidden on touch */
+  /* Plotly: hide modebar, make charts responsive */
   .modebar-container { display: none !important; }
+  .js-plotly-plot, .plotly { width: 100%% !important; }
+  .js-plotly-plot .main-svg { width: 100%% !important; }
+
+  /* Prevent iOS zoom on input focus (must be >= 16px) */
+  input, select, textarea, .q-field__native, .q-select__input {
+    font-size: 16px !important;
+  }
+
+  /* Research search dropdown: full width on mobile */
+  .q-menu { max-width: 100vw !important; left: 0 !important; right: 0 !important; }
+
+  /* Add-to-homescreen banner */
+  .a2hs-banner {
+    position: fixed;
+    bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+    left: 12px;
+    right: 12px;
+    z-index: 1999;
+    background: #1C1D26;
+    border: 1px solid rgba(59,130,246,0.3);
+    border-radius: 12px;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+  }
+  .a2hs-banner .a2hs-close {
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    background: none;
+    border: none;
+    color: #64748B;
+    font-size: 18px;
+    cursor: pointer;
+    padding: 4px;
+    line-height: 1;
+  }
 }
 
 /* ── Responsive: Small mobile (< 480px) ───────────────── */
