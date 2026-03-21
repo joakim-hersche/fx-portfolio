@@ -35,29 +35,31 @@ async def build_overview_tab(
 
     if not portfolio:
         # Mobile: tell user to set up on desktop
-        ui.html(f'''
-            <div class="touch-only" style="display:flex;flex-direction:column;align-items:center;
-                        justify-content:center;padding:60px 20px 40px;max-width:480px;
-                        margin:0 auto;text-align:center;">
-                <div style="font-size:20px;font-weight:700;color:{TEXT_PRIMARY};
-                            margin-bottom:6px;">No positions yet</div>
-                <div style="font-size:13px;color:{TEXT_DIM};line-height:1.6;
-                            margin-bottom:20px;">
-                    Sign in and add your portfolio on a desktop browser.
-                    Your positions will sync automatically to this device.</div>
-                <div style="font-size:12px;color:{TEXT_FAINT};line-height:1.5;">
-                    Open <b style="color:{TEXT_PRIMARY};">market-dashboard-currency-adjusted.fly.dev</b>
-                    on your computer to get started.</div>
-            </div>
-        ''').classes("w-full")
+        with ui.element("div").classes("touch-only w-full"):
+            ui.html(f'''
+                <div style="display:flex;flex-direction:column;align-items:center;
+                            justify-content:center;padding:60px 20px 40px;max-width:480px;
+                            margin:0 auto;text-align:center;">
+                    <div style="font-size:20px;font-weight:700;color:{TEXT_PRIMARY};
+                                margin-bottom:6px;">No positions yet</div>
+                    <div style="font-size:13px;color:{TEXT_DIM};line-height:1.6;
+                                margin-bottom:20px;">
+                        Sign in and add your portfolio on a desktop browser.
+                        Your positions will sync automatically to this device.</div>
+                    <div style="font-size:12px;color:{TEXT_FAINT};line-height:1.5;">
+                        Open <b style="color:{TEXT_PRIMARY};">market-dashboard-currency-adjusted.fly.dev</b>
+                        on your computer to get started.</div>
+                </div>
+            ''')
 
         # Desktop: full onboarding flow
-        ui.html(f'''
-            <div class="desktop-only" style="display:flex;flex-direction:column;align-items:center;
-                        justify-content:center;padding:60px 20px 40px;max-width:480px;
-                        margin:0 auto;text-align:center;">
-                <div style="font-size:20px;font-weight:700;color:{TEXT_PRIMARY};
-                            margin-bottom:6px;">No positions yet</div>
+        with ui.element("div").classes("desktop-only w-full"):
+            ui.html(f'''
+                <div style="display:flex;flex-direction:column;align-items:center;
+                            justify-content:center;padding:60px 20px 40px;max-width:480px;
+                            margin:0 auto;text-align:center;">
+                    <div style="font-size:20px;font-weight:700;color:{TEXT_PRIMARY};
+                                margin-bottom:6px;">No positions yet</div>
                 <div style="font-size:13px;color:{TEXT_DIM};line-height:1.6;
                             margin-bottom:32px;">
                     Add your first stock in the sidebar to see portfolio analytics,
@@ -110,16 +112,16 @@ async def build_overview_tab(
                         across different markets and asset types.</div>
                 </div>
             </div>
-        ''').classes("w-full")
-        ui.button(
-            "Load Sample Portfolio", icon="science",
-            on_click=lambda: ui.run_javascript(
-                'document.getElementById("btn-load-sample")?.click()'
-            ),
-        ).props("unelevated no-caps size=lg").classes("desktop-only").style(
-            f"background:{ACCENT}; color:white; border-radius:8px; padding:12px 32px;"
-            f" font-size:14px; font-weight:600; margin:0 auto; display:block;"
-        )
+            ''')
+            ui.button(
+                "Load Sample Portfolio", icon="science",
+                on_click=lambda: ui.run_javascript(
+                    'document.getElementById("btn-load-sample")?.click()'
+                ),
+            ).props("unelevated no-caps size=lg").style(
+                f"background:{ACCENT}; color:white; border-radius:8px; padding:12px 32px;"
+                f" font-size:14px; font-weight:600; margin:0 auto; display:block;"
+            )
 
         return
 
