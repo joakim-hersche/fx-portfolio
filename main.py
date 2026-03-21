@@ -317,7 +317,7 @@ function triggerSwipeHint() {
                 });
             }, 1000);
         }
-    ''', respond=False)
+    ''')
 
     portfolio = stored.get("portfolio", {})
     currency = stored.get("currency", list(CURRENCY_SYMBOLS.keys())[0])
