@@ -320,7 +320,7 @@ def _build_positions_table(
         body_rows.append(total_row)
 
         tbody = f"<tbody>{''.join(body_rows)}</tbody>"
-        html = f'<div class="desktop-only" style="overflow-x:auto;"><div class="table-wrap"><table>{header}{tbody}</table></div></div>'
+        html = f'<div class="not-phone" style="overflow-x:auto;"><div class="table-wrap"><table>{header}{tbody}</table></div></div>'
 
         with table_container:
             ui.html(html)
@@ -331,7 +331,7 @@ def _build_positions_table(
             show_individual["value"] = e.value
             _render_table()
 
-        with ui.element("div").classes("desktop-only"):
+        with ui.element("div").classes("not-phone"):
             ui.switch(
                 "Show individual purchases",
                 value=False,
@@ -410,7 +410,7 @@ def _build_mobile_position_cards(
             f'</div></div>'
         )
 
-    ui.html(f'<div class="position-cards mobile-only">{cards_html}</div>').classes("w-full")
+    ui.html(f'<div class="position-cards touch-only">{cards_html}</div>').classes("w-full")
 
 
 # ---------------------------------------------------------------------------
