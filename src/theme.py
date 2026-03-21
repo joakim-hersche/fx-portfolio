@@ -426,10 +426,14 @@ body, .q-page, .nicegui-content {
 
   /* ── Mobile sidebar: three-zone flex layout ── */
   .q-drawer { width: 100vw !important; max-width: 100vw !important; }
+  /* Fix: Quasar translates by -220px (prop width), but CSS makes it 100vw.
+     Force fully off-screen when closed so it doesn't peek. */
+  .q-drawer--left:not(.q-drawer--opened) { transform: translateX(-100vw) !important; }
   .q-drawer__content {
     display: flex !important;
     flex-direction: column !important;
     overflow: hidden !important;
+    height: 100%% !important;
   }
   .q-drawer .sidebar {
     display: flex !important;
@@ -438,6 +442,7 @@ body, .q-page, .nicegui-content {
     overflow: hidden !important;
     min-height: 0 !important;
     padding: 0 !important;
+    height: 100%% !important;
   }
 
   /* Zone 1: Fixed top — title + close + search */
@@ -448,7 +453,7 @@ body, .q-page, .nicegui-content {
     border-bottom: 1px solid rgba(255,255,255,0.06);
   }
 
-  /* Zone 2: Scrollable middle — positions */
+  /* Zone 2: Scrollable middle — everything between top and bottom zones */
   .sidebar-zone-positions {
     flex: 1;
     overflow-y: auto;
@@ -456,14 +461,47 @@ body, .q-page, .nicegui-content {
     min-height: 0;
     padding: 8px 0;
   }
+  /* Make the entire mid-section (search + form + positions + actions) scroll as one */
+  .q-drawer .sidebar > .nicegui-content {
+    flex: 1 !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    min-height: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+  /* Zone-positions should NOT independently scroll — the parent scrolls */
+  .q-drawer .sidebar > .nicegui-content .sidebar-zone-positions {
+    flex: none !important;
+    overflow-y: visible !important;
+  }
 
   /* Zone 3: Pinned bottom — actions + currency */
   .sidebar-zone-bottom {
-    flex-shrink: 0;
+    flex-shrink: 0 !important;
+    flex-grow: 0 !important;
     border-top: 1px solid rgba(255,255,255,0.08);
     background: #161719;
     padding: 12px 20px;
     padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  }
+  /* Move mobile action grid into the bottom zone visually */
+  .sidebar-action-grid {
+    position: sticky !important;
+    bottom: 0;
+    background: #161719;
+    padding-bottom: 8px !important;
+    z-index: 2;
+  }
+
+  /* Add horizontal padding to sidebar content on mobile (sidebar itself has padding:0) */
+  .q-drawer .sidebar > .nicegui-content > * {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .q-drawer .sidebar > .nicegui-content .sidebar-zone-positions {
+    padding-left: 0;
+    padding-right: 0;
   }
 
   /* Pin search bar at top of sidebar scroll area */
