@@ -417,8 +417,13 @@ body, .q-page, .nicegui-content {
   .q-tabs { overflow-x: auto; }
   .q-tab { font-size: 11px !important; min-width: auto !important; padding: 0 10px !important; }
 
-  /* Topbar: tighten */
-  .q-header { padding-left: 8px !important; padding-right: 8px !important; }
+  /* Topbar: tighten + safe area for standalone PWA */
+  .q-header {
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+    padding-top: env(safe-area-inset-top, 0px) !important;
+    min-height: calc(48px + env(safe-area-inset-top, 0px)) !important;
+  }
 
   /* Metric cards: stack */
   .metric-card { padding: 10px 12px; }
@@ -459,10 +464,15 @@ body, .q-page, .nicegui-content {
     padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px)) !important;
   }
 
-  /* Header: show hamburger, hide non-essential controls */
+  /* Header: show hamburger, hide non-essential desktop controls */
   .hamburger-btn { display: flex !important; }
   .header-export-btn { display: none !important; }
   .header-info-btn { display: none !important; }
+  .header-currency-pills { display: none !important; }
+
+  /* Disable sidebar edge-swipe on mobile (hamburger only) */
+  .q-drawer__backdrop { touch-action: none !important; }
+  .q-drawer--left { touch-action: none !important; }
 
   /* Health findings: stack vertically on mobile */
   .findings-row { flex-direction: column !important; }
