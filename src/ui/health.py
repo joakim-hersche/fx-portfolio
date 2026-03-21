@@ -807,17 +807,11 @@ def _render_rebalancing_calculator(
 ) -> None:
     """Buy-only rebalancing calculator with sector-grouped drift-bar layout."""
     with ui.column().classes("chart-card w-full"):
+        _section_header("Rebalancing Calculator")
         ui.html(
-            f'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">'
-            f'<span style="font-size:10px;font-weight:700;letter-spacing:0.12em;'
-            f'text-transform:uppercase;color:{TEXT_MUTED};">Rebalancing Calculator</span>'
-            f'<div style="font-size:10px;color:{TEXT_DIM};">buy-only</div>'
-            f'</div>'
-        )
-
-        _section_intro(
-            "Set target weights and a deposit amount. "
-            "<span style=\"color:" + AMBER + ";\">Not a recommendation.</span>"
+            f'<p style="font-size:12px;color:{TEXT_DIM};line-height:1.6;margin:0 0 12px 0;">'
+            f'Set target weights and enter a deposit amount to see buy-only suggestions. '
+            f'<span style="color:{AMBER};">Not a recommendation.</span></p>'
         )
 
         if not fund_rows or portfolio_df.empty:
@@ -922,22 +916,22 @@ def _render_rebalancing_calculator(
                 if shares > 0:
                     s_label = "share" if shares == 1 else "shares"
                     buy_html = (
-                        f'<div style="display:flex;align-items:center;gap:4px;margin-top:2px;">'
-                        f'<div style="width:4px;height:4px;border-radius:50%;background:{GREEN};flex-shrink:0;"></div>'
-                        f'<span style="font-size:9px;font-weight:600;color:{GREEN};">Buy {shares} {s_label}</span>'
-                        f'<span style="font-size:9px;color:{TEXT_DIM};">({currency_symbol}{amount:,.0f})</span>'
+                        f'<div style="display:flex;align-items:center;gap:5px;margin-top:4px;">'
+                        f'<div style="width:5px;height:5px;border-radius:50%;background:{GREEN};"></div>'
+                        f'<span style="font-size:10px;font-weight:600;color:{GREEN};">Buy {shares} {s_label}</span>'
+                        f'<span style="font-size:10px;color:{TEXT_DIM};">({currency_symbol}{amount:,.0f})</span>'
                         f'</div>'
                     )
 
                 bar_containers[t].clear()
                 with bar_containers[t]:
                     ui.html(
-                        f'<div style="height:6px;background:rgba(255,255,255,0.04);'
-                        f'border-radius:3px;position:relative;">'
+                        f'<div style="height:8px;background:rgba(255,255,255,0.06);'
+                        f'border-radius:4px;position:relative;overflow:hidden;">'
                         f'<div style="position:absolute;left:0;width:{min(cur, 100):.1f}%;'
-                        f'height:100%;background:{TEXT_DIM};border-radius:3px;opacity:0.5;"></div>'
+                        f'height:100%;background:{TEXT_DIM};border-radius:4px;opacity:0.4;"></div>'
                         f'<div style="position:absolute;left:0;width:{min(tgt, 100):.1f}%;'
-                        f'height:100%;border:1.5px solid {border_color};border-radius:3px;'
+                        f'height:100%;border:2px solid {border_color};border-radius:4px;'
                         f'box-sizing:border-box;"></div>'
                         f'</div>'
                         f'{buy_html}'
@@ -950,53 +944,77 @@ def _render_rebalancing_calculator(
                 fc.clear()
                 with fc:
                     parts: list[str] = []
-                    tgt_color = AMBER if total_tgt < 99.5 or total_tgt > 100.5 else TEXT_DIM
+                    tgt_color = AMBER if total_tgt < 99.5 or total_tgt > 100.5 else GREEN
                     parts.append(
-                        f'<span style="font-size:10px;color:{tgt_color};">'
-                        f'Target: {total_tgt:.1f}%</span>'
+                        f'<span style="font-size:11px;font-weight:600;color:{tgt_color};">'
+                        f'Total target: {total_tgt:.1f}%</span>'
                     )
                     if deposit > 0 and remaining > 0.01:
                         parts.append(
-                            f'<span style="font-size:10px;color:{TEXT_DIM};">'
+                            f'<span style="font-size:11px;color:{TEXT_DIM};">'
                             f'{currency_symbol}{remaining:.2f} unallocated</span>'
                         )
                     ui.html(
                         f'<div style="display:flex;justify-content:space-between;'
-                        f'border-top:1px solid {BORDER_SUBTLE};padding-top:6px;">'
+                        f'padding-top:8px;margin-top:4px;'
+                        f'border-top:1px solid {BORDER_SUBTLE};">'
                         f'{"".join(parts)}</div>'
                     )
 
-        # ── Deposit input ──
+        # ── Deposit + Reset row ──
         input_style = (
             f"background:{BG_PILL};border:1px solid {BORDER_INPUT};"
-            f"border-radius:4px;padding:0 4px;"
+            f"border-radius:4px;padding:0 6px;"
         )
-        with ui.row().classes("w-full items-center").style("gap:8px;margin-bottom:10px;"):
-            ui.html(
-                f'<span style="font-size:9px;font-weight:600;color:{TEXT_DIM};'
-                f'text-transform:uppercase;letter-spacing:0.06em;">Deposit</span>'
-            )
-            deposit_input = ui.number(
-                value=0, min=0, format="%.0f", prefix=currency_symbol,
-            ).props("dense borderless").style(f"width:120px;{input_style}")
 
-            def _on_deposit(e):
-                deposit_ref["value"] = e.value or 0.0
+        initial_weights: dict[str, float] = dict(target_weights)
+        target_inputs: dict[str, ui.number] = {}
+
+        with ui.row().classes("w-full items-center justify-between").style(
+            f"margin-bottom:14px;padding:10px 12px;"
+            f"background:rgba(255,255,255,0.02);border-radius:8px;"
+            f"border:1px solid {BORDER_SUBTLE};"
+        ):
+            with ui.row().classes("items-center").style("gap:10px;"):
+                ui.html(
+                    f'<span style="font-size:11px;font-weight:600;color:{TEXT_MUTED};">'
+                    f'Deposit amount</span>'
+                )
+                deposit_input = ui.number(
+                    value=0, min=0, format="%.0f", prefix=currency_symbol,
+                ).props("dense borderless").style(f"width:140px;{input_style}")
+
+                def _on_deposit(e):
+                    deposit_ref["value"] = e.value or 0.0
+                    _recalculate()
+                deposit_input.on_value_change(_on_deposit)
+
+            def _reset_targets():
+                for t, w in initial_weights.items():
+                    target_weights[t] = w
+                    if t in target_inputs:
+                        target_inputs[t].value = round(w)
                 _recalculate()
-            deposit_input.on_value_change(_on_deposit)
+
+            ui.button("Reset", on_click=_reset_targets).props(
+                "flat dense no-caps size=sm"
+            ).style(
+                f"font-size:11px;color:{TEXT_DIM};border:1px solid {BORDER_SUBTLE};"
+                f"border-radius:4px;padding:4px 12px;"
+            )
 
         # ── Column headers ──
         ui.html(
-            f'<div style="display:flex;align-items:center;gap:6px;padding:0 0 4px 0;'
-            f'margin-bottom:2px;border-bottom:1px solid {BORDER_SUBTLE};">'
-            f'<span style="width:52px;font-size:8px;font-weight:600;text-transform:uppercase;'
+            f'<div style="display:flex;align-items:center;gap:4px;padding:0 0 6px 16px;'
+            f'border-bottom:1px solid {BORDER_SUBTLE};">'
+            f'<span style="width:64px;font-size:9px;font-weight:600;text-transform:uppercase;'
             f'letter-spacing:0.08em;color:{TEXT_MUTED};flex-shrink:0;">Ticker</span>'
-            f'<span style="width:32px;font-size:8px;font-weight:600;text-transform:uppercase;'
+            f'<span style="width:40px;font-size:9px;font-weight:600;text-transform:uppercase;'
             f'letter-spacing:0.08em;color:{TEXT_MUTED};text-align:right;flex-shrink:0;">Now</span>'
-            f'<span style="width:8px;flex-shrink:0;"></span>'
-            f'<span style="width:44px;font-size:8px;font-weight:600;text-transform:uppercase;'
+            f'<span style="width:12px;flex-shrink:0;"></span>'
+            f'<span style="width:56px;font-size:9px;font-weight:600;text-transform:uppercase;'
             f'letter-spacing:0.08em;color:{TEXT_MUTED};flex-shrink:0;">Target</span>'
-            f'<span style="flex:1;font-size:8px;font-weight:600;text-transform:uppercase;'
+            f'<span style="flex:1;font-size:9px;font-weight:600;text-transform:uppercase;'
             f'letter-spacing:0.08em;color:{TEXT_MUTED};">Drift</span>'
             f'</div>'
         )
@@ -1008,21 +1026,16 @@ def _render_rebalancing_calculator(
             total = sector_totals.get(sector, 0)
             bar_w = (total / max_sector_total * 100) if max_sector_total > 0 else 0
 
-            # Sector header
+            # Sector header — full name, no bar (keeps it compact)
             ui.html(
-                f'<div style="display:flex;align-items:center;gap:6px;padding:7px 0 3px 0;'
-                f'margin-top:4px;">'
-                f'<div style="width:6px;height:6px;border-radius:2px;background:{color};flex-shrink:0;"></div>'
-                f'<span style="width:90px;font-size:10px;font-weight:700;color:{TEXT_MUTED};'
-                f'text-transform:uppercase;letter-spacing:0.08em;flex-shrink:0;overflow:hidden;'
-                f'text-overflow:ellipsis;white-space:nowrap;">{sector}</span>'
-                f'<div style="flex:1;height:10px;background:rgba(255,255,255,0.04);border-radius:4px;'
-                f'overflow:hidden;">'
-                f'<div style="width:{bar_w:.1f}%;height:100%;background:{color};opacity:0.85;'
-                f'border-radius:4px;"></div>'
-                f'</div>'
-                f'<span style="width:40px;font-size:11px;font-weight:700;color:{TEXT_SECONDARY};'
-                f'text-align:right;flex-shrink:0;">{total:.1f}%</span>'
+                f'<div style="display:flex;align-items:center;gap:8px;'
+                f'padding:10px 0 4px 0;margin-top:4px;">'
+                f'<div style="width:6px;height:6px;border-radius:2px;'
+                f'background:{color};flex-shrink:0;"></div>'
+                f'<span style="font-size:11px;font-weight:700;color:{TEXT_MUTED};'
+                f'text-transform:uppercase;letter-spacing:0.06em;">{sector}</span>'
+                f'<span style="font-size:11px;font-weight:700;color:{TEXT_SECONDARY};">'
+                f'{total:.1f}%</span>'
                 f'</div>'
             )
 
@@ -1034,26 +1047,27 @@ def _render_rebalancing_calculator(
                 current_w = td_row.iloc[0]["Weight (%)"]
 
                 with ui.row().classes("w-full items-center").style(
-                    "gap:6px;margin-bottom:2px;padding-left:14px;"
+                    "gap:4px;padding:2px 0 2px 16px;"
                 ):
                     ui.html(
-                        f'<span style="width:52px;font-size:10px;color:{TEXT_DIM};'
+                        f'<span style="width:64px;font-size:11px;color:{TEXT_DIM};'
                         f'flex-shrink:0;overflow:hidden;text-overflow:ellipsis;'
                         f'white-space:nowrap;">{ticker}</span>'
                     )
                     ui.html(
-                        f'<span style="width:32px;font-size:10px;color:{TEXT_DIM};'
+                        f'<span style="width:40px;font-size:11px;color:{TEXT_DIM};'
                         f'text-align:right;flex-shrink:0;">{current_w:.0f}%</span>'
                     )
                     ui.html(
-                        f'<span style="width:8px;font-size:9px;color:{TEXT_DIM};'
+                        f'<span style="width:12px;font-size:10px;color:{TEXT_DIM};'
                         f'text-align:center;flex-shrink:0;">&rarr;</span>'
                     )
                     inp = ui.number(
                         value=round(current_w),
                         min=0, max=100, step=1, format="%.0f",
                         suffix="%",
-                    ).props("dense borderless").style(f"width:44px;{input_style}")
+                    ).props("dense borderless").style(f"width:56px;{input_style}")
+                    target_inputs[ticker] = inp
 
                     def _make_handler(t):
                         def handler(e):
@@ -1063,7 +1077,7 @@ def _render_rebalancing_calculator(
                     inp.on_value_change(_make_handler(ticker))
 
                     bar_containers[ticker] = ui.element("div").style(
-                        "flex:1;min-width:40px;display:flex;flex-direction:column;"
+                        "flex:1;min-width:60px;display:flex;flex-direction:column;"
                         "justify-content:center;gap:0;"
                     )
 
