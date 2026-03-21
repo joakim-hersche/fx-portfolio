@@ -11,7 +11,7 @@ from nicegui import run, ui
 
 from src.charts import (
     CHART_COLORS, C_CARD_BRD, C_NEGATIVE, C_POSITIVE,
-    build_comparison_chart,
+    build_comparison_chart, is_mobile,
 )
 from src.data_fetch import (
     fetch_company_name, fetch_price_history_range,
@@ -593,6 +593,7 @@ async def build_comparison(
             comparison_df, name_map, portfolio_color_map,
             range_label, fx_adjust, base_currency,
             title="Portfolio Comparison",
+            mobile=is_mobile(),
         )
 
         # Add local market benchmark overlay
@@ -615,6 +616,8 @@ async def build_comparison(
 
         if chart_height:
             fig.update_layout(height=chart_height)
+        if is_mobile():
+            fig.update_layout(height=220)
 
         with chart_container:
             ui.plotly(fig).classes("w-full")
