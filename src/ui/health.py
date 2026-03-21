@@ -905,12 +905,13 @@ def _render_rebalancing_calculator(
                 shares = a.get("Shares", 0)
                 amount = a.get("Amount", 0.0)
 
-                if abs(tgt - cur) < 0.5:
-                    border_color = ACCENT
-                elif tgt > cur:
-                    border_color = GREEN
+                diff = tgt - cur
+                if abs(diff) < 0.5:
+                    bar_fill_color = ACCENT
+                elif diff > 0:
+                    bar_fill_color = GREEN
                 else:
-                    border_color = AMBER
+                    bar_fill_color = AMBER
 
                 buy_html = ""
                 if shares > 0:
@@ -923,16 +924,24 @@ def _render_rebalancing_calculator(
                         f'</div>'
                     )
 
+                # Target marker: thin line at target position
+                tgt_marker = ""
+                if abs(diff) >= 0.5:
+                    tgt_marker = (
+                        f'<div style="position:absolute;left:{min(tgt, 100):.1f}%;top:-1px;'
+                        f'width:2px;height:calc(100% + 2px);background:{bar_fill_color};'
+                        f'border-radius:1px;"></div>'
+                    )
+
                 bar_containers[t].clear()
                 with bar_containers[t]:
                     ui.html(
-                        f'<div style="height:8px;background:rgba(255,255,255,0.06);'
-                        f'border-radius:4px;position:relative;overflow:hidden;">'
+                        f'<div style="height:8px;background:rgba(255,255,255,0.08);'
+                        f'border-radius:4px;position:relative;overflow:visible;">'
                         f'<div style="position:absolute;left:0;width:{min(cur, 100):.1f}%;'
-                        f'height:100%;background:{TEXT_DIM};border-radius:4px;opacity:0.4;"></div>'
-                        f'<div style="position:absolute;left:0;width:{min(tgt, 100):.1f}%;'
-                        f'height:100%;border:2px solid {border_color};border-radius:4px;'
-                        f'box-sizing:border-box;"></div>'
+                        f'height:100%;background:{bar_fill_color};border-radius:4px;'
+                        f'opacity:0.7;"></div>'
+                        f'{tgt_marker}'
                         f'</div>'
                         f'{buy_html}'
                     )
@@ -1077,9 +1086,10 @@ def _render_rebalancing_calculator(
                         return handler
                     inp.on_value_change(_make_handler(ticker))
 
-                    bar_containers[ticker] = ui.column().classes("flex-grow").style(
-                        "gap:0;padding:0 0 0 8px;min-width:80px;"
-                    )
+                    with ui.element("div").style(
+                        "flex:1 1 auto;padding:0 0 0 8px;min-width:80px;"
+                    ):
+                        bar_containers[ticker] = ui.element("div").classes("w-full")
 
         footer_ref["ref"] = ui.column().classes("w-full").style("margin-top:4px;")
         _recalculate()
