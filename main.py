@@ -237,14 +237,17 @@ async def index(request: Request):
             ui.label("Market Dashboard").style(
                 f"font-size:14px; font-weight:700; color:{TEXT_PRIMARY}; letter-spacing:0.02em;"
             )
-            # Market status indicator
-            exchange_name, status_label, status_color = _get_market_status(currency)
-            ui.html(
-                f'<div style="display:flex;align-items:center;gap:5px;margin-left:8px;">'
-                f'<div style="width:7px;height:7px;border-radius:50%;background:{status_color};"></div>'
-                f'<span style="font-size:10px;color:{TEXT_FAINT};font-weight:500;">{exchange_name} {status_label}</span>'
-                f'</div>'
-            )
+            # Market status indicator (refreshable so it updates on currency change)
+            @ui.refreshable
+            def market_status_indicator():
+                ex_name, label, color = _get_market_status(currency)
+                ui.html(
+                    f'<div style="display:flex;align-items:center;gap:5px;margin-left:8px;">'
+                    f'<div style="width:7px;height:7px;border-radius:50%;background:{color};"></div>'
+                    f'<span style="font-size:10px;color:{TEXT_FAINT};font-weight:500;">{ex_name} {label}</span>'
+                    f'</div>'
+                )
+            market_status_indicator()
 
         # Right: currency pill + export dropdown + info
         with ui.row().classes("items-center gap-2").style("height:32px;"):
@@ -542,7 +545,8 @@ async def index(request: Request):
         for name in _TAB_NAMES:
             _tab_built[name] = False
         await _build_tab(_active_tab["name"])
-        # Refresh sidebar to show updated currency symbols and values
+        # Refresh market status and sidebar
+        market_status_indicator.refresh()
         if _mutation_ref.get("sidebar_refresh"):
             _mutation_ref["sidebar_refresh"]()
 
