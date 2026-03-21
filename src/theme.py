@@ -391,8 +391,8 @@ body, .q-page, .nicegui-content {
 
 /* ── Responsive: Mobile (< 768px) ─────────────────────── */
 @media (max-width: 767px) {
-  /* Sidebar: collapse via NiceGUI drawer breakpoint; reduce width when open */
-  .q-drawer { width: 260px !important; max-width: 80vw !important; }
+  /* Sidebar: fullscreen on mobile */
+  .q-drawer { width: 100vw !important; max-width: 100vw !important; }
 
   /* KPI cards: single column */
   .kpi-row { flex-direction: column !important; gap: 8px !important; }
@@ -443,8 +443,15 @@ body, .q-page, .nicegui-content {
   /* Bottom tab bar visible */
   .mobile-tab-bar { display: flex !important; }
 
-  /* Hide top tab bar completely */
-  .tab-bar-wrapper { display: none !important; }
+  /* Hide top tab bar visually but keep clickable for JS switching */
+  .tab-bar-wrapper {
+    position: absolute !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    height: 1px !important;
+    overflow: hidden !important;
+    z-index: -1 !important;
+  }
   .tab-bar-wrapper::after { display: none !important; }
 
   /* Body padding for fixed bottom bar (with safe area for iPhone) */
@@ -452,9 +459,10 @@ body, .q-page, .nicegui-content {
     padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px)) !important;
   }
 
-  /* Header: hide desktop-only controls, show hamburger */
-  .header-desktop-controls { display: none !important; }
+  /* Header: show hamburger, hide non-essential controls */
   .hamburger-btn { display: flex !important; }
+  .header-export-btn { display: none !important; }
+  .header-info-btn { display: none !important; }
 
   /* Health findings: stack vertically on mobile */
   .findings-row { flex-direction: column !important; }

@@ -212,16 +212,16 @@ async def index(request: Request):
     ui.add_head_html(GLOBAL_CSS)
     ui.add_head_html("""<script>
 function switchMobileTab(el, tabName) {
-  // Update active state
+  // Update active state in bottom bar
   document.querySelectorAll('.mobile-tab-bar .tab-item').forEach(
     t => t.classList.remove('active')
   );
   el.classList.add('active');
-  // Click the hidden top tab
-  const tabs = document.querySelectorAll('.q-tab');
-  for (const tab of tabs) {
-    if (tab.textContent.trim() === tabName) {
-      tab.click();
+  // Click the hidden (but still in DOM) top tab to trigger NiceGUI panel switch
+  var tabs = document.querySelectorAll('.q-tab');
+  for (var i = 0; i < tabs.length; i++) {
+    if (tabs[i].textContent.trim() === tabName) {
+      tabs[i].dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true}));
       break;
     }
   }
@@ -275,8 +275,14 @@ function switchMobileTab(el, tabName) {
     with ui.header().classes("items-center justify-between px-5").style(
         f"height: 48px; background: {BG_TOPBAR}; border-bottom: 1px solid {BORDER};"
     ):
-        # Left: title with accent dot + market status
+        # Left: hamburger (mobile) + title with accent dot + market status
         with ui.row().classes("items-center gap-2"):
+            # Hamburger icon (visible only on mobile via CSS)
+            ui.button(
+                icon="menu", on_click=lambda: sidebar_drawer.toggle()
+            ).props("flat dense round size=sm color=none").classes("hamburger-btn").style(
+                f"color:{TEXT_MUTED} !important;min-width:0;width:36px;height:36px;"
+            )
             ui.html(
                 f'<div style="width:8px;height:8px;border-radius:50%;background:{ACCENT};"></div>'
             )
@@ -295,16 +301,8 @@ function switchMobileTab(el, tabName) {
                 )
             market_status_indicator()
 
-        # Right: hamburger for mobile sidebar + desktop controls
+        # Right: currency pill + export dropdown + info
         with ui.row().classes("items-center gap-2").style("height:32px;"):
-            # Hamburger icon (visible only on mobile via CSS)
-            ui.button(
-                icon="menu", on_click=lambda: sidebar_drawer.toggle()
-            ).props("flat dense round size=sm color=none").classes("hamburger-btn").style(
-                f"color:{TEXT_MUTED} !important;min-width:0;width:36px;height:36px;"
-            )
-
-        with ui.row().classes("items-center gap-2 header-desktop-controls").style("height:32px;"):
 
             # ── Currency segmented pill ────────────────────────
             currencies = list(CURRENCY_SYMBOLS.keys())
@@ -350,7 +348,7 @@ function switchMobileTab(el, tabName) {
                 ui.download(_json.dumps(portfolio, indent=2).encode(), "portfolio.json")
                 ui.notify("Portfolio backup downloaded.", type="positive")
 
-            with ui.button("Export", icon="expand_more").props(
+            with ui.button("Export", icon="expand_more").classes("header-export-btn").props(
                 'flat dense no-caps size=sm color=none'
             ).style(
                 f"border:1px solid {BORDER_INPUT}; border-radius:6px; padding:0 12px;"
@@ -408,7 +406,7 @@ function switchMobileTab(el, tabName) {
                         f"font-size:11px;padding:6px 16px;text-transform:none;"
                     )
 
-            ui.button(icon="info", on_click=about_dlg.open).props(
+            ui.button(icon="info", on_click=about_dlg.open).classes("header-info-btn").props(
                 "flat dense round size=sm color=none"
             ).style(
                 f"color:{TEXT_MUTED} !important; min-width:0; width:32px; height:32px;"
