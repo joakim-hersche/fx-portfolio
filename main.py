@@ -462,6 +462,17 @@ async def index(request: Request):
         f"width:220px; background:{BG_SIDEBAR}; border-right:1px solid {BORDER}; padding:16px 12px;"
     ).props('width=220 :breakpoint="768"') as sidebar_drawer:
         _drawer_ref["drawer"] = sidebar_drawer
+
+        # Mobile close button at top of sidebar
+        with ui.element("div").classes("mobile-only").style(
+            "display:flex;justify-content:flex-end;margin:-8px -4px 8px 0;"
+        ):
+            ui.button(
+                icon="close", on_click=lambda: sidebar_drawer.hide()
+            ).props("flat dense round size=md color=none").style(
+                f"color:{TEXT_MUTED};min-width:44px;min-height:44px;"
+            )
+
         build_sidebar(portfolio, stock_options, _shared, _active_tab, on_mutation=_mutation_ref)
 
         # Mobile-only currency selector in sidebar

@@ -393,8 +393,21 @@ body, .q-page, .nicegui-content {
 
 /* ── Responsive: Mobile (< 768px) ─────────────────────── */
 @media (max-width: 767px) {
-  /* Sidebar: fullscreen on mobile */
+  /* Sidebar: fullscreen on mobile with proper spacing */
   .q-drawer { width: 100vw !important; max-width: 100vw !important; }
+  .q-drawer .sidebar {
+    padding: 16px 20px !important;
+    padding-top: calc(16px + env(safe-area-inset-top, 0px)) !important;
+  }
+  /* Sidebar buttons: touch-friendly sizing */
+  .sidebar .q-btn, .sidebar .sidebar-btn {
+    min-height: 44px !important;
+    font-size: 14px !important;
+  }
+  /* Sidebar section headers: readable */
+  .sidebar .sidebar-section-header { font-size: 12px !important; }
+  /* Ensure mobile-only elements inside sidebar render */
+  .q-drawer .mobile-only { display: block !important; visibility: visible !important; }
 
   /* KPI cards: single column */
   .kpi-row { flex-direction: column !important; gap: 8px !important; }
@@ -466,8 +479,15 @@ body, .q-page, .nicegui-content {
     padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px)) !important;
   }
 
-  /* Header: show hamburger, hide non-essential desktop controls */
-  .hamburger-btn { display: flex !important; min-width: 36px !important; min-height: 36px !important; }
+  /* Header: show hamburger (bright, large touch target), hide desktop controls */
+  .hamburger-btn {
+    display: flex !important;
+    min-width: 44px !important;
+    min-height: 44px !important;
+    color: #F1F5F9 !important;
+    opacity: 1 !important;
+  }
+  .hamburger-btn .q-icon { font-size: 24px !important; }
   .header-export-btn { display: none !important; }
   .header-info-btn { display: none !important; }
   .header-currency-pills { display: none !important; }
