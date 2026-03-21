@@ -35,3 +35,6 @@ demo_raw/
 
 # Internal planning infrastructure
 docs/superpowers/
+
+# Git worktrees
+.worktrees/
