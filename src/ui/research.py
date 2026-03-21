@@ -621,10 +621,13 @@ async def build_research_tab(
     currency_symbol = CURRENCY_SYMBOLS.get(currency, "$")
     stock_options = stock_options or getattr(app.state, "stock_options", None) or {}
 
-    # Build select options from stock_options (same format as sidebar)
+    # Build select options from stock_options (dict of group -> {ticker: name} or [tickers])
     select_opts = {}
     for group_tickers in stock_options.values():
-        if isinstance(group_tickers, list):
+        if isinstance(group_tickers, dict):
+            for t, name in group_tickers.items():
+                select_opts[t] = f"{t} — {name}" if name != t else t
+        elif isinstance(group_tickers, list):
             for t in group_tickers:
                 select_opts[t] = t
 
