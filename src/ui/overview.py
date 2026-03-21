@@ -491,7 +491,7 @@ async def build_comparison(
             fig.add_trace(go.Scatter(
                 x=spy_rebased.index, y=spy_rebased.values,
                 mode="lines", name="SPY",
-                line=dict(color="gray", width=1.5, dash="dash"),
+                line=dict(color="#F59E0B", width=2),
                 hovertemplate="SPY: %{y:.1f}<extra></extra>",
             ))
 
