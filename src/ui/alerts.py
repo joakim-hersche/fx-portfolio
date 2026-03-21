@@ -113,15 +113,15 @@ def render_alert_banner(
         with settings_container:
             ui.separator().style("margin:8px 0;")
             ui.html(f'<span style="font-size:10px;color:{TEXT_DIM};font-weight:600;">Alert Thresholds</span>')
-            with ui.row().classes("gap-4 items-center").style("margin-top:4px;"):
+            with ui.row().classes("gap-4 items-center flex-wrap").style("margin-top:4px;"):
                 conc = ui.number(
                     "Concentration %", value=settings.get("concentration_threshold", 0.30) * 100,
                     min=10, max=80, step=5,
-                ).props("dense outlined").style("width:140px;font-size:11px;")
+                ).props("dense outlined").style("min-width:100px;flex:1 1 120px;max-width:160px;font-size:11px;")
                 corr = ui.number(
                     "Correlation %", value=settings.get("correlation_threshold", 0.85) * 100,
                     min=50, max=99, step=5,
-                ).props("dense outlined").style("width:140px;font-size:11px;")
+                ).props("dense outlined").style("min-width:100px;flex:1 1 120px;max-width:160px;font-size:11px;")
 
                 def _save_settings():
                     settings["concentration_threshold"] = conc.value / 100

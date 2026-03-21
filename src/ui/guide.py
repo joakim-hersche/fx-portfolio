@@ -9,7 +9,7 @@ def build_guide_tab():
     """Plain-language explanations of every dashboard feature."""
     with ui.column().classes("w-full").style(f"gap:var(--grid-gap);color:{TEXT_PRIMARY}"):
 
-        with ui.element("div").classes("chart-card w-full"):
+        with ui.element("div").classes("chart-card w-full").style("overflow-x:auto;"):
             ui.label("Getting Started").classes("text-lg font-bold").style(f"color:{TEXT_PRIMARY}")
             ui.markdown(
                 "Pick a stock market from the sidebar, search for a company, "
@@ -18,7 +18,7 @@ def build_guide_tab():
                 "bought at different dates."
             ).classes("text-sm").style(f"color:{TEXT_SECONDARY}")
 
-        with ui.element("div").classes("chart-card w-full"):
+        with ui.element("div").classes("chart-card w-full").style("overflow-x:auto;"):
             ui.label("The Numbers at the Top (KPI Cards)").classes("text-lg font-bold").style(f"color:{TEXT_PRIMARY}")
             ui.markdown("""| Metric | What it means |
 |--------|--------------|
@@ -27,7 +27,7 @@ def build_guide_tab():
 | **Total Return** | The difference between what your portfolio is worth today (including any dividends received) and what you originally paid. The percentage below it is that same number as a fraction of your total investment. |
 | **Positions** | How many different stocks you own. If you bought the same stock twice, that counts as one position but two purchases. |""").classes("text-sm").style(f"color:{TEXT_SECONDARY}")
 
-        with ui.element("div").classes("chart-card w-full"):
+        with ui.element("div").classes("chart-card w-full").style("overflow-x:auto;"):
             ui.label("Charts").classes("text-lg font-bold").style(f"color:{TEXT_PRIMARY}")
             ui.markdown("""- **Portfolio Allocation** — a bar chart showing what percentage of your money is in each stock. \
 If one bar is much longer than the rest, your portfolio is concentrated — a big move in that stock affects everything.
@@ -36,7 +36,7 @@ A stock at 130 has grown 30%; a stock at 85 has fallen 15%. Use the time range b
 - **Price History** — the actual price chart for each stock. The orange dashed line is what you paid; \
 the grey dashed line marks the date you bought it. If the price line is above the orange line, you are in profit on that position.""").classes("text-sm").style(f"color:{TEXT_SECONDARY}")
 
-        with ui.element("div").classes("chart-card w-full"):
+        with ui.element("div").classes("chart-card w-full").style("overflow-x:auto;"):
             ui.label("Portfolio Health").classes("text-lg font-bold").style(f"color:{TEXT_PRIMARY}")
             ui.markdown("""This tab replaces the old Risk & Analytics view with a more accessible, narrative-driven approach.
 
@@ -67,7 +67,7 @@ This is a calculation tool, not a recommendation.
 **Portfolio News** — recent headlines for all your holdings, pulled from Yahoo Finance. Shown in chronological order \
 with no filtering or ranking. Click any headline to read the full article.""").classes("text-sm").style(f"color:{TEXT_SECONDARY}")
 
-        with ui.element("div").classes("chart-card w-full"):
+        with ui.element("div").classes("chart-card w-full").style("overflow-x:auto;"):
             ui.label("Stock Research").classes("text-lg font-bold").style(f"color:{TEXT_PRIMARY}")
             ui.markdown("""Search for any stock — including ones you do not own — to see its fundamentals, how it compares \
 to sector peers, and how adding it would affect your portfolio's health score.
@@ -81,7 +81,7 @@ This is a mathematical projection, not a recommendation to buy.
 No ranking or scoring — just data for your own comparison.
 - **News** — recent headlines for the stock from Yahoo Finance, in chronological order.""").classes("text-sm").style(f"color:{TEXT_SECONDARY}")
 
-        with ui.element("div").classes("chart-card w-full"):
+        with ui.element("div").classes("chart-card w-full").style("overflow-x:auto;"):
             ui.label("Risk Metrics (in Detailed Metrics)").classes("text-lg font-bold").style(f"color:{TEXT_PRIMARY}")
             ui.markdown("""These are standard measures used by professional investors, now inside the collapsible \
 "Detailed Metrics" section of the Portfolio Health tab:
@@ -94,7 +94,7 @@ No ranking or scoring — just data for your own comparison.
 - **P/E Ratio** — how many years of current earnings you are paying for.
 - **Dividend Yield** — the annual dividend payment as a percentage of the stock price.""").classes("text-sm").style(f"color:{TEXT_SECONDARY}")
 
-        with ui.element("div").classes("chart-card w-full"):
+        with ui.element("div").classes("chart-card w-full").style("overflow-x:auto;"):
             ui.label("Monte Carlo Simulation (the Fan Charts)").classes("text-lg font-bold").style(f"color:{TEXT_PRIMARY}")
             ui.markdown("""Imagine replaying the stock market 1,000 times. Each replay uses the stock's real historical \
 behaviour — how much it typically moves each day — but shuffles the order of good and bad days randomly. \
@@ -115,7 +115,7 @@ this is what tail risk actually costs on average.
 **Position Outlook** does the same thing for a single stock. The probability figure tells you: out of 1,000 replays, \
 how many ended above your buy price?""").classes("text-sm").style(f"color:{TEXT_SECONDARY}")
 
-        with ui.element("div").classes("chart-card w-full"):
+        with ui.element("div").classes("chart-card w-full").style("overflow-x:auto;"):
             ui.label("Model Diagnostics — When to Be Sceptical").classes("text-lg font-bold").style(f"color:{TEXT_PRIMARY}")
             ui.markdown("""The simulation assumes that daily price changes follow a bell curve (normal distribution) and \
 are independent from one day to the next. These assumptions are often wrong for real stocks:

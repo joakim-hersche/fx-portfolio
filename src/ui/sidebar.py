@@ -362,7 +362,7 @@ def build_sidebar(
             n_lots = len(lots)
             title = f"Edit {ticker}" + (f" — Lot {lot_index + 1}/{n_lots}" if n_lots > 1 else "")
 
-            with ui.dialog() as dialog, ui.card().style(f"min-width:300px;background:{BG_CARD};"):
+            with ui.dialog() as dialog, ui.card().style(f"min-width:min(300px, 90vw);background:{BG_CARD};"):
                 ui.label(title).style("font-weight:600;font-size:14px;")
 
                 with ui.column().classes("w-full").style("gap:8px;"):
