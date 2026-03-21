@@ -37,23 +37,62 @@ A stock at 130 has grown 30%; a stock at 85 has fallen 15%. Use the time range b
 the grey dashed line marks the date you bought it. If the price line is above the orange line, you are in profit on that position.""").classes("text-sm").style(f"color:{TEXT_SECONDARY}")
 
         with ui.element("div").classes("chart-card w-full"):
-            ui.label("Risk & Analytics").classes("text-lg font-bold").style(f"color:{TEXT_PRIMARY}")
-            ui.markdown("""These are standard measures used by professional investors. You do not need to understand all of them, but here is what the key ones mean:
+            ui.label("Portfolio Health").classes("text-lg font-bold").style(f"color:{TEXT_PRIMARY}")
+            ui.markdown("""This tab replaces the old Risk & Analytics view with a more accessible, narrative-driven approach.
 
-- **Volatility** — how much the price swings day to day, expressed as a yearly percentage. Higher = more unpredictable. \
-A stock with 25% volatility typically swings about 25% up or down in a year.
-- **Worst Drop (Max Drawdown)** — the biggest peak-to-trough fall in the past year. If it says -35%, \
-the stock lost 35% from its highest point before recovering.
-- **Return/Risk Score (Sharpe Ratio)** — how much return you earn per unit of risk. Above 1 is good, \
-above 2 is excellent, below 0 means the return was worse than a risk-free savings rate.
-- **Market Sensitivity (Beta)** — how much the stock moves relative to the overall market (S&P 500). \
-Beta of 1.0 means it moves in lockstep. Above 1.0 means it swings more; below 1.0 means it is calmer.
-- **Correlation** — whether two stocks tend to go up and down together (close to 1.0) or move independently \
-(close to 0). Owning stocks with low correlation reduces overall portfolio risk.
-- **P/E Ratio** — how many years of current earnings you are paying for. A P/E of 20 means you pay 20x \
-this year's profit. Lower can mean cheaper; higher can mean the market expects fast growth.
-- **Dividend Yield** — the annual dividend payment as a percentage of the stock price. A 3% yield means you \
-receive roughly 3% of your investment back as cash each year.""").classes("text-sm").style(f"color:{TEXT_SECONDARY}")
+**Health Score (0–100)** — a composite score measuring how well-diversified your portfolio is. It is *not* a measure of \
+investment quality — a score of 40 means "concentrated", not "bad." Click "How is this calculated?" to see the formula \
+with your actual numbers. The score has four components:
+
+- **Diversification (35%)** — how many different sectors and geographic regions you cover. More spread = higher score.
+- **Concentration (30%)** — how evenly your money is distributed. One stock at 70% scores low; ten stocks at 10% each scores high. \
+Uses the Herfindahl-Hirschman Index (HHI), the same formula economists use to measure market concentration.
+- **Correlation (20%)** — whether your stocks move independently or all rise and fall together. \
+Lower average correlation = better diversification benefit.
+- **Stability (15%)** — how much your portfolio value swings day-to-day compared to the market. Lower volatility = higher score.
+
+**Key Findings** — plain-language observations about your portfolio. Red cards flag high-risk patterns (e.g., heavy \
+concentration in one stock), amber cards flag areas to watch (e.g., sector imbalance), and green cards highlight strengths \
+(e.g., good geographic spread). These are factual observations, not recommendations.
+
+**Sector Exposure** — which industries your money is spread across, with bars showing portfolio weight per sector. \
+Sectors with 0% exposure are listed at the bottom.
+
+**Detailed Metrics** — the full analytics table (volatility, Sharpe ratio, beta, P/E, etc.) and correlation heatmap \
+from the old Risk tab. Collapsed by default so the narrative findings get attention first.
+
+**Rebalancing Calculator** — set target weights and a deposit amount to see buy-only suggestions. \
+This is a calculation tool, not a recommendation.
+
+**Portfolio News** — recent headlines for all your holdings, pulled from Yahoo Finance. Shown in chronological order \
+with no filtering or ranking. Click any headline to read the full article.""").classes("text-sm").style(f"color:{TEXT_SECONDARY}")
+
+        with ui.element("div").classes("chart-card w-full"):
+            ui.label("Stock Research").classes("text-lg font-bold").style(f"color:{TEXT_PRIMARY}")
+            ui.markdown("""Search for any stock — including ones you do not own — to see its fundamentals, how it compares \
+to sector peers, and how adding it would affect your portfolio's health score.
+
+- **Fundamentals** — P/E ratio, dividend yield, market cap, beta, 52-week range, and analyst target price. \
+Where available, sector median values are shown for context (e.g., "Above sector median of 28.1").
+- **Portfolio Fit Preview** — shows your current health score and what it would become if you added this stock at 5% \
+of your portfolio. Lists specific impacts: new sector exposure, correlation with your holdings, volatility change. \
+This is a mathematical projection, not a recommendation to buy.
+- **Peer Comparison** — a table of 3–5 stocks in the same sector, showing the same metrics side by side. \
+No ranking or scoring — just data for your own comparison.
+- **News** — recent headlines for the stock from Yahoo Finance, in chronological order.""").classes("text-sm").style(f"color:{TEXT_SECONDARY}")
+
+        with ui.element("div").classes("chart-card w-full"):
+            ui.label("Risk Metrics (in Detailed Metrics)").classes("text-lg font-bold").style(f"color:{TEXT_PRIMARY}")
+            ui.markdown("""These are standard measures used by professional investors, now inside the collapsible \
+"Detailed Metrics" section of the Portfolio Health tab:
+
+- **Volatility** — how much the price swings day to day, expressed as a yearly percentage. Higher = more unpredictable.
+- **Worst Drop (Max Drawdown)** — the biggest peak-to-trough fall in the past year.
+- **Return/Risk Score (Sharpe Ratio)** — how much return you earn per unit of risk. Above 1 is good, above 2 is excellent.
+- **Market Sensitivity (Beta)** — how much the stock moves relative to the overall market (S&P 500).
+- **Correlation** — whether two stocks tend to go up and down together (close to 1.0) or move independently (close to 0).
+- **P/E Ratio** — how many years of current earnings you are paying for.
+- **Dividend Yield** — the annual dividend payment as a percentage of the stock price.""").classes("text-sm").style(f"color:{TEXT_SECONDARY}")
 
         with ui.element("div").classes("chart-card w-full"):
             ui.label("Monte Carlo Simulation (the Fan Charts)").classes("text-lg font-bold").style(f"color:{TEXT_PRIMARY}")
