@@ -461,19 +461,6 @@ body, .q-page, .nicegui-content {
   }
   .sidebar-action-grid .q-btn .q-icon { font-size: 18px !important; }
 
-  /* Mobile currency pills: fill width */
-  .sidebar-currency-pills {
-    display: flex !important;
-    width: 100%% !important;
-  }
-  .sidebar-currency-pills .q-btn {
-    flex: 1 !important;
-    min-width: 0 !important;
-    padding: 8px 4px !important;
-    font-size: 13px !important;
-    min-height: 36px !important;
-  }
-
   /* KPI cards: single column */
   .kpi-row { flex-direction: column !important; gap: 8px !important; }
   .kpi-card { min-width: 100%% !important; }
@@ -668,6 +655,19 @@ body, .q-page, .nicegui-content {
 
   /* Sidebar section headers */
   .sidebar-section-header { font-size: 10px; }
+
+  /* Mobile currency pills: fill width */
+  .sidebar-currency-pills {
+    display: flex !important;
+    width: 100%% !important;
+  }
+  .sidebar-currency-pills .q-btn {
+    flex: 1 !important;
+    min-width: 0 !important;
+    padding: 8px 4px !important;
+    font-size: 13px !important;
+    min-height: 36px !important;
+  }
 }
 
 /* ── Touch-large tier (tablets: iPad etc.) ────────────── */
