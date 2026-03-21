@@ -136,6 +136,20 @@ async def build_overview_tab(
         _names = list(_ex.map(lambda t: (t, fetch_company_name(t)), portfolio))
     name_map = dict(_names)
 
+    # ── Alert banner ──────────────────────────────────────
+    from src.ui.alerts import render_alert_banner
+    from src.ui.shared import load_portfolio
+
+    alert_weights = {}
+    for ticker in portfolio:
+        ticker_value = df[df["Ticker"] == ticker]["Total Value"].sum()
+        total_value = df["Total Value"].sum()
+        if total_value > 0:
+            alert_weights[ticker] = ticker_value / total_value
+
+    portfolio_data = load_portfolio()
+    render_alert_banner(portfolio, alert_weights, portfolio_data)
+
     # ── KPI values ─────────────────────────────────────────
     total_value = df["Total Value"].sum()
     daily_pnl = df["Daily P&L"].sum()
