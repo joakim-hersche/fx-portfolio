@@ -51,6 +51,7 @@ from src.ui.overview import build_overview_tab, export_excel
 from src.ui.shared import load_portfolio, save_portfolio, get_storage_secret
 from src import db
 from src.ui.auth import show_auth_ui, build_reset_complete_form
+from src.alert_job import start_alert_scheduler
 from src.ui.sidebar import build_sidebar
 from src.theme import (
     ACCENT, BG_CARD, BG_INPUT, BG_MAIN, BG_SIDEBAR, BG_TOPBAR,
@@ -139,6 +140,7 @@ async def _preload():
     app.state.stock_options = await run.io_bound(load_stock_options)
     # Pre-warm 24h caches for sample portfolio tickers so first load is fast
     await run.io_bound(_prewarm_caches)
+    start_alert_scheduler()
 
 
 def _prewarm_caches():
@@ -315,6 +317,43 @@ function triggerSwipeHint() {
                 f' color:#EAB308;">Verify your email to enable cross-device sync.</div>'
             )
 
+        # Show email alert opt-in prompt (one-time, for verified users never asked)
+        email_alerts_pref = await run.io_bound(db.get_email_alerts, user_id)
+        # Cache for the account dropdown toggle
+        app.storage.user["_email_alerts_cached"] = email_alerts_pref
+
+        if email_alerts_pref is None and user_row and user_row["email_verified"]:
+            with ui.dialog() as optin_dlg, ui.card().style(
+                f"min-width:360px; max-width:440px; background:{BG_CARD};"
+                f" border:1px solid rgba(255,255,255,0.12); border-radius:10px; padding:24px;"
+            ):
+                ui.label("Stay on top of your portfolio").style(
+                    f"font-size:16px; font-weight:700; color:{TEXT_PRIMARY}; margin-bottom:8px;"
+                )
+                ui.label(
+                    "We can email you when we detect concentration risk or high "
+                    "correlation in your holdings. One email per day, only when "
+                    "something changes."
+                ).style(f"font-size:13px; color:{TEXT_MUTED}; margin-bottom:20px; line-height:1.5;")
+                with ui.row().classes("w-full justify-end gap-2"):
+                    async def _opt_out():
+                        await run.io_bound(db.set_email_alerts, user_id, False)
+                        app.storage.user["_email_alerts_cached"] = False
+                        optin_dlg.close()
+
+                    async def _opt_in():
+                        await run.io_bound(db.set_email_alerts, user_id, True)
+                        app.storage.user["_email_alerts_cached"] = True
+                        optin_dlg.close()
+
+                    ui.button("No thanks", on_click=_opt_out).props(
+                        "flat no-caps"
+                    ).style(f"color:{TEXT_MUTED}; font-size:13px;")
+                    ui.button("Enable alerts", on_click=_opt_in).props(
+                        "no-caps unelevated"
+                    ).style(f"background:{ACCENT}; border-radius:8px; font-size:13px;")
+            optin_dlg.open()
+
     # Mutable ref so sidebar callbacks can read the active tab
     _active_tab = {"name": initial_tab_name}
 
@@ -463,43 +502,63 @@ function triggerSwipeHint() {
                                 ui.label("Portfolio Backup").style(f"font-size:13px; color:{TEXT_PRIMARY}; font-weight:500;")
                                 ui.label("Save positions as JSON for re-import").style(f"font-size:11px; color:{TEXT_DIM};")
 
-
-            # ── Auth button ───────────────────────────────
+            # ── Auth / account ────────────────────────────────
             auth_user_id = app.storage.user.get("user_id")
             auth_email = app.storage.user.get("auth_email")
 
             if auth_user_id:
-                ui.label(auth_email or "").style(
-                    f"font-size:11px; color:{TEXT_DIM}; max-width:120px;"
-                    f" overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
-                )
-                def _logout():
-                    app.storage.user.pop("user_id", None)
-                    app.storage.user.pop("encryption_key", None)
-                    app.storage.user.pop("auth_email", None)
-                    ui.navigate.to("/")
-
-                ui.button("Sign out", on_click=_logout).props(
+                with ui.button(auth_email or "", icon="expand_more").props(
                     "flat dense no-caps size=sm color=none"
                 ).style(
                     f"border:1px solid {BORDER_INPUT}; border-radius:6px; padding:0 10px;"
                     f" height:28px; color:{TEXT_MUTED} !important; font-size:11px;"
-                )
+                    f" max-width:180px; overflow:hidden; text-overflow:ellipsis;"
+                ):
+                    with ui.menu().style(
+                        f"background:{BG_CARD}; border:1px solid rgba(255,255,255,0.12);"
+                        f" border-radius:10px; min-width:220px;"
+                    ):
+                        # Email alerts toggle
+                        with ui.menu_item().style("padding:10px 14px;"):
+                            with ui.row().classes("items-center gap-3 no-wrap w-full"):
+                                ui.label("Email alerts").style(
+                                    f"font-size:13px; color:{TEXT_PRIMARY}; font-weight:500;"
+                                )
+                                alert_pref = app.storage.user.get("_email_alerts_cached")
+                                alert_switch = ui.switch(value=bool(alert_pref)).props("dense")
+
+                                async def _toggle_alerts(e):
+                                    await run.io_bound(db.set_email_alerts, auth_user_id, e.value)
+                                    app.storage.user["_email_alerts_cached"] = e.value
+
+                                alert_switch.on_value_change(_toggle_alerts)
+
+                        ui.separator().style("margin:4px 14px; opacity:0.15;")
+
+                        # Sign out
+                        def _logout():
+                            app.storage.user.pop("user_id", None)
+                            app.storage.user.pop("encryption_key", None)
+                            app.storage.user.pop("auth_email", None)
+                            app.storage.user.pop("_email_alerts_cached", None)
+                            ui.navigate.to("/")
+
+                        with ui.menu_item(on_click=_logout).style("padding:10px 14px;"):
+                            ui.label("Sign out").style(
+                                f"font-size:13px; color:{TEXT_PRIMARY};"
+                            )
             else:
                 async def _show_sign_in():
                     async def _on_login_success(result):
                         import base64 as _b64
                         app.storage.user["user_id"] = result["user_id"]
-                        # Store as base64 string (JSON-serialisable)
                         app.storage.user["encryption_key"] = _b64.urlsafe_b64encode(
                             result["encryption_key"]
                         ).decode()
                         app.storage.user["auth_email"] = result["email"]
-                        # Migrate local portfolio if needed
                         await _maybe_migrate_local_portfolio(result)
                         ui.navigate.to("/")
 
-                    # Render auth UI in the main content area
                     for name in _TAB_NAMES:
                         _tab_built[name] = False
                     _content_container.clear()

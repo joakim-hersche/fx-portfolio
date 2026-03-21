@@ -163,6 +163,18 @@ def init_schema() -> None:
             )
         """)
 
+    # ── Migrations (safe to re-run) ───────────────────────
+    # B2: email alert preferences
+    try:
+        _execute("ALTER TABLE users ADD COLUMN email_alerts %s DEFAULT NULL" %
+                 ("BOOLEAN" if _backend == "postgres" else "INTEGER"))
+    except Exception:
+        pass  # Column already exists
+    try:
+        _execute("ALTER TABLE users ADD COLUMN last_alert_ids TEXT DEFAULT '[]'")
+    except Exception:
+        pass  # Column already exists
+
 
 # ── User queries ──────────────────────────────────────────
 
@@ -228,6 +240,54 @@ def update_password_hash(user_id: str, new_hash: str) -> None:
     _execute(
         f"UPDATE users SET password_hash = {ph[0]} WHERE id = {ph[1]}",
         (new_hash, user_id),
+    )
+
+
+# ── Email alert queries ───────────────────────────────────
+
+
+def get_email_alerts(user_id: str) -> bool | None:
+    """Return the user's email_alerts preference (True/False/None)."""
+    ph = _p(1)[0]
+    row = _fetchone(f"SELECT email_alerts FROM users WHERE id = {ph}", (user_id,))
+    if not row:
+        return None
+    val = row["email_alerts"]
+    if val is None:
+        return None
+    if _backend == "sqlite":
+        return bool(val)
+    return val
+
+
+def set_email_alerts(user_id: str, enabled: bool) -> None:
+    """Set the user's email alert preference."""
+    ph = _p(2)
+    val = enabled if _backend == "postgres" else int(enabled)
+    _execute(
+        f"UPDATE users SET email_alerts = {ph[0]} WHERE id = {ph[1]}",
+        (val, user_id),
+    )
+
+
+def get_alerted_users() -> list[dict]:
+    """Return all verified users who have opted in to email alerts."""
+    if _backend == "postgres":
+        return _fetchall(
+            "SELECT * FROM users WHERE email_verified = TRUE AND email_alerts = TRUE"
+        )
+    return _fetchall(
+        "SELECT * FROM users WHERE email_verified = 1 AND email_alerts = 1"
+    )
+
+
+def update_last_alert_ids(user_id: str, rule_ids: list[str]) -> None:
+    """Persist the rule_id list from the last alert email sent."""
+    import json
+    ph = _p(2)
+    _execute(
+        f"UPDATE users SET last_alert_ids = {ph[0]} WHERE id = {ph[1]}",
+        (json.dumps(rule_ids), user_id),
     )
 
 
