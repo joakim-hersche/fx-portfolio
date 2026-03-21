@@ -49,6 +49,8 @@ from src.stocks import TICKER_COLORS
 from src.ui.guide import build_guide_tab
 from src.ui.overview import build_overview_tab, export_excel
 from src.ui.shared import load_portfolio, save_portfolio, get_storage_secret
+from src import db
+from src.ui.auth import show_auth_ui, build_reset_complete_form
 from src.ui.sidebar import build_sidebar
 from src.theme import (
     ACCENT, BG_CARD, BG_INPUT, BG_MAIN, BG_SIDEBAR, BG_TOPBAR,
@@ -132,6 +134,8 @@ def _tab_url(tab_name: str | None = None) -> str:
 
 @app.on_startup
 async def _preload():
+    db._init_connection()
+    db.init_schema()
     app.state.stock_options = await run.io_bound(load_stock_options)
     # Pre-warm 24h caches for sample portfolio tickers so first load is fast
     await run.io_bound(_prewarm_caches)
@@ -300,6 +304,17 @@ function triggerSwipeHint() {
     # ── Load stock options (preloaded at startup, fallback to empty) ──
     stock_options = getattr(app.state, 'stock_options', None) or {}
 
+    # Show verification banner for unverified logged-in users
+    user_id = app.storage.user.get("user_id")
+    if user_id:
+        user_row = await run.io_bound(db.get_user_by_id, user_id)
+        if user_row and not user_row["email_verified"]:
+            ui.html(
+                f'<div style="background:rgba(234,179,8,0.15); border:1px solid rgba(234,179,8,0.3);'
+                f' border-radius:8px; padding:8px 16px; margin:8px 16px; font-size:12px;'
+                f' color:#EAB308;">Verify your email to enable cross-device sync.</div>'
+            )
+
     # Mutable ref so sidebar callbacks can read the active tab
     _active_tab = {"name": initial_tab_name}
 
@@ -447,16 +462,54 @@ function triggerSwipeHint() {
                 f"color:{TEXT_MUTED} !important; min-width:0; width:32px; height:32px;"
             )
 
-            # TODO: Re-enable logout button when auth is active.
-            # def _logout():
-            #     app.storage.user["authenticated"] = False
-            #     ui.navigate.to("/login")
-            #
-            # ui.button(icon="logout", on_click=_logout).props(
-            #     'flat dense round size=sm color=none aria-label="Logout"'
-            # ).style(
-            #     f"color:{TEXT_MUTED} !important; min-width:0; width:32px; height:32px;"
-            # )
+            # ── Auth button ───────────────────────────────
+            auth_user_id = app.storage.user.get("user_id")
+            auth_email = app.storage.user.get("auth_email")
+
+            if auth_user_id:
+                ui.label(auth_email or "").style(
+                    f"font-size:11px; color:{TEXT_DIM}; max-width:120px;"
+                    f" overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+                )
+                def _logout():
+                    app.storage.user.pop("user_id", None)
+                    app.storage.user.pop("encryption_key", None)
+                    app.storage.user.pop("auth_email", None)
+                    ui.navigate.to("/")
+
+                ui.button("Sign out", on_click=_logout).props(
+                    "flat dense no-caps size=sm color=none"
+                ).style(
+                    f"border:1px solid {BORDER_INPUT}; border-radius:6px; padding:0 10px;"
+                    f" height:28px; color:{TEXT_MUTED} !important; font-size:11px;"
+                )
+            else:
+                async def _show_sign_in():
+                    async def _on_login_success(result):
+                        import base64 as _b64
+                        app.storage.user["user_id"] = result["user_id"]
+                        # Store as base64 string (JSON-serialisable)
+                        app.storage.user["encryption_key"] = _b64.urlsafe_b64encode(
+                            result["encryption_key"]
+                        ).decode()
+                        app.storage.user["auth_email"] = result["email"]
+                        # Migrate local portfolio if needed
+                        await _maybe_migrate_local_portfolio(result)
+                        ui.navigate.to("/")
+
+                    # Render auth UI in the main content area
+                    for name in _TAB_NAMES:
+                        _tab_built[name] = False
+                    _content_container.clear()
+                    with _content_container:
+                        await show_auth_ui(_content_container, _on_login_success)
+
+                ui.button("Sign in", on_click=_show_sign_in).props(
+                    "flat dense no-caps size=sm color=none"
+                ).style(
+                    f"border:1px solid {BORDER_INPUT}; border-radius:6px; padding:0 10px;"
+                    f" height:28px; color:{TEXT_MUTED} !important; font-size:11px;"
+                )
 
     # ── Precompute shared maps ────────────────────────────
     portfolio_color_map = _build_color_map(portfolio)
@@ -550,7 +603,8 @@ function triggerSwipeHint() {
     """)
 
     # ── Main content area ──────────────────────────────────
-    with ui.column().classes("w-full").style(f"background:{BG_MAIN}; min-height:100vh;"):
+    _content_container = ui.column().classes("w-full").style(f"background:{BG_MAIN}; min-height:100vh;")
+    with _content_container:
 
         # Tab bar
         tab_map: dict[str, ui.tab] = {}
@@ -663,6 +717,50 @@ function triggerSwipeHint() {
             '</div>'
         )
 
+    # ── Local → server portfolio migration ────────────────
+    async def _maybe_migrate_local_portfolio(login_result: dict):
+        """On first login, migrate local portfolio to server if server is empty."""
+        from src.ui.shared import _server_load, _server_save, _load_local
+        user_id = login_result["user_id"]
+        enc_key = login_result["encryption_key"]
+
+        server_data = await run.io_bound(_server_load, enc_key, user_id)
+        # Read local data directly (bypass routing, which would hit server now)
+        local_data = _load_local()
+
+        has_local = bool(local_data.get("portfolio"))
+        has_server = bool(server_data.get("portfolio"))
+
+        if has_local and not has_server:
+            # No conflict — migrate local → server
+            await run.io_bound(_server_save, local_data, enc_key, user_id)
+        elif has_local and has_server:
+            # Conflict — let user choose
+            with ui.dialog() as dlg, ui.card().style(
+                f"min-width:360px; max-width:440px; background:{BG_CARD};"
+                f" border:1px solid rgba(255,255,255,0.12); border-radius:10px; padding:20px;"
+            ):
+                ui.label("Portfolio conflict").style(
+                    f"font-size:15px; font-weight:700; color:{TEXT_PRIMARY}; margin-bottom:8px;"
+                )
+                ui.label(
+                    "This browser has a local portfolio, but your account already "
+                    "has one on the server. Which do you want to keep?"
+                ).style(f"font-size:12px; color:{TEXT_MUTED}; margin-bottom:16px;")
+                with ui.row().classes("w-full justify-end gap-2"):
+                    async def _keep_server():
+                        dlg.close()
+                    async def _use_local():
+                        await run.io_bound(_server_save, local_data, enc_key, user_id)
+                        dlg.close()
+                    ui.button("Keep server", on_click=_keep_server).props(
+                        "flat no-caps"
+                    ).style(f"color:{TEXT_MUTED}; font-size:12px;")
+                    ui.button("Use this browser's data", on_click=_use_local).props(
+                        "no-caps unelevated"
+                    ).style(f"background:{ACCENT}; border-radius:6px; font-size:12px;")
+            dlg.open()
+
     # ── Mutation callback — rebuild current tab in-place ──
     async def _on_portfolio_mutation():
         """Called after any portfolio change (add/remove/load/clear).
@@ -726,6 +824,14 @@ class _SecurityHeadersMiddleware(BaseHTTPMiddleware):
         return response
 
 app.add_middleware(_SecurityHeadersMiddleware)
+
+@ui.page("/reset")
+async def reset_page(token: str = ""):
+    """Password reset landing page — linked from reset emails."""
+    if not token:
+        ui.label("Invalid reset link.").style(f"color:{TEXT_MUTED}; padding:40px;")
+        return
+    build_reset_complete_form(token)
 
 # ── Run ────────────────────────────────────────────────────
 ui.run(
