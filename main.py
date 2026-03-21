@@ -208,10 +208,6 @@ async def index(request: Request):
     if initial_tab_name not in _TAB_NAMES:
         initial_tab_name = "Overview"
 
-    # On mobile, Forecast and Income are hidden — fall back to Overview.
-    # (Actual hiding is CSS-only; this handles direct URL access.)
-    _MOBILE_HIDDEN_TABS = {"Forecast", "Income"}
-
     # ── Head: CSS + PWA ────────────────────────────────────
     ui.add_head_html(GLOBAL_CSS)
     ui.add_head_html("""<script>

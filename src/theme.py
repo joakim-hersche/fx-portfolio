@@ -473,7 +473,6 @@ body, .q-page, .nicegui-content {
 
   /* Positions card list */
   .position-cards { display: flex !important; flex-direction: column; gap: 6px; }
-  .table-wrap { display: none !important; }
 
   /* Research fundamentals 2-col */
   .fundamentals-grid { grid-template-columns: 1fr 1fr !important; }

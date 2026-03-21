@@ -324,17 +324,18 @@ def _build_positions_table(
         with table_container:
             ui.html(html)
 
-    # Show toggle only when multi-lot positions exist
+    # Show toggle only when multi-lot positions exist (desktop only)
     if multi_tickers:
         def _on_toggle(e):
             show_individual["value"] = e.value
             _render_table()
 
-        ui.switch(
-            "Show individual purchases",
-            value=False,
-            on_change=_on_toggle,
-        ).style(f"font-size:12px;color:{TEXT_MUTED};").props("dense")
+        with ui.element("div").classes("desktop-only"):
+            ui.switch(
+                "Show individual purchases",
+                value=False,
+                on_change=_on_toggle,
+            ).style(f"font-size:12px;color:{TEXT_MUTED};").props("dense")
 
     _render_table()
 
