@@ -413,8 +413,10 @@ body, .q-page, .nicegui-content {
   -webkit-tap-highlight-color: transparent;
 }
 .mobile-tab-bar .tab-item svg { stroke: #64748B; }
-.mobile-tab-bar .tab-item .tab-label { font-size: 9px; color: #64748B; }
+.mobile-tab-bar .tab-item .q-icon { color: #64748B; }
+.mobile-tab-bar .tab-item .tab-label { font-size: 10px; color: #64748B; }
 .mobile-tab-bar .tab-item.active svg { stroke: #3B82F6; }
+.mobile-tab-bar .tab-item.active .q-icon { color: #3B82F6; }
 .mobile-tab-bar .tab-item.active .tab-label { color: #3B82F6; font-weight: 600; }
 
 /* ── Touch-small tier (phones) ───────────────────────── */
@@ -529,7 +531,7 @@ body, .q-page, .nicegui-content {
 
   /* Tables: horizontal scroll */
   .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  .table-wrap table { min-width: 600px; }
+  .table-wrap table.wide-table { min-width: 600px; }
 
   /* Metric cards: stack */
   .metric-card { padding: 10px 12px; }
@@ -603,7 +605,7 @@ body, .q-page, .nicegui-content {
 }
 
 /* ── Responsive: Small mobile (< 480px) ───────────────── */
-@media (max-width: 479px) {
+@media (pointer: coarse) and (max-width: 479px) {
   .kpi-value { font-size: 18px; }
   .kpi-card.hero .kpi-value { font-size: 20px; }
   .kpi-sub { font-size: 10px; }
@@ -733,7 +735,7 @@ body, .q-page, .nicegui-content {
     min-width: 0 !important;
     padding: 8px 4px !important;
     font-size: 13px !important;
-    min-height: 36px !important;
+    min-height: 44px !important;
   }
 }
 
@@ -792,7 +794,7 @@ body, .q-page, .nicegui-content {
 
   /* Tables: horizontal scroll */
   .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  .table-wrap table { min-width: 600px; }
+  .table-wrap table.wide-table { min-width: 600px; }
 
   /* Diag row: 2-col */
   .diag-row > * { min-width: 0; flex-basis: calc(50%% - var(--grid-gap)); }
@@ -932,8 +934,7 @@ body, .q-page, .nicegui-content {
 
 /* ── PWA standalone mode: hide browser chrome padding ─── */
 @media (display-mode: standalone) {
-  body { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
-  .q-header { padding-top: env(safe-area-inset-top); }
+  body { padding-bottom: env(safe-area-inset-bottom); }
 }
 
 /* Dialog styling — match dashboard dark theme */
