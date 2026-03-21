@@ -5,6 +5,8 @@ disclaimer, score circle, findings cards, sector exposure,
 collapsible detailed metrics, and rebalancing calculator.
 """
 
+import time as _time
+
 import numpy as np
 import pandas as pd
 from nicegui import run, ui
@@ -1060,6 +1062,57 @@ def _render_rebalancing_calculator(
 
 # ── Public entry point ───────────────────────────────────────────────────────
 
+def _format_time_ago(unix_timestamp: int) -> str:
+    if not unix_timestamp:
+        return ""
+    diff = int(_time.time()) - unix_timestamp
+    if diff < 3600:
+        return f"{diff // 60}m ago"
+    if diff < 86400:
+        return f"{diff // 3600}h ago"
+    days = diff // 86400
+    return f"{days}d ago"
+
+
+async def _render_portfolio_news(tickers, color_map):
+    from src.data_fetch import fetch_ticker_news
+
+    def _fetch_all_news():
+        all_news = []
+        for ticker in tickers:
+            for item in fetch_ticker_news(ticker):
+                item["ticker"] = ticker
+                all_news.append(item)
+        all_news.sort(key=lambda x: x.get("providerPublishTime", 0), reverse=True)
+        return all_news[:20]
+
+    news_items = await run.io_bound(_fetch_all_news)
+
+    with ui.column().classes("chart-card w-full"):
+        if not news_items:
+            ui.html(f'<p style="color:{TEXT_DIM};font-size:12px;">No recent news for your holdings.</p>')
+            return
+
+        for item in news_items:
+            ticker = item.get("ticker", "")
+            dot_color = color_map.get(ticker, TEXT_DIM)
+            time_ago = _format_time_ago(item.get("providerPublishTime", 0))
+
+            ui.html(
+                f'<div style="display:flex;gap:8px;align-items:baseline;'
+                f'padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.04);">'
+                f'<span style="font-size:11px;font-weight:600;color:{dot_color};'
+                f'white-space:nowrap;min-width:50px;">{ticker}</span>'
+                f'<div style="flex:1;">'
+                f'<a href="{item.get("link", "#")}" target="_blank" rel="noopener" '
+                f'style="color:{TEXT_PRIMARY};font-size:12px;text-decoration:none;">'
+                f'{item.get("title", "")}</a>'
+                f'<div style="font-size:10px;color:{TEXT_DIM};">'
+                f'{item.get("publisher", "")} &middot; {time_ago}</div>'
+                f'</div></div>'
+            )
+
+
 async def build_health_tab(portfolio: dict, currency: str) -> None:
     """Render the full Portfolio Health tab content.
 
@@ -1196,3 +1249,6 @@ async def build_health_tab(portfolio: dict, currency: str) -> None:
                 _render_correlation_heatmap(price_data_1y, tickers)
 
         _render_rebalancing_calculator(fund_rows, portfolio_df, currency_symbol)
+
+    _section_header("Portfolio News")
+    await _render_portfolio_news(tickers, portfolio_color_map)
