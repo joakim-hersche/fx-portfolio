@@ -219,26 +219,29 @@ def build_portfolio_df(portfolio: dict, base_currency: str) -> pd.DataFrame:
             buy_price = lot["buy_price"] * lot_fx
             purchase_date = lot["purchase_date"]
 
+            split_factor = get_split_factor(ticker, purchase_date)
+            adjusted_shares = shares * split_factor
+
             dividends_per_share = (
                 div_cache.get(purchase_date, 0.0)
                 if purchase_date and purchase_date != "Manual"
                 else 0.0
             )
-            total_dividends = round(dividends_per_share * shares, 2)
-            cost_basis = buy_price * shares
+            total_dividends = round(dividends_per_share * adjusted_shares, 2)
+            cost_basis = buy_price * shares  # what you paid — independent of splits
 
             rows.append({
                 "Ticker": ticker,
                 "Purchase": i + 1,
-                "Shares": shares,
+                "Shares": adjusted_shares,
                 "Buy Price": round(buy_price, 2),
                 "Purchase Date": purchase_date or "Manual",
                 "Current Price": round(current_price, 2),
-                "Total Value": round(current_price * shares, 2),
+                "Total Value": round(current_price * adjusted_shares, 2),
                 "Dividends": total_dividends,
-                "Daily P&L": round((current_price - prev_price) * shares, 2),
+                "Daily P&L": round((current_price - prev_price) * adjusted_shares, 2),
                 "Return (%)": round(
-                    (current_price * shares + total_dividends - cost_basis) / cost_basis * 100, 2
+                    (current_price * adjusted_shares + total_dividends - cost_basis) / cost_basis * 100, 2
                 ) if cost_basis else None,
             })
 

@@ -121,3 +121,39 @@ def test_get_split_factor_manual_date():
     from src.portfolio import get_split_factor
     assert get_split_factor("AAPL", "Manual") == 1.0
     assert get_split_factor("AAPL", None) == 1.0
+
+
+@patch("src.portfolio.yf.download")
+@patch("src.portfolio.get_fx_rate", return_value=(1.0, True))
+@patch("src.portfolio._dividends_in_base_currency", return_value=0.0)
+@patch("src.portfolio.get_split_factor", return_value=5.0)
+def test_build_portfolio_df_applies_split_factor(mock_split, mock_divs, mock_fx, mock_download):
+    """A 5:1 split should multiply shares by 5 in value/return calculations."""
+    from src.portfolio import build_portfolio_df
+    from src.cache import short_cache
+    short_cache.clear()
+
+    dates = pd.date_range("2024-01-10", periods=5, freq="B")
+    mock_download.return_value = pd.DataFrame(
+        {"Close": [148.0, 149.0, 150.0, 151.0, 152.0]},
+        index=dates,
+    )
+
+    portfolio = {
+        "AAPL": [
+            {"shares": 10, "buy_price": 750.0, "buy_fx_rate": 1.0, "purchase_date": "2024-01-08"},
+        ],
+    }
+
+    result = build_portfolio_df(portfolio, "USD")
+    row = result.iloc[0]
+
+    # After 5:1 split: adjusted_shares = 10 * 5 = 50
+    assert row["Shares"] == 50
+    assert row["Total Value"] == 152.0 * 50  # 7600.0
+    assert row["Daily P&L"] == (152.0 - 151.0) * 50  # 50.0
+
+    # cost_basis = buy_price * buy_fx_rate * original_shares = 750 * 1.0 * 10 = 7500
+    # return = (current_value + dividends - cost_basis) / cost_basis * 100
+    # = (7600 + 0 - 7500) / 7500 * 100 = 1.33
+    assert row["Return (%)"] == round((7600 + 0 - 7500) / 7500 * 100, 2)
