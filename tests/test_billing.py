@@ -96,7 +96,8 @@ def test_handle_subscription_deleted():
 # ── display prices ──
 
 
-def test_display_prices():
+def test_display_prices(monkeypatch):
+    monkeypatch.setenv("STRIPE_PRICE_IDS", '{"eur_monthly":"price_eur_m","eur_yearly":"price_eur_y","eur_lifetime":"price_eur_l"}')
     prices = billing.get_display_prices("EUR")
     assert prices["monthly"] == 8
     assert prices["yearly"] == 79
@@ -104,7 +105,8 @@ def test_display_prices():
     assert prices["symbol"] == "\u20ac"
 
 
-def test_display_prices_chf():
+def test_display_prices_chf(monkeypatch):
+    monkeypatch.setenv("STRIPE_PRICE_IDS", '{"chf_monthly":"price_chf_m","chf_yearly":"price_chf_y","chf_lifetime":"price_chf_l"}')
     prices = billing.get_display_prices("CHF")
     assert prices["monthly"] == 8
     assert prices["symbol"] == "CHF"
