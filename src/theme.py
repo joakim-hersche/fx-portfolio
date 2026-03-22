@@ -178,7 +178,9 @@ body, .q-page, .nicegui-content {
 .sidebar-btn:hover { border-color: rgba(255,255,255,0.15); color: %(TEXT_MUTED)s; }
 
 /* ── KPI cards ─────────────────────────────────────────── */
-.kpi-row { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: var(--grid-gap); width: 100%%; }
+.kpi-row { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: var(--grid-gap); width: 100%%; align-items: stretch; }
+.kpi-row > * { display: flex; flex-direction: column; }
+.kpi-row-5 { grid-template-columns: repeat(5, 1fr); }
 .kpi-card {
   background: %(BG_CARD)s; border: 1px solid %(BORDER)s;
   border-radius: 10px; padding: 16px 18px; box-sizing: border-box;
@@ -389,7 +391,7 @@ body, .q-page, .nicegui-content {
 
 /* ── Responsive: KPI at medium width ─────────────────── */
 @media (max-width: 1100px) {
-  .kpi-row { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .kpi-row, .kpi-row-5 { grid-template-columns: 1fr 1fr; gap: 10px; }
 }
 
 /* ── Device-tier utility classes ── */
@@ -533,7 +535,7 @@ body, .q-page, .nicegui-content {
   }
 
   /* KPI cards: single column */
-  .kpi-row { grid-template-columns: 1fr !important; gap: 8px !important; }
+  .kpi-row, .kpi-row-5 { grid-template-columns: 1fr !important; gap: 8px !important; }
   .kpi-card { min-width: 100%% !important; }
   .kpi-card, .kpi-card.hero { padding: 14px 16px; }
   .kpi-value { font-size: 20px; }

@@ -277,7 +277,7 @@ async def build_overview_tab(
 
     # Desktop: 5-column KPI grid
     ui.html(
-        f'<div class="kpi-row" style="grid-template-columns:1fr 1fr 1fr 1fr 1fr;">'
+        f'<div class="kpi-row kpi-row-5">'
         f'{card_1}{card_2}{card_3}{card_4}{card_5}</div>'
     ).classes("w-full not-phone")
 
