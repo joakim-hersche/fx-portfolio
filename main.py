@@ -186,38 +186,6 @@ async def healthz():
     return {'status': 'ok'}
 
 
-# TODO: Re-enable authentication before production launch.
-# Set APP_PASSWORD env var to the subscription password.
-#
-# @ui.page("/login")
-# def login_page():
-#     """Simple password gate for the dashboard."""
-#     ui.add_head_html(GLOBAL_CSS)
-#     ui.dark_mode(True)
-#
-#     def try_login():
-#         if password.value == os.environ.get("APP_PASSWORD", "demo"):
-#             app.storage.user["authenticated"] = True
-#             ui.navigate.to("/")
-#         else:
-#             ui.notify("Wrong password", type="negative")
-#
-#     with ui.card().classes("absolute-center").style(
-#         f"background:{BG_CARD}; border:1px solid {BORDER}; padding:32px; min-width:320px;"
-#     ):
-#         with ui.row().classes("items-center gap-2").style("margin-bottom:16px;"):
-#             ui.html(
-#                 f'<div style="width:8px;height:8px;border-radius:50%;background:{ACCENT};"></div>'
-#             )
-#             ui.label("Market Dashboard").style(
-#                 f"font-size:16px; font-weight:700; color:{TEXT_PRIMARY};"
-#             )
-#         password = ui.input(
-#             "Password", password=True, password_toggle_button=True,
-#         ).on("keydown.enter", try_login).classes("w-full")
-#         ui.button("Login", on_click=try_login).classes("w-full").style("margin-top:8px;")
-
-
 _log = logging.getLogger(__name__)
 
 
