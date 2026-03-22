@@ -602,6 +602,48 @@ function triggerSwipeHint() {
                                         f" border-radius:3px; padding:1px 6px;"
                                     )
 
+                        # Promo code (non-Pro users only)
+                        if not is_pro(auth_user_id):
+                            ui.separator().style("margin:4px 14px; opacity:0.15;")
+                            with ui.menu_item().style("padding:10px 14px;"):
+                                promo_col = ui.column().classes("w-full").style("gap:6px;")
+                                promo_input = None
+
+                                def _show_promo():
+                                    nonlocal promo_input
+                                    promo_col.clear()
+                                    with promo_col:
+                                        with ui.row().classes("items-center gap-2 w-full"):
+                                            promo_input = ui.input("Code").props(
+                                                "outlined dense"
+                                            ).style(
+                                                f"flex:1; background:{BG_INPUT};"
+                                            )
+                                            async def _apply():
+                                                from src.billing import apply_promo_code
+                                                result = await run.io_bound(
+                                                    apply_promo_code, auth_user_id, promo_input.value
+                                                )
+                                                if result == "ok":
+                                                    ui.notify("Pro activated for 30 days!", type="positive")
+                                                    ui.navigate.to("/")
+                                                elif result == "already_used":
+                                                    ui.notify("Promo code already used", type="warning")
+                                                else:
+                                                    ui.notify("Invalid code", type="negative")
+
+                                            ui.button("Apply", on_click=_apply).props(
+                                                "no-caps unelevated dense size=sm"
+                                            ).style(
+                                                f"background:{ACCENT}; border-radius:6px; font-size:11px;"
+                                            )
+
+                                with promo_col:
+                                    ui.label("Have a promo code?").style(
+                                        f"font-size:12px; color:{ACCENT}; cursor:pointer;"
+                                        f" text-decoration:underline;"
+                                    ).on("click", _show_promo)
+
                         # Manage subscription (Pro with Stripe only)
                         _fresh_user = db.get_user_by_id(auth_user_id) or {}
                         _stripe_cust = _fresh_user.get("stripe_customer_id")
@@ -648,6 +690,11 @@ function triggerSwipeHint() {
                             result["encryption_key"]
                         ).decode()
                         app.storage.user["auth_email"] = result["email"]
+                        # Apply pending promo code from signup
+                        _pending = app.storage.user.pop("_pending_promo", None)
+                        if _pending:
+                            from src.billing import apply_promo_code
+                            await run.io_bound(apply_promo_code, result["user_id"], _pending)
                         try:
                             await _maybe_migrate_local_portfolio(result)
                         except Exception:
