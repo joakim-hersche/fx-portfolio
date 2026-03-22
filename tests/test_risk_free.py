@@ -3,7 +3,7 @@ import pandas as pd
 import pytest
 from unittest.mock import patch, MagicMock
 
-from src.risk_free import fetch_risk_free_yields, _fetch_fred
+from src.risk_free import fetch_risk_free_yields, _fetch_fred, _fetch_riksbank
 from src.cache import long_cache_risk_free
 
 
@@ -43,6 +43,31 @@ class TestFetchFred:
         with patch.dict(os.environ, {}, clear=True):
             os.environ.pop("FRED_API_KEY", None)
             result = _fetch_fred("2025-01-02", "2025-01-07")
+        assert result.empty
+
+
+class TestFetchRiksbank:
+    """Riksbank API fetcher for EUR/GBP/SEK 10Y yields."""
+
+    def test_returns_series_on_success(self):
+        mock_json = [
+            {"date": "2025-01-02", "value": 2.35},
+            {"date": "2025-01-03", "value": 2.40},
+        ]
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = mock_json
+        mock_resp.raise_for_status = MagicMock()
+
+        with patch("src.risk_free.requests.get", return_value=mock_resp):
+            result = _fetch_riksbank("EUR", "2025-01-02", "2025-01-03")
+
+        assert isinstance(result, pd.Series)
+        assert len(result) == 2
+        assert result.iloc[0] == pytest.approx(2.35)
+
+    def test_returns_empty_on_error(self):
+        with patch("src.risk_free.requests.get", side_effect=Exception("timeout")):
+            result = _fetch_riksbank("EUR", "2025-01-02", "2025-01-03")
         assert result.empty
 
 
