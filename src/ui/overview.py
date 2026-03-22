@@ -20,6 +20,7 @@ from src.fx import (
     CURRENCY_SYMBOLS, get_fx_rate, get_ticker_currency,
 )
 from src.portfolio import build_portfolio_df
+from src.risk_free import fetch_risk_free_yields, risk_free_label
 from src.theme import (
     ACCENT, BG_CARD, BORDER, BORDER_SUBTLE,
     GREEN, RED, AMBER, TEXT_FAINT,
@@ -535,6 +536,7 @@ async def build_comparison(
             ).props("dense size=sm no-caps").style("font-size:10px;")
             fx_switch = ui.switch("FX-adjusted", value=False).style(f"font-size:12px;color:{TEXT_MUTED};")
             bench_switch = ui.switch("Show benchmark", value=False).style(f"font-size:12px;color:{TEXT_MUTED};")
+            rf_switch = ui.switch("Risk-free", value=False).style(f"font-size:12px;color:{TEXT_MUTED};")
 
     # ── Ticker toggle pills ──
     ticker_visibility: dict[str, bool] = {t: True for t in portfolio}
@@ -651,9 +653,26 @@ async def build_comparison(
                 except Exception:
                     pass
 
-            return data, bench_series, bench_name
+            # Fetch risk-free yield curve if requested
+            rf_cumulative = None
+            rf_label = None
+            if rf_switch.value:
+                rf_label = f"Risk-Free ({risk_free_label(base_currency)})"
+                try:
+                    all_series = [s for s in data.values() if s is not None and not s.empty]
+                    if all_series:
+                        rf_start = str(min(s.index.min() for s in all_series).date())
+                        rf_end = str(max(s.index.max() for s in all_series).date())
+                        yields = fetch_risk_free_yields(base_currency, rf_start, rf_end)
+                        if not yields.empty:
+                            daily_rate = (1 + yields / 100) ** (1 / 365) - 1
+                            rf_cumulative = (1 + daily_rate).cumprod() * 100
+                except Exception:
+                    pass
 
-        comparison_data, bench_series, bench_name = await run.io_bound(_fetch_comparison_data)
+            return data, bench_series, bench_name, rf_cumulative, rf_label
+
+        comparison_data, bench_series, bench_name, rf_cumulative, rf_label = await run.io_bound(_fetch_comparison_data)
 
         comparison_df = pd.DataFrame(comparison_data).dropna()
         if not comparison_df.empty:
@@ -675,6 +694,16 @@ async def build_comparison(
                 mode="lines", name=bench_name,
                 line=dict(color="#F59E0B", width=2),
                 hovertemplate=f"{bench_name}: %{{y:.1f}}<extra></extra>",
+            ))
+
+        # Add risk-free rate overlay
+        if rf_switch.value and rf_cumulative is not None and not rf_cumulative.empty:
+            import plotly.graph_objects as go
+            fig.add_trace(go.Scatter(
+                x=rf_cumulative.index, y=rf_cumulative.values,
+                mode="lines", name=rf_label,
+                line=dict(color="#10B981", width=2, dash="dash"),
+                hovertemplate=f"{rf_label}: %{{y:.1f}}<extra></extra>",
             ))
 
         # Apply ticker visibility toggles — match by trace name, not index
@@ -713,6 +742,7 @@ async def build_comparison(
     range_toggle.on_value_change(_debounced_update)
     fx_switch.on_value_change(_debounced_update)
     bench_switch.on_value_change(_debounced_update)
+    rf_switch.on_value_change(_debounced_update)
 
     # Initial render
     _render_pills()
