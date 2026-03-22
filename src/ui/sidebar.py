@@ -116,6 +116,53 @@ def build_sidebar(
         '<q-icon name="search" style="font-size:16px;opacity:0.5;" />'
     )
 
+    # ── Live yf.Search fallback for tickers not in cached lists ──
+    _search_timer = {"handle": None}
+
+    async def _on_search_input(e):
+        query = e.args if isinstance(e.args, str) else ""
+        if len(query) < 2:
+            return
+
+        # Check if there are already matching options
+        query_upper = query.upper()
+        matches = [k for k in all_tickers if query_upper in k.upper() or query_upper in all_tickers[k].upper()]
+        if len(matches) >= 3:
+            return  # enough cached results, no need for live search
+
+        # Debounce: cancel previous search
+        if _search_timer["handle"]:
+            _search_timer["handle"].cancel()
+
+        import asyncio
+        loop = asyncio.get_event_loop()
+
+        async def _do_search():
+            try:
+                import yfinance as yf
+                results = await run.io_bound(lambda: yf.Search(query, max_results=8))
+                quotes = results.quotes if hasattr(results, "quotes") else []
+                new_options = {}
+                for q in quotes:
+                    symbol = q.get("symbol", "")
+                    name = q.get("shortname") or q.get("longname") or symbol
+                    exchange = q.get("exchDisp", "")
+                    if symbol and _is_valid_ticker(symbol):
+                        label = f"{name} ({symbol})" if exchange == "" else f"{name} ({symbol} · {exchange})"
+                        new_options[symbol] = label
+                if new_options:
+                    # Merge into existing options without losing cached ones
+                    current = dict(search_select.options) if isinstance(search_select.options, dict) else {k: v for k, v in search_select.options}
+                    current.update(new_options)
+                    search_select.options = current
+                    search_select.update()
+            except Exception:
+                pass
+
+        _search_timer["handle"] = loop.call_later(0.4, lambda: asyncio.ensure_future(_do_search()))
+
+    search_select.on("input-value", _on_search_input)
+
     # After each input keystroke, auto-highlight the first filtered option
     # so pressing Enter selects it without needing arrow-down first.
     search_select.on(
@@ -512,64 +559,152 @@ def build_sidebar(
 
                         bridge_id = f"c{bridge.id}"
 
-                        # Build edit click JS — for single lot, click edit icon directly;
-                        # for multi-lot, click opens first lot (user can navigate via dialog)
-                        edit_onclick = (
-                            f"document.getElementById('{edit_bridges[0]}')"
-                            f".dispatchEvent(new Event('edit_click'))"
-                        ) if edit_bridges else ""
+                        n_lots = len(lots)
 
-                        # Desktop: full row with inline icons
-                        ui.html(
-                            f'<div style="display:flex;align-items:center;gap:8px;width:100%;'
-                            f'background:{BG_PILL};border:1px solid {BORDER_SUBTLE};'
-                            f'border-radius:6px;padding:8px 10px;box-sizing:border-box;">'
-                            f'<div style="width:7px;height:7px;border-radius:50%;background:{color};flex-shrink:0;"></div>'
-                            f'{warn_html}'
-                            f'<div style="flex:1;min-width:0;font-size:12px;font-weight:600;color:{TEXT_PRIMARY};'
-                            f'line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="{company_name}">'
-                            f'{ticker} <span style="font-weight:400;color:{TEXT_DIM};">{value_text}</span></div>'
-                            f'<div onclick="{edit_onclick}" '
-                            f'style="flex-shrink:0;cursor:pointer;color:{TEXT_MUTED};font-size:14px;line-height:1;'
-                            f'padding:2px;" title="Edit {_t}">\u270e</div>'
-                            f'<div onclick="document.getElementById(\'{bridge_id}\').dispatchEvent(new Event(\'remove_click\'))" '
-                            f'style="flex-shrink:0;cursor:pointer;color:{TEXT_MUTED};font-size:15px;line-height:1;'
-                            f'padding:2px;" title="Remove {_t}">&times;</div>'
-                            f'</div>'
-                        ).classes("w-full not-phone")
+                        if n_lots == 1:
+                            # ── Single lot: simple row ──
+                            edit_onclick = (
+                                f"document.getElementById('{edit_bridges[0]}')"
+                                f".dispatchEvent(new Event('edit_click'))"
+                            ) if edit_bridges else ""
 
-                        # Mobile: swipe-to-reveal row
-                        with ui.element("q-slide-item").classes("touch-only w-full") as slide:
-                            # Left slot — Edit (revealed by swiping right)
-                            with slide.add_slot("left"):
-                                ui.html(
-                                    '<div style="display:flex;align-items:center;gap:6px;padding:0 20px;'
-                                    'color:white;font-size:13px;font-weight:600;">'
-                                    '<span class="material-icons" style="font-size:18px;">edit</span> Edit</div>'
-                                )
-                            # Right slot — Delete (revealed by swiping left)
-                            with slide.add_slot("right"):
-                                ui.html(
-                                    '<div style="display:flex;align-items:center;gap:6px;padding:0 20px;'
-                                    'color:white;font-size:13px;font-weight:600;">'
-                                    '<span class="material-icons" style="font-size:18px;">delete</span> Delete</div>'
-                                )
-                            # Default slot — position row content
+                            # Desktop
                             ui.html(
-                                f'<div class="mobile-position-row">'
-                                f'<div style="width:8px;height:8px;border-radius:50%;background:{color};flex-shrink:0;"></div>'
-                                f'<div style="flex:1;min-width:0;">'
-                                f'<div style="font-size:14px;font-weight:600;color:#F1F5F9;">{ticker}</div>'
-                                f'<div style="font-size:11px;color:#7B8BA0;">{company_name} \u00b7 {total_shares:g} shares</div>'
+                                f'<div style="display:flex;align-items:center;gap:8px;width:100%;'
+                                f'background:{BG_PILL};border:1px solid {BORDER_SUBTLE};'
+                                f'border-radius:6px;padding:8px 10px;box-sizing:border-box;">'
+                                f'<div style="width:7px;height:7px;border-radius:50%;background:{color};flex-shrink:0;"></div>'
+                                f'{warn_html}'
+                                f'<div style="flex:1;min-width:0;font-size:12px;font-weight:600;color:{TEXT_PRIMARY};'
+                                f'line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="{company_name}">'
+                                f'{ticker} <span style="font-weight:400;color:{TEXT_DIM};">{value_text}</span></div>'
+                                f'<div onclick="{edit_onclick}" '
+                                f'style="flex-shrink:0;cursor:pointer;color:{TEXT_MUTED};font-size:14px;line-height:1;'
+                                f'padding:2px;" title="Edit {_t}">\u270e</div>'
+                                f'<div onclick="document.getElementById(\'{bridge_id}\').dispatchEvent(new Event(\'remove_click\'))" '
+                                f'style="flex-shrink:0;cursor:pointer;color:{TEXT_MUTED};font-size:15px;line-height:1;'
+                                f'padding:2px;" title="Remove {_t}">&times;</div>'
                                 f'</div>'
-                                f'<div style="text-align:right;">'
-                                f'<div style="font-size:14px;font-weight:600;color:#F1F5F9;">{value_text}</div>'
+                            ).classes("w-full not-phone")
+
+                            # Mobile
+                            with ui.element("q-slide-item").classes("touch-only w-full") as slide:
+                                with slide.add_slot("left"):
+                                    ui.html(
+                                        '<div style="display:flex;align-items:center;gap:6px;padding:0 20px;'
+                                        'color:white;font-size:13px;font-weight:600;">'
+                                        '<span class="material-icons" style="font-size:18px;">edit</span> Edit</div>'
+                                    )
+                                with slide.add_slot("right"):
+                                    ui.html(
+                                        '<div style="display:flex;align-items:center;gap:6px;padding:0 20px;'
+                                        'color:white;font-size:13px;font-weight:600;">'
+                                        '<span class="material-icons" style="font-size:18px;">delete</span> Delete</div>'
+                                    )
+                                ui.html(
+                                    f'<div class="mobile-position-row">'
+                                    f'<div style="width:8px;height:8px;border-radius:50%;background:{color};flex-shrink:0;"></div>'
+                                    f'<div style="flex:1;min-width:0;">'
+                                    f'<div style="font-size:14px;font-weight:600;color:#F1F5F9;">{ticker}</div>'
+                                    f'<div style="font-size:11px;color:#7B8BA0;">{company_name} \u00b7 {total_shares:g} shares</div>'
+                                    f'</div>'
+                                    f'<div style="text-align:right;">'
+                                    f'<div style="font-size:14px;font-weight:600;color:#F1F5F9;">{value_text}</div>'
+                                    f'</div>'
+                                    f'</div>'
+                                )
+                            slide.on("left", lambda _, t=_t: _edit_lot(t, 0))
+                            slide.on("right", lambda _, t=_t: _confirm_remove(t))
+                        else:
+                            # ── Multi-lot: header row + indented sub-rows per lot ──
+
+                            # Desktop header
+                            ui.html(
+                                f'<div style="display:flex;align-items:center;gap:8px;width:100%;'
+                                f'background:{BG_PILL};border:1px solid {BORDER_SUBTLE};'
+                                f'border-radius:6px 6px 0 0;padding:8px 10px;box-sizing:border-box;">'
+                                f'<div style="width:7px;height:7px;border-radius:50%;background:{color};flex-shrink:0;"></div>'
+                                f'{warn_html}'
+                                f'<div style="flex:1;min-width:0;font-size:12px;font-weight:600;color:{TEXT_PRIMARY};'
+                                f'line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="{company_name}">'
+                                f'{ticker} <span style="font-weight:400;color:{TEXT_DIM};">{value_text}</span></div>'
+                                f'<div onclick="document.getElementById(\'{bridge_id}\').dispatchEvent(new Event(\'remove_click\'))" '
+                                f'style="flex-shrink:0;cursor:pointer;color:{TEXT_MUTED};font-size:15px;line-height:1;'
+                                f'padding:2px;" title="Remove {_t}">&times;</div>'
                                 f'</div>'
-                                f'</div>'
-                            )
-                        # Wire swipe events
-                        slide.on("left", lambda _, t=_t: _edit_lot(t, 0))
-                        slide.on("right", lambda _, t=_t: _confirm_remove(t))
+                            ).classes("w-full not-phone")
+
+                            # Desktop sub-rows per lot
+                            for li, lot in enumerate(lots):
+                                lot_shares = lot.get("shares", 0)
+                                lot_date = lot.get("purchase_date", "")
+                                lot_date_str = f" \u00b7 {lot_date}" if lot_date else ""
+                                lot_edit_onclick = (
+                                    f"document.getElementById('{edit_bridges[li]}')"
+                                    f".dispatchEvent(new Event('edit_click'))"
+                                )
+                                is_last = li == n_lots - 1
+                                bottom_radius = "0 0 6px 6px" if is_last else "0"
+                                border_bottom = f"1px solid {BORDER_SUBTLE}" if is_last else "none"
+                                ui.html(
+                                    f'<div style="display:flex;align-items:center;gap:8px;width:100%;'
+                                    f'background:rgba(255,255,255,0.02);'
+                                    f'border-left:1px solid {BORDER_SUBTLE};border-right:1px solid {BORDER_SUBTLE};'
+                                    f'border-bottom:{border_bottom};'
+                                    f'border-radius:{bottom_radius};'
+                                    f'padding:5px 10px 5px 26px;box-sizing:border-box;">'
+                                    f'<div style="flex:1;min-width:0;font-size:11px;color:{TEXT_DIM};'
+                                    f'line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'
+                                    f'Lot {li + 1} \u2014 {lot_shares:g} shares{lot_date_str}</div>'
+                                    f'<div onclick="{lot_edit_onclick}" '
+                                    f'style="flex-shrink:0;cursor:pointer;color:{TEXT_MUTED};font-size:13px;line-height:1;'
+                                    f'padding:2px;" title="Edit lot {li + 1}">\u270e</div>'
+                                    f'</div>'
+                                ).classes("w-full not-phone")
+
+                            # Mobile header
+                            with ui.element("q-slide-item").classes("touch-only w-full") as slide:
+                                with slide.add_slot("right"):
+                                    ui.html(
+                                        '<div style="display:flex;align-items:center;gap:6px;padding:0 20px;'
+                                        'color:white;font-size:13px;font-weight:600;">'
+                                        '<span class="material-icons" style="font-size:18px;">delete</span> Delete</div>'
+                                    )
+                                ui.html(
+                                    f'<div class="mobile-position-row">'
+                                    f'<div style="width:8px;height:8px;border-radius:50%;background:{color};flex-shrink:0;"></div>'
+                                    f'<div style="flex:1;min-width:0;">'
+                                    f'<div style="font-size:14px;font-weight:600;color:#F1F5F9;">{ticker}</div>'
+                                    f'<div style="font-size:11px;color:#7B8BA0;">{company_name} \u00b7 {total_shares:g} shares</div>'
+                                    f'</div>'
+                                    f'<div style="text-align:right;">'
+                                    f'<div style="font-size:14px;font-weight:600;color:#F1F5F9;">{value_text}</div>'
+                                    f'</div>'
+                                    f'</div>'
+                                )
+                            slide.on("right", lambda _, t=_t: _confirm_remove(t))
+
+                            # Mobile sub-rows per lot
+                            for li, lot in enumerate(lots):
+                                lot_shares = lot.get("shares", 0)
+                                lot_date = lot.get("purchase_date", "")
+                                lot_date_str = f" \u00b7 {lot_date}" if lot_date else ""
+                                with ui.element("q-slide-item").classes("touch-only w-full") as lot_slide:
+                                    with lot_slide.add_slot("left"):
+                                        ui.html(
+                                            '<div style="display:flex;align-items:center;gap:6px;padding:0 20px;'
+                                            'color:white;font-size:13px;font-weight:600;">'
+                                            '<span class="material-icons" style="font-size:18px;">edit</span> Edit</div>'
+                                        )
+                                    ui.html(
+                                        f'<div class="mobile-position-row" style="padding-left:28px;">'
+                                        f'<div style="flex:1;min-width:0;">'
+                                        f'<div style="font-size:12px;color:#7B8BA0;">'
+                                        f'Lot {li + 1} \u2014 {lot_shares:g} shares{lot_date_str}</div>'
+                                        f'</div>'
+                                        f'</div>'
+                                    )
+                                lot_slide.on("left", lambda _, t=_t, idx=li: _edit_lot(t, idx))
             else:
                 ui.html(
                     f'<div style="font-size:11px;color:{TEXT_DIM};padding:8px 4px;">'

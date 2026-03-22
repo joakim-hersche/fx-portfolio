@@ -13,6 +13,8 @@ from cachetools import cached
 
 logger = logging.getLogger(__name__)
 
+from cachetools.keys import hashkey
+
 from src.cache import short_cache, long_cache, long_cache_history, long_cache_simulation, long_cache_analytics, long_cache_fundamentals, long_cache_names, lenient_key
 
 from src.providers import YFinanceProvider
@@ -368,7 +370,39 @@ def cached_run_monte_carlo_ticker(
 
 @cached(long_cache)
 def load_stock_options() -> dict:
-    """Load all available stock lists from Wikipedia scrapers. Cached for 24 hours."""
+    """Load stock lists from DB cache, falling back to Wikipedia scraping.
+
+    On first run (empty DB), scrapes Wikipedia and stores results.
+    On subsequent runs, loads from DB instantly.
+    If cached data is older than 7 days, refreshes in background.
+    """
+    from src import db
+
+    # Try loading from DB first
+    try:
+        cached = db.load_cached_tickers()
+        if cached:
+            # Check freshness — refresh in background if stale
+            if db.tickers_stale():
+                import threading
+                threading.Thread(target=_scrape_and_cache, daemon=True).start()
+                logger.info("Stock ticker cache is stale — refreshing in background")
+            return cached
+    except Exception:
+        logger.warning("Could not read ticker cache from DB, falling back to scrape")
+
+    # No cache — scrape and store
+    result = _scrape_stock_options()
+    try:
+        db.save_cached_tickers(result)
+        logger.info("Stored %d markets in stock ticker cache", len(result))
+    except Exception:
+        logger.warning("Could not save ticker cache to DB")
+    return result
+
+
+def _scrape_stock_options() -> dict:
+    """Scrape all stock lists from Wikipedia (slow, ~5-10s)."""
     sources = [
         ("US — S&P 500",       get_sp500_stocks),
         ("UK — FTSE 100",      get_ftse100_stocks),
@@ -395,3 +429,16 @@ def load_stock_options() -> dict:
         results = executor.map(_call, sources)
 
     return dict(results)
+
+
+def _scrape_and_cache() -> None:
+    """Background thread: re-scrape Wikipedia and update DB cache."""
+    from src import db
+    try:
+        result = _scrape_stock_options()
+        db.save_cached_tickers(result)
+        # Clear the in-memory cache so next call picks up fresh data
+        long_cache.pop(hashkey(load_stock_options), None)
+        logger.info("Background ticker refresh complete — %d markets", len(result))
+    except Exception as exc:
+        logger.warning("Background ticker refresh failed: %s", exc)

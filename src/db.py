@@ -223,6 +223,17 @@ def init_schema() -> None:
     _migrate("ALTER TABLE users ADD COLUMN pro_expires_at %s DEFAULT NULL" %
              ("TIMESTAMP" if _backend == "postgres" else "TEXT"))
 
+    # Stock ticker cache
+    _execute("""
+        CREATE TABLE IF NOT EXISTS stock_tickers (
+            ticker      TEXT NOT NULL,
+            name        TEXT NOT NULL,
+            market      TEXT NOT NULL,
+            updated_at  TEXT NOT NULL,
+            PRIMARY KEY (ticker, market)
+        )
+    """)
+
     # D: persistent auth tokens (survive server restarts)
     if _backend == "postgres":
         _execute("""
@@ -491,3 +502,47 @@ def find_auth_token_by_hash(token_hash: str) -> dict | None:
     """Look up an auth token by its hash."""
     ph = _p(1)[0]
     return _fetchone(f"SELECT * FROM auth_tokens WHERE token_hash = {ph}", (token_hash,))
+
+
+# ── Stock ticker cache ──────────────────────────────────
+
+
+def load_cached_tickers() -> dict[str, dict[str, str]]:
+    """Load all cached tickers grouped by market.
+
+    Returns {market: {ticker: name}} or empty dict if table is empty.
+    """
+    rows = _fetchall("SELECT ticker, name, market FROM stock_tickers")
+    if not rows:
+        return {}
+    result: dict[str, dict[str, str]] = {}
+    for r in rows:
+        result.setdefault(r["market"], {})[r["ticker"]] = r["name"]
+    return result
+
+
+def save_cached_tickers(stock_options: dict[str, dict[str, str]]) -> None:
+    """Replace all cached tickers with fresh data."""
+    now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    _execute("DELETE FROM stock_tickers")
+    ph = _p(4)
+    for market, tickers in stock_options.items():
+        if not isinstance(tickers, dict):
+            continue
+        for ticker, name in tickers.items():
+            _execute(
+                f"INSERT INTO stock_tickers (ticker, name, market, updated_at) VALUES ({', '.join(ph)})",
+                (ticker, name, market, now),
+            )
+
+
+def tickers_stale(max_age_days: int = 7) -> bool:
+    """Return True if cached tickers are older than max_age_days or empty."""
+    row = _fetchone("SELECT MIN(updated_at) AS oldest FROM stock_tickers")
+    if not row or not row.get("oldest"):
+        return True
+    oldest = datetime.datetime.fromisoformat(row["oldest"])
+    age = datetime.datetime.now(datetime.timezone.utc) - oldest.replace(
+        tzinfo=datetime.timezone.utc
+    )
+    return age.total_seconds() > max_age_days * 86400
