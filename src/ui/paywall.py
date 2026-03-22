@@ -132,7 +132,25 @@ def build_pricing_page(user_id: str | None, currency: str) -> None:
                             f"font-size:13px; color:{ACCENT}; font-weight:600; text-align:center; width:100%;"
                         )
                     elif not user_id:
-                        ui.button("Sign in to upgrade", on_click=lambda: ui.navigate.to("/")).props(
+                        with ui.dialog() as signin_dlg, ui.card().style(
+                            f"background:{BG_CARD}; border:1px solid {BORDER_SUBTLE};"
+                            f" border-radius:10px; padding:24px; min-width:300px;"
+                        ):
+                            ui.label("Sign in required").style(
+                                f"font-size:16px; font-weight:700; color:{TEXT_PRIMARY}; margin-bottom:8px;"
+                            )
+                            ui.label("You need to sign in before upgrading to Pro.").style(
+                                f"font-size:13px; color:{TEXT_MUTED}; margin-bottom:16px;"
+                            )
+                            with ui.row().classes("w-full justify-end gap-2"):
+                                ui.button("Cancel", on_click=signin_dlg.close).props("flat no-caps").style(
+                                    f"color:{TEXT_MUTED}; font-size:12px;"
+                                )
+                                ui.button("Sign in", on_click=lambda: ui.navigate.to("/?signin=1")).props(
+                                    "no-caps unelevated"
+                                ).style(f"background:{ACCENT}; border-radius:6px; font-size:12px;")
+
+                        ui.button("Sign in to upgrade", on_click=signin_dlg.open).props(
                             "no-caps unelevated"
                         ).style(f"width:100%; background:{ACCENT}; border-radius:8px;")
                     else:

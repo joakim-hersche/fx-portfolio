@@ -309,7 +309,7 @@ async def _send_verify_email(email: str, code: str) -> None:
     api_key = os.environ.get("RESEND_API_KEY")
     from_email = os.environ.get("FROM_EMAIL", "noreply@fxportfolio.app")
     if not api_key:
-        _log.warning("RESEND_API_KEY not set — skipping verification email to %s (code: %s)", email, code)
+        print(f"[DEV] Verification code for {email}: {code}")
         return
     try:
         import resend

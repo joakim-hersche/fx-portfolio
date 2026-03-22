@@ -38,16 +38,14 @@ FREE_POSITION_LIMIT = 10
 
 def is_pro(user_id: str | None) -> bool:
     """Check if a user has Pro access."""
-    # TODO: re-enable paywall when pricing is ready
-    return True
-    # if os.environ.get("TESTING_MODE", "").lower() == "true":
-    #     return True
-    # if not user_id:
-    #     return False
-    # user = db.get_user_by_id(user_id)
-    # if not user:
-    #     return False
-    # return user.get("tier") == "pro"
+    if os.environ.get("TESTING_MODE", "").lower() == "true":
+        return True
+    if not user_id:
+        return False
+    user = db.get_user_by_id(user_id)
+    if not user:
+        return False
+    return user.get("tier") == "pro"
 
 
 def is_tab_locked(tab_name: str) -> bool:
@@ -59,8 +57,12 @@ def is_tab_locked(tab_name: str) -> bool:
 
 
 def get_display_prices(currency: str) -> dict:
-    """Return display prices for a currency. Falls back to EUR."""
-    return _PRICES.get(currency, _PRICES["EUR"])
+    """Return display prices for a currency with a Stripe price. Falls back to EUR."""
+    price_ids = json.loads(os.environ.get("STRIPE_PRICE_IDS", "{}"))
+    key = f"{currency.lower()}_monthly"
+    if key in price_ids:
+        return _PRICES.get(currency, _PRICES["EUR"])
+    return _PRICES["EUR"]
 
 
 # ── Stripe price IDs ──────────────────────────────────────
@@ -72,8 +74,12 @@ def get_price_id(currency: str, interval: str) -> str:
     key = f"{currency.lower()}_{interval}"
     if key in price_ids:
         return price_ids[key]
-    fallback_key = f"eur_{interval}"
-    return price_ids.get(fallback_key, "")
+    # Fallback: try each currency until we find one that exists
+    for fallback in ("eur", "chf", "gbp", "sek"):
+        fallback_key = f"{fallback}_{interval}"
+        if fallback_key in price_ids:
+            return price_ids[fallback_key]
+    return ""
 
 
 # ── Stripe checkout ───────────────────────────────────────

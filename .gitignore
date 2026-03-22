@@ -9,12 +9,14 @@ __pycache__/
 # Data (avoid committing personal financial data)
 data/*.csv
 data/*.xlsx
+data/*.db
 .portfolio_state.json
 
 # Scratch / working files
 *.xlsx
 *_PROMPT.md
 *_audit_report.md
+explainer_day_*.md
 
 # Automated screenshot / recording artifacts
 audit_screenshots/
@@ -26,6 +28,7 @@ demo_raw/
 
 # Claude Code
 .claude/
+.superpowers/
 
 # Streamlit (legacy, no longer used)
 .streamlit/
@@ -35,6 +38,10 @@ demo_raw/
 
 # Internal planning infrastructure
 docs/superpowers/
+docs/ux-audit*
+docs/ux_audit*
+docs/sidebar-mockups.html
+docs/stripe-setup.md
 
 # Git worktrees
 .worktrees/

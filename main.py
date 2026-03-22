@@ -4,9 +4,13 @@ Replaces the Streamlit app.py with a reactive, WebSocket-driven UI that
 matches the approved design_proposal.html visual concept.
 """
 
+from dotenv import load_dotenv
+load_dotenv()
+
 import asyncio
 import datetime
 import json
+import logging
 import os
 from urllib.parse import quote
 
@@ -66,6 +70,13 @@ from src.theme import (
 # ── Static files (PWA assets) ─────────────────────────────
 _STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 app.add_static_files("/static", _STATIC_DIR)
+
+# Google Search Console verification
+from starlette.responses import FileResponse
+
+@app.get("/google3533e9f0fa55eb2b.html")
+async def _google_verify():
+    return FileResponse(os.path.join(_STATIC_DIR, "google3533e9f0fa55eb2b.html"))
 
 # ── Sample portfolio path ──
 _SAMPLE_PATH = os.path.join(os.path.dirname(__file__), "data", "sample_portfolio.json")
@@ -207,11 +218,39 @@ async def healthz():
 #         ui.button("Login", on_click=try_login).classes("w-full").style("margin-top:8px;")
 
 
+_log = logging.getLogger(__name__)
+
+
+async def _restore_session_from_cookie(request: Request) -> None:
+    """If the NiceGUI session is empty but a persistent auth_token cookie exists,
+    validate it against the DB and re-establish the session."""
+    if app.storage.user.get("user_id"):
+        return
+    raw_token = request.cookies.get("auth_token")
+    if not raw_token:
+        return
+    try:
+        from src.auth import validate_auth_token, _unwrap_key
+        import base64 as _b64
+        user = await run.io_bound(validate_auth_token, raw_token)
+        if not user:
+            return
+        enc_key = user["encryption_key"]
+        if not isinstance(enc_key, bytes):
+            enc_key = enc_key.encode()
+        encryption_key = await run.io_bound(_unwrap_key, enc_key)
+        app.storage.user["user_id"] = user["id"]
+        app.storage.user["encryption_key"] = _b64.urlsafe_b64encode(
+            encryption_key
+        ).decode()
+        app.storage.user["auth_email"] = user["email"]
+    except Exception:
+        _log.exception("Failed to restore session from auth token")
+
+
 @ui.page("/")
 async def index(request: Request):
-    # TODO: Re-enable auth gate before production launch.
-    # if not app.storage.user.get("authenticated"):
-    #     return ui.navigate.to("/login")
+    await _restore_session_from_cookie(request)
 
     # ── Read query params for tab restoration ─────────────
     initial_tab_name = request.query_params.get("tab", "Overview")
@@ -302,7 +341,11 @@ function triggerSwipeHint() {
     ui.dark_mode(True)
 
     # ── Load persisted state ───────────────────────────────
-    stored = load_portfolio()
+    try:
+        stored = load_portfolio()
+    except Exception:
+        logging.getLogger(__name__).exception("Failed to load portfolio, falling back to empty")
+        stored = {}
 
     # Stripe checkout return — detect via URL param, show toast, clean URL
     ui.run_javascript('''
@@ -328,8 +371,12 @@ function triggerSwipeHint() {
 
     # Show verification banner for unverified logged-in users
     user_id = app.storage.user.get("user_id")
+    user_row = None
     if user_id:
-        user_row = await run.io_bound(db.get_user_by_id, user_id)
+        try:
+            user_row = await run.io_bound(db.get_user_by_id, user_id)
+        except Exception:
+            logging.getLogger(__name__).exception("Failed to fetch user %s", user_id)
         if user_row and not user_row["email_verified"]:
             ui.html(
                 f'<div style="background:rgba(234,179,8,0.15); border:1px solid rgba(234,179,8,0.3);'
@@ -338,7 +385,11 @@ function triggerSwipeHint() {
             )
 
         # Show email alert opt-in prompt (one-time, for verified users never asked)
-        email_alerts_pref = await run.io_bound(db.get_email_alerts, user_id)
+        try:
+            email_alerts_pref = await run.io_bound(db.get_email_alerts, user_id)
+        except Exception:
+            logging.getLogger(__name__).exception("Failed to fetch email alerts for %s", user_id)
+            email_alerts_pref = None
         # Cache for the account dropdown toggle
         app.storage.user["_email_alerts_cached"] = email_alerts_pref
 
@@ -536,23 +587,29 @@ function triggerSwipeHint() {
                 _user_tier = "Pro" if is_pro(auth_user_id) else "Free"
                 _tier_color = ACCENT if _user_tier == "Pro" else TEXT_DIM
 
-                with ui.button(f"{auth_email or ''}", icon="expand_more").props(
+                with ui.button(icon="person").classes("header-account-btn").props(
                     "flat dense no-caps size=sm color=none"
                 ).style(
                     f"border:1px solid {BORDER_INPUT}; border-radius:6px; padding:0 10px;"
                     f" height:28px; color:{TEXT_MUTED} !important; font-size:11px;"
-                    f" max-width:200px; overflow:hidden; text-overflow:ellipsis;"
+                    f" min-width:0;"
                 ):
                     with ui.menu().style(
                         f"background:{BG_CARD}; border:1px solid rgba(255,255,255,0.12);"
                         f" border-radius:10px; min-width:220px;"
                     ):
-                        # Tier badge
-                        with ui.menu_item().style("padding:6px 14px;"):
-                            ui.label(_user_tier).style(
-                                f"font-size:11px; font-weight:600; color:{_tier_color};"
-                                f" background:rgba(59,130,246,0.1); border-radius:4px; padding:2px 8px;"
-                            )
+                        # Email + tier badge
+                        with ui.menu_item().style("padding:8px 14px;"):
+                            with ui.column().style("gap:4px;"):
+                                ui.label(auth_email or "").style(
+                                    f"font-size:12px; color:{TEXT_PRIMARY}; font-weight:500;"
+                                    f" overflow:hidden; text-overflow:ellipsis; max-width:200px;"
+                                )
+                                ui.label(_user_tier).style(
+                                    f"font-size:11px; font-weight:600; color:{_tier_color};"
+                                    f" background:rgba(59,130,246,0.1); border-radius:4px; padding:2px 8px;"
+                                    f" display:inline-block; width:fit-content;"
+                                )
 
                         ui.separator().style("margin:4px 14px; opacity:0.15;")
 
@@ -593,11 +650,21 @@ function triggerSwipeHint() {
                         ui.separator().style("margin:4px 14px; opacity:0.15;")
 
                         # Sign out
-                        def _logout():
+                        async def _logout():
+                            uid = app.storage.user.get("user_id")
+                            if uid:
+                                try:
+                                    from src.auth import delete_user_auth_tokens
+                                    await run.io_bound(delete_user_auth_tokens, uid)
+                                except Exception:
+                                    pass
                             app.storage.user.pop("user_id", None)
                             app.storage.user.pop("encryption_key", None)
                             app.storage.user.pop("auth_email", None)
                             app.storage.user.pop("_email_alerts_cached", None)
+                            ui.run_javascript(
+                                "document.cookie = 'auth_token=; path=/; max-age=0';"
+                            )
                             ui.navigate.to("/")
 
                         with ui.menu_item(on_click=_logout).style("padding:10px 14px;"):
@@ -613,7 +680,24 @@ function triggerSwipeHint() {
                             result["encryption_key"]
                         ).decode()
                         app.storage.user["auth_email"] = result["email"]
-                        await _maybe_migrate_local_portfolio(result)
+                        try:
+                            await _maybe_migrate_local_portfolio(result)
+                        except Exception:
+                            logging.getLogger(__name__).exception(
+                                "Portfolio migration failed for %s", result["user_id"]
+                            )
+                        # Create persistent auth token so login survives server restarts
+                        try:
+                            from src.auth import create_auth_token
+                            raw_token = await run.io_bound(
+                                create_auth_token, result["user_id"]
+                            )
+                            ui.run_javascript(
+                                f"document.cookie = 'auth_token={raw_token};"
+                                f" path=/; max-age={30 * 86400}; SameSite=Lax';"
+                            )
+                        except Exception:
+                            logging.getLogger(__name__).exception("Failed to create auth token")
                         ui.navigate.to("/")
 
                     for name in _TAB_NAMES:
@@ -622,11 +706,20 @@ function triggerSwipeHint() {
                     with _content_container:
                         await show_auth_ui(_content_container, _on_login_success)
 
-                ui.button("Sign in", on_click=_show_sign_in).props(
+                # Auto-open sign-in if redirected from pricing
+                ui.run_javascript('''
+                    const params = new URLSearchParams(window.location.search);
+                    if (params.get("signin") === "1") {
+                        window.history.replaceState({}, "", "/");
+                        document.querySelector(".header-signin-btn")?.click();
+                    }
+                ''')
+
+                ui.button("Sign in", icon="person_outline", on_click=_show_sign_in).classes("header-signin-btn").props(
                     "flat dense no-caps size=sm color=none"
                 ).style(
-                    f"border:1px solid {BORDER_INPUT}; border-radius:6px; padding:0 10px;"
-                    f" height:28px; color:{TEXT_MUTED} !important; font-size:11px;"
+                    f"border:1px solid {BORDER_INPUT}; border-radius:6px;"
+                    f" color:{TEXT_MUTED} !important; font-size:12px; padding:4px 12px;"
                 )
 
     # ── Precompute shared maps ────────────────────────────
@@ -993,8 +1086,9 @@ async def reset_page(token: str = ""):
     build_reset_complete_form(token)
 
 @ui.page("/pricing")
-async def pricing_page():
+async def pricing_page(request: Request):
     """Pricing page — Free vs Pro comparison."""
+    await _restore_session_from_cookie(request)
     user_id = app.storage.user.get("user_id")
     currency = "EUR"
     if user_id:
@@ -1034,8 +1128,9 @@ async def stripe_webhook(request: Request):
     return JSONResponse({"status": "ok"})
 
 @ui.page("/admin")
-async def admin_page():
+async def admin_page(request: Request):
     """Admin dashboard — user management and subscription summary."""
+    await _restore_session_from_cookie(request)
     auth_email = app.storage.user.get("auth_email")
     if not is_admin(auth_email):
         ui.label("Access denied.").style(f"color:{TEXT_MUTED}; padding:40px;")
@@ -1113,5 +1208,6 @@ ui.run(
     port=int(os.environ.get("PORT", "8080")),
     dark=True,
     storage_secret=get_storage_secret(),
+    reconnect_timeout=10.0,
     viewport="width=device-width, initial-scale=1, viewport-fit=cover",
 )
