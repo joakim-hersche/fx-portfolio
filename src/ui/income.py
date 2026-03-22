@@ -123,8 +123,12 @@ async def build_income_tab(
     # Projected annual income from Dividend Rate * shares * FX
     # dividendRate is in financialCurrency (not necessarily the trading currency)
     projected_annual = 0.0
+    from src.portfolio import get_split_factor
     for ticker, lots in portfolio.items():
-        total_shares = sum(lot["shares"] for lot in lots)
+        total_shares = sum(
+            lot["shares"] * get_split_factor(ticker, lot.get("purchase_date"))
+            for lot in lots
+        )
         fund = fund_map.get(ticker, {})
         div_rate = fund.get("Dividend Rate")
         if not div_rate or div_rate <= 0:
@@ -390,7 +394,11 @@ def _build_dividend_calendar(
         payments_per_year = len(typical_months)
         fund = fund_map.get(ticker, {})
         div_rate = fund.get("Dividend Rate")
-        total_shares = sum(lot["shares"] for lot in portfolio.get(ticker, []))
+        from src.portfolio import get_split_factor
+        total_shares = sum(
+            lot["shares"] * get_split_factor(ticker, lot.get("purchase_date"))
+            for lot in portfolio.get(ticker, [])
+        )
 
         if div_rate and div_rate > 0 and total_shares > 0 and payments_per_year > 0:
             div_ccy = fund.get("Financial Currency") or get_ticker_currency(ticker)
