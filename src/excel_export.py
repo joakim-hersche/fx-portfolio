@@ -322,7 +322,7 @@ def _sheet_summary(wb: Workbook, kpis: dict, currency: str, n_rows: int) -> None
         ("Dividends Received",     f"=SUM(Positions!${_I}$2:${_I}${n_rows + 1})",                      curr_fmt,    True),
         ("Total Return",           "=B5+B8-B7",                                                  curr_fmt,    True),
         ("Total Return (%)",       '=IF(B7=0,"",B9/B7*100)',                                     '0.00"%"',  True),
-        ("Number of Lots",          f"=COUNTA(Positions!${_A}$2:${_A}${n_rows + 1})",                   "0",         True),
+        ("Unique Holdings",         f"=SUMPRODUCT(1/COUNTIF(Positions!${_A}$2:${_A}${n_rows + 1},Positions!${_A}$2:${_A}${n_rows + 1}))", "0", True),
     ]
 
     for idx, (label, value, fmt, is_formula) in enumerate(formula_rows, 5):
@@ -352,9 +352,42 @@ def _sheet_summary(wb: Workbook, kpis: dict, currency: str, n_rows: int) -> None
     # Bold Total Portfolio Value value
     ws.cell(5, 2).font = Font(bold=True, size=10, color=_C_NAVY)
 
-    ws.column_dimensions["A"].width = 28
+    # ── Risk section ─────────────────────────────────────────────────────────
+    risk_start = 13
+    ws.merge_cells(f"A{risk_start}:B{risk_start}")
+    sec2           = ws.cell(risk_start, 1, "RISK")
+    sec2.font      = Font(bold=True, size=8, color=_C_NOTE)
+    sec2.alignment = Alignment(horizontal="left", vertical="center", indent=1)
+    sec2.border    = Border(bottom=Side(style="thin", color=_C_GRID))
+    ws.row_dimensions[risk_start].height = 20
+
+    # These are pre-computed values passed in kpis dict
+    risk_rows = [
+        ("Sharpe Ratio (portfolio)", kpis.get("portfolio_sharpe"),  "0.00"),
+        ("Max Drawdown (portfolio)", kpis.get("portfolio_max_dd"),  '0.0"%"'),
+        ("Annualized Volatility",    kpis.get("portfolio_vol"),     '0.0"%"'),
+    ]
+    for idx, (label, value, fmt) in enumerate(risk_rows, risk_start + 1):
+        lbl_cell           = ws.cell(idx, 1, label)
+        lbl_cell.font      = Font(size=10)
+        lbl_cell.alignment = Alignment(vertical="center", indent=1)
+        lbl_cell.border    = _CELL_BORDER
+
+        val_cell               = ws.cell(idx, 2, round(value, 2) if value is not None else None)
+        val_cell.number_format = fmt
+        val_cell.alignment     = Alignment(horizontal="right", vertical="center")
+        val_cell.border        = _CELL_BORDER
+        val_cell.font          = Font(size=10)
+
+        if idx % 2 == 0:
+            ws.cell(idx, 1).fill = _ALT_FILL
+            ws.cell(idx, 2).fill = _ALT_FILL
+
+        ws.row_dimensions[idx].height = 22
+
+    ws.column_dimensions["A"].width = 30
     ws.column_dimensions["B"].width = 22
-    _set_print(ws, "A1:B12")
+    _set_print(ws, f"A1:B{risk_start + len(risk_rows)}")
 
 
 # Column layout for Positions (must be stable — other sheets reference by column position)
@@ -584,7 +617,8 @@ def _sheet_allocation(wb: Workbook, df: pd.DataFrame, name_map: dict, currency: 
     _add_table(ws, "tblAlloc", f"A1:D{last_row}")
 
 
-def _sheet_risk(wb: Workbook, analytics_df: pd.DataFrame, name_map: dict, positions_df: pd.DataFrame) -> None:
+def _sheet_risk(wb: Workbook, analytics_df: pd.DataFrame, name_map: dict, positions_df: pd.DataFrame,
+                base_currency: str = "USD") -> None:
     ws = wb.create_sheet("Risk Metrics")
 
     _no_gridlines(ws)
@@ -626,7 +660,7 @@ def _sheet_risk(wb: Workbook, analytics_df: pd.DataFrame, name_map: dict, positi
         totals_row = last_row + 2
         alloc_last = len(export_df) + 1  # Allocation data rows mirror Risk Metrics rows
 
-        ws.cell(totals_row, 1, "Portfolio (weighted avg)").font = _TOTAL_FONT
+        ws.cell(totals_row, 1, "Portfolio (wgt avg*)").font = _TOTAL_FONT
         for col_idx in range(1, len(headers) + 1):
             c        = ws.cell(totals_row, col_idx)
             c.fill   = _TOTAL_FILL
@@ -663,15 +697,30 @@ def _sheet_risk(wb: Workbook, analytics_df: pd.DataFrame, name_map: dict, positi
         ws.conditional_formatting.add(data_range, CellIsRule(operator="between",            formula=["0", "1"], fill=_AMBER_FILL))
         ws.conditional_formatting.add(data_range, CellIsRule(operator="lessThan",           formula=["0"],      fill=_RED_FILL))
 
-    # Last-updated note — risk metrics are pre-computed and will go stale if positions change
+    # Methodology note — risk-free rate source + benchmark used
+    from src.risk_free import risk_free_label
+    _BENCH_LABEL = {
+        "USD": "S&P 500 (SPY)",
+        "CHF": "SMI (^SSMI)",
+        "EUR": "Euro Stoxx 50 (^STOXX50E)",
+        "GBP": "FTSE 100 (^FTSE)",
+        "SEK": "OMX Stockholm 30 (^OMX)",
+    }
+    rf_label = risk_free_label(base_currency)
+    bench_label = _BENCH_LABEL.get(base_currency, "S&P 500 (SPY)")
+
     note_row = (len(export_df) + 4) if not positions_df.empty and len(export_df) > 1 else len(export_df) + 2
     note_cell = ws.cell(note_row, 1,
+        f"Sharpe Ratio uses {rf_label} as the risk-free rate. "
+        f"Beta is measured against {bench_label}. "
+        f"*Weighted averages are position-weighted means of individual metrics. "
+        "Max Drawdown is not additive — the portfolio max drawdown (see Summary) may differ from this weighted average. "
         f"Risk data last computed: {datetime.now().strftime('%d %B %Y  %H:%M')}. "
-        "Weighted averages will be outdated if position sizes change. Re-download to refresh.")
+        "Re-download to refresh.")
     note_cell.font      = _NOTE_FONT
     note_cell.alignment = Alignment(wrap_text=True, indent=1)
     ws.merge_cells(start_row=note_row, start_column=1, end_row=note_row, end_column=len(headers))
-    ws.row_dimensions[note_row].height = 28
+    ws.row_dimensions[note_row].height = 36
 
     _autofit(ws)
     ws.freeze_panes = "A2"
@@ -756,7 +805,7 @@ def _sheet_fundamentals(wb: Workbook, fund_rows: list[dict], name_map: dict) -> 
 
     fund_df = pd.DataFrame(fund_rows)
     fund_df.insert(1, "Company", fund_df["Ticker"].map(name_map))
-    headers = ["Ticker", "Company", "Sector", "P/E Ratio", "Div Yield (%)", "1-Year Low", "1-Year High", "1-Year Position (%)"]
+    headers = ["Ticker", "Company", "Sector", "P/E Ratio", "Div Yield (%)", "1-Year Low", "1-Year High", "1-Year Position"]
     fund_df = fund_df[[c for c in headers if c in fund_df.columns]]
 
     _write_headers(ws, list(fund_df.columns))
@@ -770,7 +819,7 @@ def _sheet_fundamentals(wb: Workbook, fund_rows: list[dict], name_map: dict) -> 
                 cell.fill = alt
             if col_name == "P/E Ratio" and isinstance(value, (int, float)):
                 cell.number_format = "0.0"
-            elif col_name in ("Div Yield (%)", "1-Year Position (%)") and isinstance(value, (int, float)):
+            elif col_name in ("Div Yield (%)", "1-Year Position") and isinstance(value, (int, float)):
                 cell.number_format = '0.00"%"'
             elif col_name in ("1-Year Low", "1-Year High") and isinstance(value, (int, float)):
                 cell.number_format = "#,##0.00"
@@ -1142,6 +1191,110 @@ def _sheet_other_assets(wb: Workbook, currency: str) -> None:
     ws.column_dimensions["A"].width = 30
     ws.column_dimensions["B"].width = 22  # fits longest dropdown: "Retirement Account"
     ws.column_dimensions["L"].width = 25
+
+
+def _sheet_currency_exposure(wb: Workbook, positions_df: pd.DataFrame, name_map: dict, currency: str) -> None:
+    """Currency exposure breakdown showing portfolio allocation by trading currency."""
+    from src.fx import get_ticker_currency
+
+    ws = wb.create_sheet("Currency Exposure")
+    curr_fmt = _CURRENCY_FMT.get(currency, "#,##0.00")
+    _no_gridlines(ws)
+
+    if positions_df.empty:
+        ws["A1"] = "No positions available."
+        return
+
+    # Aggregate by trading currency
+    ccy_data: dict[str, dict] = {}
+    for ticker in positions_df["Ticker"].unique():
+        ticker_df = positions_df[positions_df["Ticker"] == ticker]
+        ticker_ccy = get_ticker_currency(ticker)
+        if ticker_ccy == "GBX":
+            ticker_ccy = "GBP"
+        if ticker_ccy not in ccy_data:
+            ccy_data[ticker_ccy] = {"value": 0.0, "tickers": []}
+        ccy_data[ticker_ccy]["value"] += ticker_df["Total Value"].sum()
+        ccy_data[ticker_ccy]["tickers"].append(ticker)
+
+    total_value = sum(d["value"] for d in ccy_data.values())
+    sorted_ccys = sorted(ccy_data.items(), key=lambda x: x[1]["value"], reverse=True)
+
+    # Title
+    ws.merge_cells("A1:E1")
+    h           = ws["A1"]
+    h.value     = "CURRENCY EXPOSURE"
+    h.font      = Font(bold=True, size=14, color=_C_NAVY_DARK)
+    h.fill      = PatternFill("solid", fgColor=_C_ALT)
+    h.alignment = Alignment(horizontal="left", vertical="center", indent=2)
+    h.border    = Border(bottom=Side(style="medium", color=_C_GOLD))
+    ws.row_dimensions[1].height = 38
+
+    note = ws.cell(2, 1,
+        f"Exposure by trading currency, converted to {currency} at spot rates. "
+        "GBX positions are grouped under GBP.")
+    note.font = _NOTE_FONT
+    note.alignment = Alignment(indent=1)
+    ws.merge_cells("A2:E2")
+    ws.row_dimensions[2].height = 22
+
+    headers = ["Currency", f"Value ({currency})", "Weight (%)", "Holdings", "Tickers"]
+    _write_headers(ws, headers, start_row=3)
+
+    for row_idx, (ccy, data) in enumerate(sorted_ccys, 4):
+        alt = _row_fill(row_idx)
+        weight = data["value"] / total_value * 100 if total_value > 0 else 0
+
+        ws.cell(row_idx, 1, ccy).font = Font(bold=True, size=10)
+        ws.cell(row_idx, 2, round(data["value"], 2)).number_format = curr_fmt
+        ws.cell(row_idx, 2).font = Font(size=10)
+        ws.cell(row_idx, 3, round(weight, 1)).number_format = '0.0"%"'
+        ws.cell(row_idx, 3).font = Font(size=10)
+        ws.cell(row_idx, 4, len(data["tickers"])).font = Font(size=10)
+        ws.cell(row_idx, 5, ", ".join(data["tickers"])).font = Font(size=10)
+
+        for c in range(1, 6):
+            ws.cell(row_idx, c).border = _CELL_BORDER
+            if alt:
+                ws.cell(row_idx, c).fill = alt
+        ws.row_dimensions[row_idx].height = 18
+
+    last_data = 3 + len(sorted_ccys)
+    _add_table(ws, "tblCurrencyExp", f"A3:E{last_data}")
+
+    # Totals row — outside the table
+    totals_row = last_data + 1
+    ws.cell(totals_row, 1, "TOTAL").font = _TOTAL_FONT
+    ws.cell(totals_row, 2, round(total_value, 2)).number_format = curr_fmt
+    ws.cell(totals_row, 2).font = _TOTAL_FONT
+    ws.cell(totals_row, 3, 100.0).number_format = '0.0"%"'
+    ws.cell(totals_row, 3).font = _TOTAL_FONT
+    ws.cell(totals_row, 4, len(positions_df["Ticker"].unique())).font = _TOTAL_FONT
+    for c in range(1, 6):
+        ws.cell(totals_row, c).fill = _TOTAL_FILL
+        ws.cell(totals_row, c).border = _TOP_BORDER
+    ws.row_dimensions[totals_row].height = 22
+
+    # Pie chart
+    chart              = BarChart()
+    chart.type         = "bar"
+    chart.title        = f"Currency Exposure ({currency})"
+    chart.style        = 10
+    chart.y_axis.delete = True
+    chart.x_axis.title = "Weight (%)"
+
+    data_ref = Reference(ws, min_col=3, max_col=3, min_row=3, max_row=last_data)
+    cats = Reference(ws, min_col=1, min_row=4, max_row=last_data)
+    chart.add_data(data_ref, titles_from_data=True)
+    chart.set_categories(cats)
+    chart.series[0].graphicalProperties.solidFill = _CHART_COLORS[0]
+    chart.series[0].graphicalProperties.line.solidFill = _CHART_COLORS[0]
+    chart.width  = 18
+    chart.height = max(8, len(sorted_ccys) * 1.5)
+    ws.add_chart(chart, "G3")
+
+    _autofit(ws)
+    ws.column_dimensions["E"].width = 35
 
 
 def _sheet_monte_carlo(
@@ -1570,10 +1723,13 @@ def _sheet_scenario(wb: Workbook, positions_df: pd.DataFrame, name_map: dict, cu
             f"/SUMIF(Positions!$A:$A,A{row_idx},Positions!${_PD}:${_PD}),\"\")"
         ).number_format = curr_fmt
 
-        curr_cell               = ws.cell(row_idx, 5, float(row_data["CurrentPrice"]) if pd.notna(row_data["CurrentPrice"]) else 0)
+        _G = get_column_letter(_POS_IDX["Current Price"])
+        curr_cell               = ws.cell(row_idx, 5,
+            f'=IFERROR(INDEX(Positions!${_G}:${_G},'
+            f'MATCH(A{row_idx},Positions!$A:$A,0)),0)')
         curr_cell.number_format = curr_fmt
-        curr_cell.font          = _INPUT_FONT
-        curr_cell.fill          = _INPUT_FILL
+        curr_cell.font          = Font(size=10)
+        curr_cell.border        = _CELL_BORDER
 
         tgt_cell               = ws.cell(row_idx, 6, float(row_data["CurrentPrice"]) if pd.notna(row_data["CurrentPrice"]) else 0)
         tgt_cell.number_format = curr_fmt
@@ -1618,10 +1774,200 @@ def _sheet_scenario(wb: Workbook, positions_df: pd.DataFrame, name_map: dict, cu
     _add_table(ws, "tblScenario", f"A2:{get_column_letter(len(headers))}{last_data}")
 
 
+# ── Health Score sheet ────────────────────────────────────────────────────────
+
+def _sheet_health(
+    wb: Workbook,
+    score_result: dict,
+    findings: list[dict],
+    sector_weights: dict[str, float],
+    ticker_sector: dict[str, str],
+) -> None:
+    """Portfolio Health Score with pre-computed components, findings, and sector breakdown."""
+    ws = wb.create_sheet("Health Score")
+    _no_gridlines(ws)
+
+    if not score_result or "total" not in score_result:
+        ws["A1"] = "Health score data not available — open the Health tab in the dashboard first."
+        return
+
+    N_COLS = 6
+
+    # ── Row 1: title ──────────────────────────────────────────────────────────
+    row = 1
+    ws.merge_cells(f"A{row}:{get_column_letter(N_COLS)}{row}")
+    h           = ws["A1"]
+    h.value     = "PORTFOLIO HEALTH SCORE"
+    h.font      = Font(bold=True, size=14, color=_C_NAVY_DARK)
+    h.fill      = PatternFill("solid", fgColor=_C_ALT)
+    h.alignment = Alignment(horizontal="left", vertical="center", indent=2)
+    h.border    = Border(bottom=Side(style="medium", color=_C_GOLD))
+    ws.row_dimensions[row].height = 38
+    row += 1
+
+    # ── Row 2: overall score ─────────────────────────────────────────────────
+    total_score = score_result["total"]
+    if total_score >= 70:
+        score_fill = _GREEN_FILL
+    elif total_score >= 40:
+        score_fill = _AMBER_FILL
+    else:
+        score_fill = _RED_FILL
+
+    ws.merge_cells(f"A{row}:B{row}")
+    lbl           = ws.cell(row, 1, "Overall Score")
+    lbl.font      = Font(bold=True, size=11, color=_C_NAVY)
+    lbl.alignment = Alignment(horizontal="left", vertical="center", indent=1)
+    val           = ws.cell(row, 3, round(total_score, 1))
+    val.font      = Font(bold=True, size=18, color=_C_NAVY_DARK)
+    val.number_format = "0.0"
+    val.fill      = score_fill
+    val.alignment = Alignment(horizontal="center", vertical="center")
+    of_cell       = ws.cell(row, 4, "/ 100")
+    of_cell.font  = Font(size=11, color=_C_NOTE)
+    of_cell.alignment = Alignment(horizontal="left", vertical="center")
+    ws.row_dimensions[row].height = 36
+    row += 2
+
+    # ── Score components table ───────────────────────────────────────────────
+    ws.merge_cells(f"A{row}:{get_column_letter(N_COLS)}{row}")
+    sec           = ws.cell(row, 1, "SCORE BREAKDOWN")
+    sec.font      = Font(bold=True, size=9, color=_C_NAVY_DARK)
+    sec.alignment = Alignment(horizontal="left", vertical="center", indent=1)
+    sec.border    = Border(bottom=Side(style="thin", color=_C_NAVY))
+    ws.row_dimensions[row].height = 22
+    row += 1
+
+    comp_headers = ["Component", "Score", "Max", "Details"]
+    _write_headers(ws, comp_headers, start_row=row)
+    comp_header_row = row
+    row += 1
+
+    for comp in score_result["components"]:
+        alt = _row_fill(row)
+        ws.cell(row, 1, comp["name"]).font = Font(size=10)
+        ws.cell(row, 2, round(comp["score"], 1)).number_format = "0.0"
+        ws.cell(row, 2).font = Font(size=10)
+        ws.cell(row, 3, comp["max_score"]).font = Font(size=10)
+        ws.cell(row, 4, comp["details"]).font = Font(size=10)
+        for c in range(1, 5):
+            ws.cell(row, c).border = _CELL_BORDER
+            if alt:
+                ws.cell(row, c).fill = alt
+        # Color the score cell
+        pct = comp["score"] / comp["max_score"] if comp["max_score"] > 0 else 0
+        if pct >= 0.7:
+            ws.cell(row, 2).fill = _GREEN_FILL
+        elif pct >= 0.4:
+            ws.cell(row, 2).fill = _AMBER_FILL
+        else:
+            ws.cell(row, 2).fill = _RED_FILL
+        ws.row_dimensions[row].height = 18
+        row += 1
+
+    _add_table(ws, "tblHealthComp", f"A{comp_header_row}:D{row - 1}")
+    row += 1
+
+    # ── Findings ─────────────────────────────────────────────────────────────
+    if findings:
+        ws.merge_cells(f"A{row}:{get_column_letter(N_COLS)}{row}")
+        sec2           = ws.cell(row, 1, "FINDINGS")
+        sec2.font      = Font(bold=True, size=9, color=_C_NAVY_DARK)
+        sec2.alignment = Alignment(horizontal="left", vertical="center", indent=1)
+        sec2.border    = Border(bottom=Side(style="thin", color=_C_NAVY))
+        ws.row_dimensions[row].height = 22
+        row += 1
+
+        find_headers = ["Severity", "Finding", "Detail"]
+        _write_headers(ws, find_headers, start_row=row)
+        find_header_row = row
+        row += 1
+
+        _SEVERITY_FILL = {"red": _RED_FILL, "amber": _AMBER_FILL, "green": _GREEN_FILL}
+
+        for f in findings:
+            alt = _row_fill(row)
+            sev_cell = ws.cell(row, 1, f["severity"].upper())
+            sev_cell.font = Font(bold=True, size=10)
+            sev_cell.fill = _SEVERITY_FILL.get(f["severity"], PatternFill())
+            sev_cell.alignment = Alignment(horizontal="center")
+            ws.cell(row, 2, f["headline"]).font = Font(bold=True, size=10)
+            ws.cell(row, 3, f["body"]).font = Font(size=10)
+            for c in range(1, 4):
+                ws.cell(row, c).border = _CELL_BORDER
+                if alt and c != 1:  # don't override severity fill
+                    ws.cell(row, c).fill = alt
+            ws.row_dimensions[row].height = 20
+            row += 1
+
+        _add_table(ws, "tblHealthFindings", f"A{find_header_row}:C{row - 1}")
+        row += 1
+
+    # ── Sector breakdown ─────────────────────────────────────────────────────
+    if sector_weights:
+        ws.merge_cells(f"A{row}:{get_column_letter(N_COLS)}{row}")
+        sec3           = ws.cell(row, 1, "SECTOR EXPOSURE")
+        sec3.font      = Font(bold=True, size=9, color=_C_NAVY_DARK)
+        sec3.alignment = Alignment(horizontal="left", vertical="center", indent=1)
+        sec3.border    = Border(bottom=Side(style="thin", color=_C_NAVY))
+        ws.row_dimensions[row].height = 22
+        row += 1
+
+        sect_headers = ["Sector", "Weight (%)", "Tickers"]
+        _write_headers(ws, sect_headers, start_row=row)
+        sect_header_row = row
+        row += 1
+
+        sorted_sectors = sorted(sector_weights.items(), key=lambda x: x[1], reverse=True)
+        for sector, sw in sorted_sectors:
+            alt = _row_fill(row)
+            ws.cell(row, 1, sector).font = Font(size=10)
+            ws.cell(row, 2, round(sw, 1)).number_format = '0.0"%"'
+            ws.cell(row, 2).font = Font(size=10)
+            # List tickers in this sector
+            tickers_in = [t for t, s in ticker_sector.items() if s == sector]
+            ws.cell(row, 3, ", ".join(tickers_in)).font = Font(size=10)
+            for c in range(1, 4):
+                ws.cell(row, c).border = _CELL_BORDER
+                if alt:
+                    ws.cell(row, c).fill = alt
+            ws.row_dimensions[row].height = 18
+            row += 1
+
+        _add_table(ws, "tblHealthSectors", f"A{sect_header_row}:C{row - 1}")
+
+        # Bar chart for sector weights
+        n_sectors = len(sorted_sectors)
+        chart              = BarChart()
+        chart.type         = "bar"
+        chart.title        = "Sector Exposure"
+        chart.style        = 10
+        chart.y_axis.delete = True
+        chart.x_axis.title = "Weight (%)"
+
+        data = Reference(ws, min_col=2, max_col=2, min_row=sect_header_row, max_row=sect_header_row + n_sectors)
+        cats = Reference(ws, min_col=1, min_row=sect_header_row + 1, max_row=sect_header_row + n_sectors)
+        chart.add_data(data, titles_from_data=True)
+        chart.set_categories(cats)
+        chart.series[0].graphicalProperties.solidFill = _CHART_COLORS[0]
+        chart.series[0].graphicalProperties.line.solidFill = _CHART_COLORS[0]
+        chart.width  = 20
+        chart.height = max(8, n_sectors * 1.2)
+        ws.add_chart(chart, f"E{sect_header_row}")
+
+    _autofit(ws)
+    ws.column_dimensions["A"].width = 22
+    ws.column_dimensions["D"].width = 30
+
+
 # ── Income sheet ──────────────────────────────────────────────────────────────
 
-def _sheet_income(wb: Workbook, positions_df: pd.DataFrame, fund_rows: list[dict], name_map: dict, currency: str) -> None:
-    """Per-position dividend income summary."""
+def _sheet_income(wb: Workbook, positions_df: pd.DataFrame, fund_rows: list[dict],
+                  name_map: dict, currency: str,
+                  dividend_timeline: list[dict] | None = None,
+                  portfolio: dict | None = None) -> None:
+    """Per-position dividend income summary + forward dividend calendar."""
+    from collections import Counter, defaultdict
     from src.fx import get_ticker_currency, get_fx_rate
 
     ws = wb.create_sheet("Income")
@@ -1629,7 +1975,18 @@ def _sheet_income(wb: Workbook, positions_df: pd.DataFrame, fund_rows: list[dict
     headers = ["Ticker", "Company", "Shares", "Annual Income", "Yield (%)", "Yield on Cost (%)"]
 
     _no_gridlines(ws)
-    _write_headers(ws, headers)
+
+    # ── Section 1: title ─────────────────────────────────────────────────────
+    ws.merge_cells("A1:F1")
+    title           = ws["A1"]
+    title.value     = "DIVIDEND INCOME"
+    title.font      = Font(bold=True, size=14, color=_C_NAVY_DARK)
+    title.fill      = PatternFill("solid", fgColor=_C_ALT)
+    title.alignment = Alignment(horizontal="left", vertical="center", indent=2)
+    title.border    = Border(bottom=Side(style="medium", color=_C_GOLD))
+    ws.row_dimensions[1].height = 38
+
+    _write_headers(ws, headers, start_row=2)
 
     # Build a lookup from fund_rows
     fund_map = {}
@@ -1638,7 +1995,7 @@ def _sheet_income(wb: Workbook, positions_df: pd.DataFrame, fund_rows: list[dict
         if t:
             fund_map[t] = fr
 
-    row = 2
+    row = 3
     tickers = sorted(positions_df["Ticker"].unique()) if not positions_df.empty else []
     for ticker in tickers:
         ticker_df = positions_df[positions_df["Ticker"] == ticker]
@@ -1665,10 +2022,10 @@ def _sheet_income(wb: Workbook, positions_df: pd.DataFrame, fund_rows: list[dict
         ws.cell(row, 2, name)
         ws.cell(row, 3, total_shares).number_format = '#,##0'
         ws.cell(row, 4, round(annual_income, 2)).number_format = curr_fmt
-        ws.cell(row, 5, round(div_yield, 2) if div_yield else 0).number_format = '0.00'
-        ws.cell(row, 6, round(yoc, 2)).number_format = '0.00'
+        ws.cell(row, 5, round(div_yield, 2) if div_yield else 0).number_format = '0.00"%"'
+        ws.cell(row, 6, round(yoc, 2)).number_format = '0.00"%"'
 
-        fill = _ALT_FILL if (row - 2) % 2 else None
+        fill = _ALT_FILL if (row - 3) % 2 else None
         if fill:
             for c in range(1, len(headers) + 1):
                 ws.cell(row, c).fill = fill
@@ -1676,9 +2033,178 @@ def _sheet_income(wb: Workbook, positions_df: pd.DataFrame, fund_rows: list[dict
             ws.cell(row, c).border = _CELL_BORDER
         row += 1
 
+    income_table_end = row - 1
+    if income_table_end >= 3:
+        _add_table(ws, "tblIncome", f"A2:{get_column_letter(len(headers))}{income_table_end}")
+
+    # Totals row — sits OUTSIDE the table so other sheets' SUM/SUMIF won't capture it
+    if tickers:
+        totals_row = row
+        ws.cell(totals_row, 1, "TOTAL").font = _TOTAL_FONT
+        ws.cell(totals_row, 3, f"=SUM(C3:C{income_table_end})").number_format = '#,##0'
+        ws.cell(totals_row, 3).font = _TOTAL_FONT
+        ws.cell(totals_row, 4, f"=SUM(D3:D{income_table_end})").number_format = curr_fmt
+        ws.cell(totals_row, 4).font = _TOTAL_FONT
+        # Portfolio yield = total income / total portfolio value
+        ws.cell(totals_row, 5,
+            f'=IF(SUM(Positions!{get_column_letter(_POS_IDX["Total Value"])}2:'
+            f'{get_column_letter(_POS_IDX["Total Value"])}{income_table_end + 100})=0,"",'
+            f'D{totals_row}/SUM(Positions!{get_column_letter(_POS_IDX["Total Value"])}2:'
+            f'{get_column_letter(_POS_IDX["Total Value"])}{income_table_end + 100})*100)'
+        ).number_format = '0.00"%"'
+        ws.cell(totals_row, 5).font = _TOTAL_FONT
+        for c in range(1, len(headers) + 1):
+            ws.cell(totals_row, c).fill = _TOTAL_FILL
+            ws.cell(totals_row, c).border = _TOP_BORDER
+        ws.row_dimensions[totals_row].height = 22
+        row = totals_row + 1
+
+    # ── Section 2: Forward dividend calendar ─────────────────────────────────
+    if dividend_timeline and portfolio and tickers:
+        row += 2
+
+        ws.merge_cells(f"A{row}:N{row}")
+        sec           = ws.cell(row, 1, "PROJECTED DIVIDEND CALENDAR (NEXT 12 MONTHS)")
+        sec.font      = Font(bold=True, size=9, color=_C_NAVY_DARK)
+        sec.alignment = Alignment(horizontal="left", vertical="center", indent=1)
+        sec.border    = Border(bottom=Side(style="thin", color=_C_NAVY))
+        ws.row_dimensions[row].height = 22
+        row += 1
+
+        # Infer payment months from historical timeline
+        def _infer_frequency(payment_months: list[int]) -> int | None:
+            if len(payment_months) < 2:
+                return None
+            unique = sorted(set(payment_months))
+            if len(unique) < 2:
+                return None
+            gaps = [unique[i + 1] - unique[i] for i in range(len(unique) - 1)]
+            gaps.append(12 - unique[-1] + unique[0])
+            counter = Counter(gaps)
+            most_common_gap = counter.most_common(1)[0][0]
+            if most_common_gap in (1, 2, 3, 4, 6, 12):
+                return most_common_gap
+            return None
+
+        ticker_months: dict[str, list[int]] = defaultdict(list)
+        for r_entry in dividend_timeline:
+            month_num = int(r_entry["month"][5:7])
+            ticker_months[r_entry["ticker"]].append(month_num)
+
+        today = pd.Timestamp.today()
+        future_months: list[tuple[int, int]] = []
+        for i in range(1, 13):
+            m = today.year * 12 + (today.month - 1) + i
+            future_months.append((m // 12, m % 12 + 1))
+
+        # Build calendar data
+        calendar_amounts: dict[str, dict[str, float]] = {}
+        for ticker in tickers:
+            payments = ticker_months.get(ticker, [])
+            freq = _infer_frequency(payments)
+            if freq is None or len(payments) < 2:
+                continue
+
+            typical_months = sorted(set(payments))
+            payments_per_year = len(typical_months)
+            fund = fund_map.get(ticker, {})
+            div_rate = fund.get("Dividend Rate")
+            total_shares = sum(lot["shares"] for lot in portfolio.get(ticker, []))
+
+            if not (div_rate and div_rate > 0 and total_shares > 0):
+                continue
+
+            div_ccy = fund.get("Financial Currency") or get_ticker_currency(ticker)
+            fx_rate, _ = get_fx_rate(div_ccy, currency)
+            per_payment = round(div_rate / payments_per_year * total_shares * fx_rate, 2)
+
+            amounts: dict[str, float] = {}
+            for y, m in future_months:
+                key = f"{y}-{m:02d}"
+                amounts[key] = per_payment if m in typical_months else 0.0
+            calendar_amounts[ticker] = amounts
+
+        if calendar_amounts:
+            # Month headers
+            month_keys = [f"{y}-{m:02d}" for y, m in future_months]
+            cal_headers = ["Ticker"] + [
+                pd.Timestamp(f"{y}-{m:02d}-01").strftime("%b %Y") for y, m in future_months
+            ] + ["Annual Total"]
+            _write_headers(ws, cal_headers, start_row=row)
+            cal_header_row = row
+            row += 1
+
+            cal_tickers = sorted(calendar_amounts.keys())
+            for ticker in cal_tickers:
+                alt = _row_fill(row)
+                ws.cell(row, 1, ticker).font = Font(bold=True, size=10)
+                ws.cell(row, 1).border = _CELL_BORDER
+                if alt:
+                    ws.cell(row, 1).fill = alt
+
+                annual = 0.0
+                for ci, key in enumerate(month_keys, 2):
+                    amt = calendar_amounts[ticker].get(key, 0.0)
+                    cell = ws.cell(row, ci)
+                    if amt > 0:
+                        cell.value = round(amt, 2)
+                        cell.number_format = curr_fmt
+                        cell.fill = _GREEN_FILL
+                    else:
+                        cell.value = None
+                    cell.font = Font(size=10)
+                    cell.border = _CELL_BORDER
+                    cell.alignment = Alignment(horizontal="center")
+                    annual += amt
+
+                total_cell = ws.cell(row, len(month_keys) + 2, round(annual, 2))
+                total_cell.number_format = curr_fmt
+                total_cell.font = Font(bold=True, size=10)
+                total_cell.border = _CELL_BORDER
+                if alt:
+                    total_cell.fill = alt
+                ws.row_dimensions[row].height = 18
+                row += 1
+
+            # Monthly totals row
+            totals_row = row
+            ws.cell(totals_row, 1, "Monthly Total").font = _TOTAL_FONT
+            grand_total = 0.0
+            for ci, key in enumerate(month_keys, 2):
+                month_sum = sum(
+                    calendar_amounts[t].get(key, 0.0) for t in cal_tickers
+                )
+                c = ws.cell(totals_row, ci, round(month_sum, 2) if month_sum > 0 else None)
+                c.number_format = curr_fmt
+                c.font = _TOTAL_FONT
+                c.fill = _TOTAL_FILL
+                c.border = _TOP_BORDER
+                c.alignment = Alignment(horizontal="center")
+                grand_total += month_sum
+
+            ws.cell(totals_row, 1).fill = _TOTAL_FILL
+            ws.cell(totals_row, 1).border = _TOP_BORDER
+            gt = ws.cell(totals_row, len(month_keys) + 2, round(grand_total, 2))
+            gt.number_format = curr_fmt
+            gt.font = _TOTAL_FONT
+            gt.fill = _TOTAL_FILL
+            gt.border = _TOP_BORDER
+            ws.row_dimensions[totals_row].height = 22
+            row += 1
+
+            _add_table(ws, "tblDivCalendar",
+                       f"A{cal_header_row}:{get_column_letter(len(cal_headers))}{totals_row - 1}")
+
+            # Note
+            note = ws.cell(row, 1,
+                "Projected from historical payment patterns and current dividend rates. "
+                "Actual payments may differ. Tickers with fewer than 2 historical payments are excluded.")
+            note.font = _NOTE_FONT
+            note.alignment = Alignment(wrap_text=True, indent=1)
+            ws.merge_cells(f"A{row}:{get_column_letter(len(cal_headers))}{row}")
+            ws.row_dimensions[row].height = 28
+
     _autofit(ws)
-    if row > 3:
-        _add_table(ws, "tblIncome", f"A2:{get_column_letter(len(headers))}{row - 1}")
 
 
 # ── Public API ─────────────────────────────────────────────────────────────────
@@ -1695,6 +2221,12 @@ def build_excel_report(
     ticker_mc_results: dict | None = None,
     portfolio_mc: dict | None = None,
     target_prices: dict[str, float | None] | None = None,
+    dividend_timeline: list[dict] | None = None,
+    portfolio: dict | None = None,
+    health_score: dict | None = None,
+    health_findings: list[dict] | None = None,
+    health_sector_weights: dict[str, float] | None = None,
+    health_ticker_sector: dict[str, str] | None = None,
 ) -> bytes:
     """
     Build a comprehensive multi-sheet interactive Excel report.
@@ -1711,14 +2243,18 @@ def build_excel_report(
         ("Net Worth",         lambda: _sheet_net_worth(wb, summary_kpis, currency)),
         ("Summary",           lambda: _sheet_summary(wb, summary_kpis, currency, len(positions_df))),
         ("Positions",         lambda: _sheet_positions(wb, positions_df, name_map, currency, target_prices=target_prices)),
-        ("Scenario Analysis", lambda: _sheet_scenario(wb, positions_df, name_map, currency)),
-        ("Allocation",        lambda: _sheet_allocation(wb, positions_df, name_map, currency)),
-        ("Risk Metrics",      lambda: _sheet_risk(wb, analytics_df, name_map, positions_df)),
         ("Attribution",       lambda: _sheet_attribution(wb, positions_df, name_map)),
+        ("Allocation",        lambda: _sheet_allocation(wb, positions_df, name_map, currency)),
+        ("Income",            lambda: _sheet_income(wb, positions_df, fund_rows, name_map, currency,
+                                                    dividend_timeline=dividend_timeline, portfolio=portfolio)),
+        ("Risk Metrics",      lambda: _sheet_risk(wb, analytics_df, name_map, positions_df, currency)),
+        ("Health Score",      lambda: _sheet_health(wb, health_score or {}, health_findings or [],
+                                                    health_sector_weights or {}, health_ticker_sector or {})),
         ("Fundamentals",      lambda: _sheet_fundamentals(wb, fund_rows, name_map)),
-        ("Monte Carlo",       lambda: _sheet_monte_carlo(wb, _bt, _tmc, _pmc, name_map, currency)),
-        ("Income",            lambda: _sheet_income(wb, positions_df, fund_rows, name_map, currency)),
         ("Correlation",       lambda: _sheet_correlation(wb, price_histories, positions_df)),
+        ("Monte Carlo",       lambda: _sheet_monte_carlo(wb, _bt, _tmc, _pmc, name_map, currency)),
+        ("Scenario Analysis", lambda: _sheet_scenario(wb, positions_df, name_map, currency)),
+        ("Currency Exposure", lambda: _sheet_currency_exposure(wb, positions_df, name_map, currency)),
         ("Price History",     lambda: _sheet_price_history(wb, price_histories)),
         ("Daily Returns",     lambda: _sheet_daily_returns(wb, price_histories)),
         ("Other Assets",      lambda: _sheet_other_assets(wb, currency)),
@@ -1728,7 +2264,17 @@ def build_excel_report(
         try:
             builder()
         except Exception as exc:
-            ws       = wb.create_sheet(sheet_name)
+            import traceback
+            traceback.print_exc()
+            # If the sheet was partially created, reuse it; otherwise create new
+            if sheet_name in wb.sheetnames:
+                ws = wb[sheet_name]
+                # Clear partial content
+                for row in ws.iter_rows():
+                    for cell in row:
+                        cell.value = None
+            else:
+                ws = wb.create_sheet(sheet_name)
             ws["A1"] = f"Error generating sheet: {exc}"
             print(f"[excel_export] Sheet '{sheet_name}' failed: {exc}")
 
