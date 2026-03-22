@@ -121,7 +121,7 @@ def _build_positions_table(
                     display_rows.append(group)
                 else:
                     total_value_t = group["Total Value"].sum()
-                    total_cost_t = (group["Buy Price"] * group["Shares"]).sum()
+                    total_cost_t = group["Cost Basis"].sum()
                     total_divs_t = group["Dividends"].sum()
                     summary = {
                         "Ticker": f"\u25ba {ticker}",
@@ -288,7 +288,7 @@ def _build_positions_table(
 
         # ── TOTAL summary row ─────────────────────────────────
         total_value = df["Total Value"].sum()
-        total_cost = (df["Buy Price"] * df["Shares"]).sum()
+        total_cost = df["Cost Basis"].sum()
         total_divs = df["Dividends"].sum()
         total_daily = df["Daily P&L"].sum()
         total_ret_pct = (
@@ -351,7 +351,7 @@ def _build_mobile_position_cards(
     agg_rows = []
     for ticker, group in df.groupby("Ticker", sort=False):
         total_val = group["Total Value"].sum()
-        total_cost = (group["Buy Price"] * group["Shares"]).sum()
+        total_cost = group["Cost Basis"].sum()
         total_shares = group["Shares"].sum()
         total_divs = group["Dividends"].sum()
         daily = group["Daily P&L"].sum()

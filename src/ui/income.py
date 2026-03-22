@@ -510,7 +510,7 @@ def _build_income_table(
 
             total_shares = ticker_df["Shares"].sum()
             total_value = ticker_df["Total Value"].sum()
-            cost_basis = (ticker_df["Buy Price"] * ticker_df["Shares"]).sum()
+            cost_basis = ticker_df["Cost Basis"].sum()
 
             div_ccy = fund.get("Financial Currency") or get_ticker_currency(ticker)
             fx_rate, _ = get_fx_rate(div_ccy, currency)
@@ -557,7 +557,7 @@ def _build_income_table(
             if ticker_df.empty:
                 continue
             total_shares = ticker_df["Shares"].sum()
-            cost_basis = (ticker_df["Buy Price"] * ticker_df["Shares"]).sum()
+            cost_basis = ticker_df["Cost Basis"].sum()
             total_cost += cost_basis
             total_val += ticker_df["Total Value"].sum()
             if div_rate and div_rate > 0:

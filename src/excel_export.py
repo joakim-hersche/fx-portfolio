@@ -310,15 +310,14 @@ def _sheet_summary(wb: Workbook, kpis: dict, currency: str, n_rows: int) -> None
     # ── Rows 5–11: KPIs ───────────────────────────────────────────────────────
     # NOTE: row numbers here must stay in sync with Net Worth references to Summary!B5
     _A = get_column_letter(_POS_IDX["Ticker"])
-    _D = get_column_letter(_POS_IDX["Shares"])
-    _E = get_column_letter(_POS_IDX["Buy Price"])
+    _CB = get_column_letter(_POS_IDX["Cost Basis"])
     _H = get_column_letter(_POS_IDX["Total Value"])
     _I = get_column_letter(_POS_IDX["Dividends"])
     _J = get_column_letter(_POS_IDX["Daily P&L"])
     formula_rows = [
         ("Total Portfolio Value", f"=SUM(Positions!${_H}$2:${_H}${n_rows + 1})",                        curr_fmt,    True),
         ("Today's Change",        f"=SUM(Positions!${_J}$2:${_J}${n_rows + 1})",                        curr_fmt,    True),
-        ("Cost Basis",             f"=SUMPRODUCT(Positions!${_D}$2:${_D}${n_rows + 1},Positions!${_E}$2:${_E}${n_rows + 1})", curr_fmt, True),
+        ("Cost Basis",             f"=SUM(Positions!${_CB}$2:${_CB}${n_rows + 1})",                      curr_fmt,    True),
         ("Dividends Received",     f"=SUM(Positions!${_I}$2:${_I}${n_rows + 1})",                      curr_fmt,    True),
         ("Total Return",           "=B5+B8-B7",                                                  curr_fmt,    True),
         ("Total Return (%)",       '=IF(B7=0,"",B9/B7*100)',                                     '0.00"%"',  True),
@@ -396,7 +395,7 @@ _POS_COLS = [
     "Buy Price", "Purchase Date", "Current Price",
     "Target Price", "Upside (%)",
     "Total Value", "Dividends", "Daily P&L",
-    "Return (%)", "Weight (%)",
+    "Return (%)", "Weight (%)", "Cost Basis",
 ]
 # Map name → 1-based column index
 _POS_IDX = {c: i for i, c in enumerate(_POS_COLS, 1)}
@@ -431,6 +430,7 @@ def _sheet_positions(wb: Workbook, df: pd.DataFrame, name_map: dict, currency: s
     I = get_column_letter(_POS_IDX["Dividends"])
     K = get_column_letter(_POS_IDX["Return (%)"])
     L = get_column_letter(_POS_IDX["Weight (%)"])
+    CB = get_column_letter(_POS_IDX["Cost Basis"])
 
     n          = len(export_df)
     last_data  = n + 1
@@ -499,7 +499,7 @@ def _sheet_positions(wb: Workbook, df: pd.DataFrame, name_map: dict, currency: s
             else:
                 cell.value = safe
                 cell.font  = Font(size=10)
-                if col_name in {"Buy Price", "Dividends", "Daily P&L"}:
+                if col_name in {"Buy Price", "Dividends", "Daily P&L", "Cost Basis"}:
                     cell.number_format = curr_fmt
                 elif col_name == "Shares":
                     cell.number_format = "#,##0"
@@ -535,12 +535,12 @@ def _sheet_positions(wb: Workbook, df: pd.DataFrame, name_map: dict, currency: s
 
     ret_cell               = ws.cell(totals_row, _POS_IDX["Return (%)"])
     # True portfolio return: (total value + dividends - cost basis) / cost basis * 100
-    # Cost basis = SUMPRODUCT(Shares, Buy Price) = D * E columns
+    # Cost basis is pre-computed in the Cost Basis column (split-adjusted)
     ret_cell.value         = (
-        f'=IF(SUMPRODUCT({D}2:{D}{last_data},{E}2:{E}{last_data})=0,"",'
+        f'=IF(SUM({CB}2:{CB}{last_data})=0,"",'
         f'(SUM({H}2:{H}{last_data})+SUM({I}2:{I}{last_data})'
-        f'-SUMPRODUCT({D}2:{D}{last_data},{E}2:{E}{last_data}))'
-        f'/SUMPRODUCT({D}2:{D}{last_data},{E}2:{E}{last_data})*100)'
+        f'-SUM({CB}2:{CB}{last_data}))'
+        f'/SUM({CB}2:{CB}{last_data})*100)'
     )
     ret_cell.number_format = '0.00"%"'
     ret_cell.font          = _TOTAL_FONT
@@ -739,7 +739,7 @@ def _sheet_attribution(wb: Workbook, positions_df: pd.DataFrame, name_map: dict)
     # Aggregate to ticker level
     grouped = positions_df.groupby("Ticker", sort=False).agg(
         total_value=("Total Value", "sum"),
-        cost_basis_sum=pd.NamedAgg(column="Buy Price", aggfunc=lambda x: (x * positions_df.loc[x.index, "Shares"]).sum()),
+        cost_basis_sum=pd.NamedAgg(column="Cost Basis", aggfunc="sum"),
         dividends=("Dividends", "sum"),
     )
     total_portfolio = grouped["total_value"].sum()
@@ -1687,7 +1687,7 @@ def _sheet_scenario(wb: Workbook, positions_df: pd.DataFrame, name_map: dict, cu
         positions_df.groupby("Ticker")
         .apply(lambda g: pd.Series({
             "Shares":        g["Shares"].sum(),
-            "AvgBuyPrice":   (g["Buy Price"] * g["Shares"]).sum() / g["Shares"].sum() if g["Shares"].sum() else 0,
+            "AvgBuyPrice":   g["Cost Basis"].sum() / g["Shares"].sum() if g["Shares"].sum() else 0,
             "CurrentPrice":  g["Current Price"].iloc[0],
             "TotalValue":    g["Total Value"].sum(),
         }), include_groups=False)
@@ -2001,7 +2001,7 @@ def _sheet_income(wb: Workbook, positions_df: pd.DataFrame, fund_rows: list[dict
         ticker_df = positions_df[positions_df["Ticker"] == ticker]
         total_shares = ticker_df["Shares"].sum()
         total_value = ticker_df["Total Value"].sum()
-        cost_basis = (ticker_df["Buy Price"] * ticker_df["Shares"]).sum()
+        cost_basis = ticker_df["Cost Basis"].sum()
 
         fund = fund_map.get(ticker, {})
         div_rate = fund.get("Dividend Rate")

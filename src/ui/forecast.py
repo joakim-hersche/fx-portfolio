@@ -386,11 +386,11 @@ def _render_position_outlook(
 
         # Build portfolio DF to get buy prices for hlines
         df = build_portfolio_df(portfolio, currency)
-        lots = df[df["Ticker"] == ticker][["Purchase", "Buy Price", "Shares"]].copy() if not df.empty else pd.DataFrame()
+        lots = df[df["Ticker"] == ticker][["Purchase", "Buy Price", "Shares", "Cost Basis"]].copy() if not df.empty else pd.DataFrame()
         wavg = None
         if not lots.empty:
             wavg = float(
-                (lots["Buy Price"] * lots["Shares"]).sum() / lots["Shares"].sum()
+                lots["Cost Basis"].sum() / lots["Shares"].sum()
             )
 
         hlines = []

@@ -352,7 +352,7 @@ def _render_flat_table(
             ticker = row["Ticker"]
             group = portfolio_df[portfolio_df["Ticker"] == ticker]
             if len(group) > 1:
-                total_cost = (group["Buy Price"] * group["Shares"]).sum()
+                total_cost = group["Cost Basis"].sum()
                 total_value = group["Total Value"].sum()
                 total_divs = group["Dividends"].sum()
                 if total_cost > 0:
@@ -385,6 +385,7 @@ def _render_flat_table(
                     "Volatility": arow.get("Volatility"),
                     "Max Drawdown": arow.get("Max Drawdown"),
                     "Sharpe Ratio": arow.get("Sharpe Ratio"),
+                    "Sortino Ratio": arow.get("Sortino Ratio"),
                     "Beta": arow.get("Beta"),
                 }
 
@@ -419,6 +420,7 @@ def _render_flat_table(
             vol = a.get("Volatility")
             dd = a.get("Max Drawdown")
             sharpe = a.get("Sharpe Ratio")
+            sortino = a.get("Sortino Ratio")
             beta = a.get("Beta")
 
             vol_cls = _color_class(vol, [
@@ -432,6 +434,11 @@ def _render_flat_table(
                 (lambda v: True, "td-neg"),
             ])
             sharpe_cls = _color_class(sharpe, [
+                (lambda v: v >= 1, "td-pos"),
+                (lambda v: v >= 0, "td-amb"),
+                (lambda v: True, "td-neg"),
+            ])
+            sortino_cls = _color_class(sortino, [
                 (lambda v: v >= 1, "td-pos"),
                 (lambda v: v >= 0, "td-amb"),
                 (lambda v: True, "td-neg"),
@@ -476,6 +483,7 @@ def _render_flat_table(
                 f'<td class="{vol_cls} right">{_fmt(vol, "{:.0f}%")}</td>'
                 f'<td class="{dd_cls} right">{_fmt(dd, "{:.0f}%")}</td>'
                 f'<td class="{sharpe_cls} right">{_fmt(sharpe, "{:.1f}")}</td>'
+                f'<td class="{sortino_cls} right">{_fmt(sortino, "{:.1f}")}</td>'
                 f'<td class="right">{_fmt(beta, "{:.1f}")}</td>'
                 f'<td class="right">{_fmt(pe, "{:.0f}\u00d7")}</td>'
                 f'<td class="right">{_fmt(div_yield, "{:.1f}%")}</td>'

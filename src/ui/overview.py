@@ -175,7 +175,7 @@ async def build_overview_tab(
     total_value = df["Total Value"].sum()
     daily_pnl = df["Daily P&L"].sum()
     n_positions = len(portfolio)
-    cost_basis = (df["Buy Price"] * df["Shares"]).sum()
+    cost_basis = df["Cost Basis"].sum()
     total_contributed = 0.0
     for ticker, lots in portfolio.items():
         ticker_ccy = get_ticker_currency(ticker)
@@ -845,7 +845,7 @@ async def export_excel(portfolio: dict, currency: str) -> None:
         # KPIs
         total_value = df["Total Value"].sum()
         daily_pnl = df["Daily P&L"].sum()
-        cost_basis = (df["Buy Price"] * df["Shares"]).sum()
+        cost_basis = df["Cost Basis"].sum()
         total_divs = df["Dividends"].sum()
         total_return = total_value + total_divs - cost_basis
         total_ret_pct = (total_return / cost_basis * 100) if cost_basis else 0.0
