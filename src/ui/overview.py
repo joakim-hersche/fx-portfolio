@@ -812,6 +812,7 @@ async def export_excel(portfolio: dict, currency: str) -> None:
                 start_prices_base[t] = cur_mc
                 ticker_mc_results[t] = cached_run_monte_carlo_ticker(
                     ticker=t, hist=hist_5y, current_price=cur_mc, horizon_days=252,
+                    lookback_days=504,
                 )
 
         portfolio_mc = cached_run_monte_carlo_portfolio(
@@ -856,6 +857,81 @@ async def export_excel(portfolio: dict, currency: str) -> None:
         except Exception:
             div_timeline = []
 
+        # Health score — uses same 1Y price data as dashboard health tab
+        from src.health import compute_health_score, generate_findings, ticker_to_region
+        from src.ui.health import _compute_weighted_corr, _compute_portfolio_vol
+
+        ticker_weights_dec = (
+            df.groupby("Ticker")["Weight (%)"].sum() / 100
+        ).to_dict()
+
+        h_sectors: set[str] = set()
+        h_regions: set[str] = set()
+        h_sector_weights: dict[str, float] = {}
+        h_ticker_sector: dict[str, str] = {}
+        for fr in fund_rows:
+            t = fr.get("Ticker")
+            sector = fr.get("Sector", "Unknown")
+            if sector and sector != "Unknown":
+                h_sectors.add(sector)
+            if t:
+                h_regions.add(ticker_to_region(t))
+                h_ticker_sector[t] = sector
+                w = ticker_weights_dec.get(t, 0) * 100
+                h_sector_weights[sector] = h_sector_weights.get(sector, 0) + w
+
+        h_corr = _compute_weighted_corr(price_data_1y, tickers, ticker_weights_dec)
+        h_vol = _compute_portfolio_vol(price_data_1y, tickers, ticker_weights_dec)
+
+        # Portfolio-level Sharpe and Max Drawdown for Summary sheet
+        _port_returns = {}
+        for t in tickers:
+            _h = price_data_1y.get(t)
+            if _h is not None and not _h.empty and "Close" in _h.columns:
+                _r = _h["Close"].pct_change().dropna()
+                if len(_r) >= 30:
+                    _port_returns[t] = _r
+        _port_sharpe = None
+        _port_max_dd = None
+        if _port_returns:
+            _port_df = pd.DataFrame(_port_returns).dropna()
+            if not _port_df.empty:
+                _port_daily = sum(
+                    _port_df[t] * ticker_weights_dec.get(t, 0) for t in _port_df.columns
+                )
+                # Sharpe (same risk-free rate as compute_analytics)
+                from src.risk_free import fetch_risk_free_yields
+                try:
+                    _rf_yields = fetch_risk_free_yields(
+                        base_currency,
+                        str((pd.Timestamp.today() - pd.DateOffset(years=1)).date()),
+                        str(pd.Timestamp.today().date()),
+                    )
+                    _avg_rf = _rf_yields.mean() / 100 if not _rf_yields.empty else 0.04
+                except Exception:
+                    _avg_rf = 0.04
+                _daily_rf = _avg_rf / 252
+                _excess = _port_daily - _daily_rf
+                if _excess.std() > 0:
+                    _port_sharpe = round(float((_excess.mean() / _excess.std()) * (252 ** 0.5)), 2)
+                # Max Drawdown
+                _cumulative = (1 + _port_daily).cumprod()
+                _rolling_max = _cumulative.cummax()
+                _dd = (_cumulative - _rolling_max) / _rolling_max
+                _port_max_dd = round(float(_dd.min()) * 100, 1)
+        h_top = sorted(
+            [(t, w * 100) for t, w in ticker_weights_dec.items()],
+            key=lambda x: x[1], reverse=True,
+        )
+
+        h_score = compute_health_score(
+            ticker_weights_dec, h_sectors, h_regions, h_corr, h_vol,
+        )
+        h_findings = generate_findings(
+            ticker_weights_dec, h_sectors, h_regions, h_sector_weights,
+            h_corr, h_vol, h_top,
+        )
+
         return build_excel_report(
             positions_df=df,
             analytics_df=analytics_df,
@@ -871,6 +947,9 @@ async def export_excel(portfolio: dict, currency: str) -> None:
                 "total_return": total_return,
                 "total_ret_pct": total_ret_pct,
                 "n_positions": len(portfolio),
+                "portfolio_sharpe": _port_sharpe,
+                "portfolio_max_dd": _port_max_dd,
+                "portfolio_vol": round(h_vol * 100, 1) if h_vol else None,
             },
             bt_result=bt,
             ticker_mc_results=ticker_mc_results,
@@ -878,6 +957,10 @@ async def export_excel(portfolio: dict, currency: str) -> None:
             target_prices=excel_target_prices,
             dividend_timeline=div_timeline,
             portfolio=portfolio,
+            health_score=h_score,
+            health_findings=h_findings,
+            health_sector_weights=h_sector_weights,
+            health_ticker_sector=h_ticker_sector,
         )
 
     try:
