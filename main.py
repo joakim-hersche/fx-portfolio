@@ -189,6 +189,39 @@ async def healthz():
 _log = logging.getLogger(__name__)
 
 
+def _send_gift_email(to_email: str, days: int, expires) -> None:
+    """Send a gift Pro notification email via Resend."""
+    api_key = os.environ.get("RESEND_API_KEY")
+    from_email = os.environ.get("FROM_EMAIL", "noreply@fxportfolio.app")
+    if not api_key:
+        _log.warning("RESEND_API_KEY not set — skipping gift email to %s", to_email)
+        return
+    expires_str = expires.strftime("%B %d, %Y")
+    html = (
+        f"<div style='font-family:system-ui,sans-serif; max-width:480px; margin:0 auto; padding:32px;'>"
+        f"<h2 style='color:#e2e8f0; margin-bottom:8px;'>You've been gifted FX Portfolio Pro!</h2>"
+        f"<p style='color:#94a3b8; font-size:15px; line-height:1.6;'>"
+        f"You now have full access to all Pro features for <strong>{days} days</strong>, "
+        f"including Monte Carlo forecasting, dividend income tracking, and unlimited positions.</p>"
+        f"<p style='color:#94a3b8; font-size:15px;'>Your Pro access expires on <strong>{expires_str}</strong>.</p>"
+        f"<a href='https://fxportfolio.app' style='display:inline-block; margin-top:16px; padding:10px 24px; "
+        f"background:#3b82f6; color:white; text-decoration:none; border-radius:8px; font-size:14px;'>"
+        f"Open FX Portfolio</a>"
+        f"</div>"
+    )
+    try:
+        import resend
+        resend.api_key = api_key
+        resend.Emails.send({
+            "from": from_email,
+            "to": to_email,
+            "subject": f"You've been gifted {days} days of FX Portfolio Pro",
+            "html": html,
+        })
+    except Exception:
+        _log.exception("Failed to send gift email to %s", to_email)
+
+
 async def _restore_session_from_cookie(request: Request) -> None:
     """If the NiceGUI session is empty but a persistent auth_token cookie exists,
     validate it against the DB and re-establish the session."""
@@ -531,7 +564,7 @@ function triggerSwipeHint() {
                         if not is_pro(app.storage.user.get("user_id")):
                             ui.notify("Excel export is a Pro feature.", type="warning")
                             return
-                        export_excel(portfolio, currency)
+                        await export_excel(portfolio, currency)
 
                     with ui.menu_item(on_click=_export_excel_gated).style("padding:10px 14px;"):
                         with ui.row().classes("items-center gap-3 no-wrap"):
@@ -1179,6 +1212,7 @@ async def admin_page(request: Request):
             {"name": "tier", "label": "Tier", "field": "tier", "align": "left"},
             {"name": "created_at", "label": "Signed up", "field": "created_at", "align": "left"},
             {"name": "stripe_customer_id", "label": "Stripe", "field": "stripe_customer_id", "align": "left"},
+            {"name": "pro_expires_at", "label": "Pro expires", "field": "pro_expires_at", "align": "left"},
         ]
         rows = [
             {
@@ -1187,6 +1221,7 @@ async def admin_page(request: Request):
                 "tier": u.get("tier", "free"),
                 "created_at": str(u.get("created_at") or "")[:10],
                 "stripe_customer_id": u.get("stripe_customer_id") or "",
+                "pro_expires_at": str(u.get("pro_expires_at") or "")[:10] if u.get("pro_expires_at") else "",
             }
             for u in users
         ]
@@ -1213,6 +1248,37 @@ async def admin_page(request: Request):
                 ui.navigate.to("/admin")
 
             ui.button("Apply", on_click=_override_tier).props("no-caps unelevated").style(
+                f"background:{ACCENT}; border-radius:6px;"
+            )
+
+        # Gift free month
+        ui.label("Gift Free Month").style(
+            f"font-size:16px; font-weight:600; color:{TEXT_PRIMARY}; margin-top:24px; margin-bottom:8px;"
+        )
+        with ui.row().classes("items-end gap-3"):
+            gift_email_input = ui.input("User email").props("outlined dense").style("width:250px;")
+            gift_days_select = ui.select([30, 60, 90], value=30, label="Days").props("outlined dense").style("width:100px;")
+
+            async def _gift_pro():
+                from datetime import datetime, timedelta, timezone
+                target = await run.io_bound(db.get_user_by_email, gift_email_input.value.strip().lower())
+                if not target:
+                    ui.notify("User not found.", type="warning")
+                    return
+                expires = datetime.now(timezone.utc) + timedelta(days=gift_days_select.value)
+                await run.io_bound(db.set_tier, target["id"], "pro")
+                await run.io_bound(db.set_pro_expires, target["id"], expires)
+                # Send gift notification email
+                await run.io_bound(
+                    _send_gift_email,
+                    gift_email_input.value.strip().lower(),
+                    gift_days_select.value,
+                    expires,
+                )
+                ui.notify(f"Gifted {gift_days_select.value} days Pro to {gift_email_input.value}.", type="positive")
+                ui.navigate.to("/admin")
+
+            ui.button("Gift", on_click=_gift_pro).props("no-caps unelevated").style(
                 f"background:{ACCENT}; border-radius:6px;"
             )
 
