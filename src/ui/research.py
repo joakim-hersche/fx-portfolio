@@ -318,6 +318,7 @@ async def _render_portfolio_fit(
             0.5,  # default correlation assumption
             0.05,  # 5% addition weight
         )
+        result["_total_value"] = total_value
         return result
 
     result = await run.io_bound(_compute_fit)
@@ -359,9 +360,18 @@ async def _render_portfolio_fit(
                 f"font-size:14px;font-weight:600;color:{delta_color};"
             )
 
-        ui.label(
-            f"Simulated impact of adding {ticker} at 5% weight"
-        ).style(f"font-size:11px;color:{TEXT_DIM};margin-bottom:6px;")
+        # Build descriptive subtitle with concrete value and share count
+        sim_label = f"Simulated at 5% weight"
+        total_val = result.get("_total_value", 0)
+        price = fund.get("Current Price")
+        if total_val and price:
+            alloc_value = total_val * 0.05
+            shares = alloc_value / price
+            currency_symbol = CURRENCY_SYMBOLS.get(currency, "$")
+            sim_label += f" ({shares:,.1f} shares \u2248 {currency_symbol}{alloc_value:,.0f})"
+        ui.label(sim_label).style(
+            f"font-size:11px;color:{TEXT_DIM};margin-bottom:6px;"
+        )
 
         # Impact bullets
         for impact in result.get("impacts", []):
