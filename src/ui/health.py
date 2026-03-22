@@ -360,31 +360,13 @@ def _render_flat_table(
                         (total_value + total_divs - total_cost) / total_cost * 100, 2
                     )
 
-        # SPY 1-year return
-        spy_hist = price_data_1y.get("__spy__", pd.DataFrame())
+        # Benchmark 1-year return (already in base currency)
+        bench_hist = price_data_1y.get("__bench__", pd.DataFrame())
         spy_return = None
-        if not spy_hist.empty and "Close" in spy_hist.columns:
-            spy_close = spy_hist["Close"].dropna()
-            if len(spy_close) >= 2:
-                spy_return_usd = (spy_close.iloc[-1] / spy_close.iloc[0] - 1) * 100
-                if base_currency != "USD":
-                    try:
-                        import yfinance as yf
-                        fx_pair = f"USD{base_currency}=X"
-                        fx_hist = yf.Ticker(fx_pair).history(period="1y")
-                        if not fx_hist.empty and "Close" in fx_hist.columns:
-                            fx_close = fx_hist["Close"].dropna()
-                            if len(fx_close) >= 2:
-                                fx_change = (fx_close.iloc[-1] / fx_close.iloc[0] - 1) * 100
-                                spy_return = ((1 + spy_return_usd / 100) * (1 + fx_change / 100) - 1) * 100
-                            else:
-                                spy_return = spy_return_usd
-                        else:
-                            spy_return = spy_return_usd
-                    except Exception:
-                        spy_return = spy_return_usd
-                else:
-                    spy_return = spy_return_usd
+        if not bench_hist.empty and "Close" in bench_hist.columns:
+            bench_close = bench_hist["Close"].dropna()
+            if len(bench_close) >= 2:
+                spy_return = (bench_close.iloc[-1] / bench_close.iloc[0] - 1) * 100
 
         # 1-year price returns per ticker
         ticker_1y_return: dict[str, float] = {}
@@ -1181,8 +1163,16 @@ async def build_health_tab(portfolio: dict, currency: str) -> None:
     def _fetch_health_data():
         from concurrent.futures import ThreadPoolExecutor
 
-        # Fetch all analytics histories + SPY in parallel
-        all_tickers = tickers + ["SPY"]
+        # Fetch all analytics histories + benchmark in parallel
+        _BENCH_MAP = {
+            "USD": "SPY",
+            "CHF": "^SSMI",
+            "EUR": "^STOXX50E",
+            "GBP": "^FTSE",
+            "SEK": "^OMX",
+        }
+        bench_ticker = _BENCH_MAP.get(currency, "SPY")
+        all_tickers = tickers + [bench_ticker]
         with ThreadPoolExecutor(max_workers=min(10, len(all_tickers))) as ex:
             hist_results = dict(ex.map(lambda t: (t, fetch_analytics_history(t)), all_tickers))
 
@@ -1191,10 +1181,10 @@ async def build_health_tab(portfolio: dict, currency: str) -> None:
             hist = hist_results.get(t, pd.DataFrame())
             if not hist.empty:
                 price_data_1y[t] = hist
-        spy_data = hist_results.get("SPY", pd.DataFrame())
-        if not spy_data.empty:
-            price_data_1y["__spy__"] = spy_data
-        analytics_df = compute_analytics(portfolio, price_data_1y, spy_data)
+        bench_data = hist_results.get(bench_ticker, pd.DataFrame())
+        if not bench_data.empty:
+            price_data_1y["__bench__"] = bench_data
+        analytics_df = compute_analytics(portfolio, price_data_1y, bench_data, currency)
         portfolio_df = build_portfolio_df(portfolio, currency)
 
         # Fetch fundamentals in parallel
