@@ -35,6 +35,24 @@ def _build_log_returns(price_data: dict, tickers: list) -> pd.DataFrame:
     return np.log(prices / prices.shift(1)).dropna()
 
 
+def _normal_returns(
+    mean_log: np.ndarray,
+    cov_log: np.ndarray,
+    n_sims: int,
+    horizon_days: int,
+    N: int,
+    rng: np.random.Generator,
+) -> np.ndarray:
+    """Correlated normal log-returns via Cholesky decomposition."""
+    cov_stable = cov_log + np.eye(N) * 1e-8
+    try:
+        L = np.linalg.cholesky(cov_stable)
+    except np.linalg.LinAlgError:
+        L = np.diag(np.sqrt(np.maximum(np.diag(cov_stable), 0)))
+    Z = rng.standard_normal((n_sims, horizon_days, N))
+    return Z @ L.T + mean_log
+
+
 def _simulate_paths(
     mean_log: np.ndarray,
     cov_log: np.ndarray,
@@ -43,13 +61,22 @@ def _simulate_paths(
     n_sims: int,
     horizon_days: int,
     rng: np.random.Generator,
+    method: str = "kde",
+    hist_log_returns: np.ndarray | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
     Simulate correlated log-normal price paths for N tickers.
 
-    Uses Cholesky decomposition to preserve the historical correlation structure.
-    Falls back to diagonal (independent) simulation if the covariance matrix is
-    not positive definite (can happen with very short history or near-constant assets).
+    Defaults to KDE-based sampling from historical log-returns to capture fat
+    tails and skewness. Falls back to Cholesky/normal when data is insufficient
+    (< 30 observations) or KDE is unavailable.
+
+    Parameters
+    ----------
+    method : str
+        "kde" (default) or "normal". KDE requires hist_log_returns.
+    hist_log_returns : ndarray of shape (T, N), optional
+        Historical daily log-returns used to fit the KDE.
 
     Returns
     -------
@@ -59,18 +86,18 @@ def _simulate_paths(
         Individual ticker price per simulation per day.
     """
     N = len(mean_log)
-    cov_stable = cov_log + np.eye(N) * 1e-8  # nudge diagonal for numerical stability
 
-    try:
-        L = np.linalg.cholesky(cov_stable)
-    except np.linalg.LinAlgError:
-        # Correlation structure is degenerate — simulate independently
-        L = np.diag(np.sqrt(np.maximum(np.diag(cov_stable), 0)))
-
-    # Z: (n_sims, horizon_days, N) — standard normal shocks
-    Z = rng.standard_normal((n_sims, horizon_days, N))
-    # Correlated daily log returns: (n_sims, horizon_days, N)
-    log_returns = Z @ L.T + mean_log  # mean broadcast across sims and days
+    if method == "kde" and hist_log_returns is not None and len(hist_log_returns) >= 30:
+        try:
+            from sklearn.neighbors import KernelDensity
+            kde = KernelDensity(bandwidth="silverman", kernel="gaussian")
+            kde.fit(hist_log_returns)
+            samples = kde.sample(n_sims * horizon_days, random_state=rng.integers(2**31))
+            log_returns = samples.reshape(n_sims, horizon_days, N)
+        except Exception:
+            log_returns = _normal_returns(mean_log, cov_log, n_sims, horizon_days, N, rng)
+    else:
+        log_returns = _normal_returns(mean_log, cov_log, n_sims, horizon_days, N, rng)
 
     # Cumulative log price change from start
     log_price_paths = np.log(start_prices) + np.cumsum(log_returns, axis=1)
@@ -292,7 +319,8 @@ def run_monte_carlo_backtest(
     # ── Simulate ───────────────────────────────────────────────────────────
     rng = np.random.default_rng(seed)
     portfolio_paths, ticker_paths = _simulate_paths(
-        mean_log, cov_log, split_prices, shares, n_sims, 252, rng
+        mean_log, cov_log, split_prices, shares, n_sims, 252, rng,
+        method="kde", hist_log_returns=train_log_r.values,
     )
 
     # ── Actual portfolio value during the test window ──────────────────────
@@ -427,16 +455,18 @@ def run_monte_carlo_portfolio(
     shares       = np.array([shares_by_ticker[t]  for t in valid_tickers])
     start_value  = float((start_prices * shares).sum())
 
-    # Correlated paths
+    # Correlated paths — KDE captures fat tails and preserves correlation structure
     rng = np.random.default_rng(seed)
     portfolio_paths, _ = _simulate_paths(
-        mean_log, cov_log, start_prices, shares, n_sims, horizon_days, rng
+        mean_log, cov_log, start_prices, shares, n_sims, horizon_days, rng,
+        method="kde", hist_log_returns=log_returns.values,
     )
 
-    # Independent paths — same seed so the only difference is the covariance
+    # Independent paths — normal so the only difference vs correlated is correlation
     rng_i = np.random.default_rng(seed)
     portfolio_paths_i, _ = _simulate_paths(
-        mean_log, cov_diag, start_prices, shares, n_sims, horizon_days, rng_i
+        mean_log, cov_diag, start_prices, shares, n_sims, horizon_days, rng_i,
+        method="normal",
     )
 
     last_date    = log_returns.index[-1]
@@ -549,13 +579,22 @@ def run_monte_carlo_ticker(
     mu    = float(log_r.mean())
     sigma = float(log_r.std())
 
-    rng  = np.random.default_rng(seed)
-    Z    = rng.standard_normal((n_sims, horizon_days))
-    # Daily log-return paths: μ + σ·Z
-    daily = mu + sigma * Z                                      # (n_sims, horizon_days)
-    paths = current_price * np.exp(np.cumsum(daily, axis=1))   # (n_sims, horizon_days)
+    # Build 1-ticker arrays for _simulate_paths
+    mean_log    = np.array([mu])
+    cov_log     = np.array([[sigma ** 2]])
+    start_arr   = np.array([current_price])
+    shares_arr  = np.array([1.0])
+    hist_arr    = log_r.values.reshape(-1, 1)
 
-    last_date   = prices.index[-1]
+    rng = np.random.default_rng(seed)
+    _, ticker_paths = _simulate_paths(
+        mean_log, cov_log, start_arr, shares_arr,
+        n_sims, horizon_days, rng,
+        method="kde", hist_log_returns=hist_arr,
+    )
+    paths = ticker_paths[:, :, 0]  # (n_sims, horizon_days)
+
+    last_date    = prices.index[-1]
     future_dates = pd.bdate_range(start=last_date, periods=horizon_days + 1)[1:]
 
     pcts = np.percentile(paths, [10, 25, 50, 75, 90], axis=0)
