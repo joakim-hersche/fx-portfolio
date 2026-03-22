@@ -25,9 +25,10 @@ def parse_date(raw: str) -> str | None:
         return _validate_and_format(y, mo, d)
 
     # Separated format: A.B.C or A/B/C or A-B-C (non-ISO)
-    m = re.match(r"^(\d{1,2})[./\-](\d{1,2})[./\-](\d{2,4})$", raw)
+    # Backreference \2 enforces consistent separator; year must be exactly 2 or 4 digits
+    m = re.match(r"^(\d{1,2})([./\-])(\d{1,2})\2(\d{4}|\d{2})$", raw)
     if m:
-        a, b, c = int(m[1]), int(m[2]), int(m[3])
+        a, b, c = int(m[1]), int(m[3]), int(m[4])
         year = c if c > 99 else 2000 + c
 
         # If first value > 12, it must be a day (European: DD/MM/YYYY)
@@ -254,8 +255,8 @@ _INPUT_STYLE = (
     f" color:{TEXT_PRIMARY}; font-size:13px;"
 )
 _HEADER_CELL_STYLE = (
-    f"font-size:11px; font-weight:600; color:{TEXT_DIM}; letter-spacing:0.03em;"
-    " text-transform:uppercase; white-space:nowrap;"
+    f"font-size:10px; font-weight:600; color:{TEXT_MUTED}; letter-spacing:0.08em;"
+    " text-transform:uppercase; white-space:nowrap; padding:0;"
 )
 
 
@@ -387,8 +388,9 @@ def _update_row_bg(row: BulkRow):
     if el is None:
         return
     el.style(
-        f"background:{_row_bg(row)}; padding:4px 8px; border-radius:4px;"
+        f"background:{_row_bg(row)}; padding:10px 0;"
         " align-items:center; gap:8px; width:100%;"
+        " border-bottom:1px solid rgba(255,255,255,0.04);"
     )
 
 
@@ -551,34 +553,35 @@ def _render_row(row: BulkRow, rows: list[BulkRow], base_currency: str,
     row._footer_refs = footer_refs
 
     row_el = ui.row().style(
-        f"background:{_row_bg(row)}; padding:4px 8px; border-radius:4px;"
-        " align-items:center; gap:8px; width:100%;"
+        f"background:{_row_bg(row)}; padding:10px 0;"
+        f" align-items:center; gap:8px; width:100%;"
+        f" border-bottom:1px solid rgba(255,255,255,0.04);"
     )
     row.ui_row_element = row_el
 
     with row_el:
         # Row number
         ui.label(str(row.index)).style(
-            f"color:{TEXT_DIM}; font-size:12px; min-width:24px; text-align:right;"
+            f"color:{TEXT_DIM}; font-size:13px; min-width:28px; text-align:left;"
         )
 
         # Ticker input
         ticker_inp = ui.input(
-            placeholder="Ticker or name",
+            placeholder="Type or paste tickers...",
             value=row.ticker_input,
         ).props("dense outlined dark").classes("bulk-ticker-input").style(
             f"width:140px; {_INPUT_STYLE}"
         )
         ticker_inp.on(
             "blur",
-            lambda e, r=row: asyncio.ensure_future(
-                _on_ticker_blur(r, e.sender.value, base_currency)
+            lambda e, r=row, inp=ticker_inp: asyncio.ensure_future(
+                _on_ticker_blur(r, inp.value, base_currency)
             ),
         )
 
         # Confirm container
         confirm_container = ui.element("div").style(
-            "min-width:160px; display:flex; align-items:center;"
+            "min-width:180px; display:flex; align-items:center;"
         )
         row.ui_confirm_container = confirm_container
 
@@ -596,8 +599,8 @@ def _render_row(row: BulkRow, rows: list[BulkRow], base_currency: str,
         ).props("dense outlined dark").style(f"width:120px; {_INPUT_STYLE}")
         date_inp.on(
             "blur",
-            lambda e, r=row: asyncio.ensure_future(
-                _on_date_blur(r, e.sender.value, base_currency)
+            lambda e, r=row, inp=date_inp: asyncio.ensure_future(
+                _on_date_blur(r, inp.value, base_currency)
             ),
         )
 
@@ -762,7 +765,7 @@ def open_bulk_add_dialog(portfolio: dict, base_currency: str, on_complete):
 
         # ── Header ──
         with ui.row().classes("w-full items-center justify-between").style(
-            f"padding:16px 20px 8px 20px; border-bottom:1px solid {BORDER};"
+            f"padding:20px 24px 16px; border-bottom:1px solid {BORDER};"
         ):
             with ui.column().style("gap:2px;"):
                 ui.label("Bulk Add Positions").style(
@@ -784,26 +787,26 @@ def open_bulk_add_dialog(portfolio: dict, base_currency: str, on_complete):
             # ── Sticky table header ──
             with ui.row().classes("w-full items-center").style(
                 f"position:sticky; top:0; z-index:1; background:{BG_CARD};"
-                f" padding:10px 20px 6px 20px; gap:8px;"
+                f" padding:12px 24px 8px 24px; gap:8px;"
                 f" border-bottom:1px solid {BORDER};"
             ):
-                ui.label("#").style(f"{_HEADER_CELL_STYLE} min-width:24px; text-align:right;")
-                ui.label("Ticker").style(f"{_HEADER_CELL_STYLE} width:140px;")
-                ui.label("Status").style(f"{_HEADER_CELL_STYLE} min-width:160px;")
-                ui.label("Shares").style(f"{_HEADER_CELL_STYLE} width:90px;")
-                ui.label("Date").style(f"{_HEADER_CELL_STYLE} width:120px;")
-                ui.label("").style(f"{_HEADER_CELL_STYLE} min-width:80px;")
-                ui.label("Price").style(f"{_HEADER_CELL_STYLE} min-width:90px;")
-                ui.label("").style(f"{_HEADER_CELL_STYLE} width:24px;")
+                ui.label("#").style(f"{_HEADER_CELL_STYLE} min-width:28px; text-align:left;")
+                ui.label("Ticker / Name").style(f"{_HEADER_CELL_STYLE} width:140px;")
+                ui.label("Confirmed Match").style(f"{_HEADER_CELL_STYLE} min-width:180px;")
+                ui.label("Shares").style(f"{_HEADER_CELL_STYLE} width:90px; text-align:right;")
+                ui.label("Purchase Date").style(f"{_HEADER_CELL_STYLE} width:110px;")
+                ui.label("Date Confirm").style(f"{_HEADER_CELL_STYLE} min-width:100px;")
+                ui.label("Price").style(f"{_HEADER_CELL_STYLE} min-width:100px; text-align:right;")
+                ui.label("").style(f"{_HEADER_CELL_STYLE} width:36px;")
 
             # ── Table body ──
             table_body = ui.column().classes("w-full").style(
-                "padding:4px 20px 8px 20px; gap:2px;"
+                "padding:0 24px 8px 24px; gap:0;"
             )
 
         # ── Footer ──
         with ui.row().classes("w-full items-center justify-between").style(
-            f"padding:12px 20px; border-top:1px solid {BORDER};"
+            f"padding:16px 24px; border-top:1px solid {BORDER};"
         ):
             with ui.row().classes("items-center").style("gap:12px;"):
                 status_html = ui.html(
