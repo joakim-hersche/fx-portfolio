@@ -747,22 +747,31 @@ async def build_research_tab(
             # News
             _render_news(news)
 
-    # Search bar — preselect top portfolio stock if available
-    default_ticker = None
-    if portfolio:
-        first = next(iter(portfolio), None)
-        if first and first in select_opts:
-            default_ticker = first
-
     # Search bar
     with ui.row().classes("w-full items-center").style("gap:8px;margin-bottom:12px;"):
         search_select = ui.select(
             options=select_opts,
-            value=default_ticker,
             with_input=True,
             label="Search ticker...",
             on_change=lambda e: _do_search(e.value) if e.value else None,
-        ).props("dense outlined clearable").style("flex:1;min-width:200px;max-width:400px;")
+        ).props(
+            'dense outlined clearable use-input input-debounce="150" behavior="menu"'
+        ).style("flex:1;min-width:200px;max-width:400px;")
+
+        # Auto-highlight first filtered option on each keystroke
+        search_select.on(
+            "input-value",
+            lambda: ui.run_javascript(f'''
+                setTimeout(() => {{
+                    const el = getElement({search_select.id});
+                    if (el && el.$refs && el.$refs.qRef) {{
+                        const q = el.$refs.qRef;
+                        q.setOptionIndex(-1);
+                        q.moveOptionSelection(1, true);
+                    }}
+                }}, 200);
+            '''),
+        )
 
     # Recent searches tags
     @ui.refreshable
