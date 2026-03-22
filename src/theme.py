@@ -371,8 +371,12 @@ body, .q-page, .nicegui-content {
 .risk-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--grid-gap); width: 100%%; align-items: stretch; }
 .risk-grid > * { display: flex; flex-direction: column; }
 .risk-grid > * > .chart-card { flex: 1; display: flex; flex-direction: column; }
-.metric-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--grid-gap); width: 100%%; }
-.metric-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--grid-gap); width: 100%%; }
+.metric-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--grid-gap); width: 100%%; align-items: stretch; }
+.metric-grid-4 > * { display: flex; }
+.metric-grid-4 > * > .metric-card { flex: 1; }
+.metric-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--grid-gap); width: 100%%; align-items: stretch; }
+.metric-grid-3 > * { display: flex; }
+.metric-grid-3 > * > .metric-card { flex: 1; }
 .preview-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: var(--grid-gap); width: 100%%; }
 .risk-triple { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--grid-gap); width: 100%%; align-items: stretch; }
 .risk-triple > * { display: flex; flex-direction: column; min-width: 0; }
