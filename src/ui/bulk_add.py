@@ -345,10 +345,12 @@ def _update_confirm_cell(row: BulkRow):
             }
             sel = ui.select(
                 options=options,
-                label="Pick one",
+                label="Pick one...",
                 on_change=lambda e, r=row: _on_disambiguate(r, e.value),
-            ).props("dense outlined dark").style(
-                f"min-width:160px; font-size:12px; color:{AMBER};"
+            ).props("dense borderless dark options-dense").style(
+                f"min-width:170px; font-size:12px; color:{AMBER};"
+                f" background:{BG_INPUT}; border:1px solid rgba(217,119,6,0.4);"
+                f" border-radius:6px;"
             )
         elif row.ticker_status == "not_found":
             ui.html(
@@ -373,12 +375,12 @@ def _update_price_cell(row: BulkRow):
             )
         elif row.price_status == "failed":
             inp = ui.number(
-                label="Price",
+                placeholder="Enter price",
                 value=None,
+                min=0.01,
                 on_change=lambda e, r=row: _on_manual_price(r, e.value),
-            ).props("dense outlined dark").style(
-                f"width:90px; font-size:12px; {_INPUT_STYLE}"
-            )
+            ).props("dense borderless input-style='padding:6px 10px;font-size:13px;text-align:right'"
+            ).style(f"width:100px; {_INPUT_STYLE}")
             row.manual_price = True
 
 
@@ -469,8 +471,8 @@ def _on_disambiguate(row: BulkRow, ticker: str):
         asyncio.ensure_future(_fetch_price_and_fx(row, base_currency))
 
 
-async def _on_ticker_blur(row: BulkRow, value: str, base_currency: str):
-    """Handle ticker input blur: resolve and update UI."""
+async def _on_ticker_change(row: BulkRow, value: str, base_currency: str):
+    """Handle ticker input change: resolve and update UI."""
     value = (value or "").strip()
     if value == row.ticker_input and row.ticker_status != "pending":
         return  # no change
@@ -508,8 +510,8 @@ async def _on_ticker_blur(row: BulkRow, value: str, base_currency: str):
         await _fetch_price_and_fx(row, base_currency)
 
 
-async def _on_date_blur(row: BulkRow, value: str, base_currency: str):
-    """Handle date input blur: parse and trigger price fetch."""
+async def _on_date_change(row: BulkRow, value: str, base_currency: str):
+    """Handle date input change: parse and trigger price fetch."""
     row.date_input = (value or "").strip()
     row.parsed_date = parse_date(row.date_input) if row.date_input else None
 
@@ -565,18 +567,17 @@ def _render_row(row: BulkRow, rows: list[BulkRow], base_currency: str,
             f"color:{TEXT_DIM}; font-size:13px; min-width:28px; text-align:left;"
         )
 
-        # Ticker input
+        # Ticker input — use on_value_change (fires when value syncs to Python)
+        # then trigger resolution after a short debounce
         ticker_inp = ui.input(
-            placeholder="Type or paste tickers...",
+            placeholder="Type or paste...",
             value=row.ticker_input,
-        ).props("dense outlined dark").classes("bulk-ticker-input").style(
-            f"width:140px; {_INPUT_STYLE}"
-        )
-        ticker_inp.on(
-            "blur",
-            lambda e, r=row, inp=ticker_inp: asyncio.ensure_future(
-                _on_ticker_blur(r, inp.value, base_currency)
+            on_change=lambda e, r=row: asyncio.ensure_future(
+                _on_ticker_change(r, e.value, base_currency)
             ),
+        ).props("dense borderless input-style='padding:6px 10px;font-size:13px'"
+        ).classes("bulk-ticker-input").style(
+            f"min-width:160px; {_INPUT_STYLE}"
         )
 
         # Confirm container
@@ -587,22 +588,22 @@ def _render_row(row: BulkRow, rows: list[BulkRow], base_currency: str,
 
         # Shares input
         shares_inp = ui.number(
-            label="Shares",
+            placeholder="—",
             value=row.shares if row.shares else None,
+            min=0.01,
             on_change=lambda e, r=row: _on_shares_change(r, e.value),
-        ).props("dense outlined dark").style(f"width:90px; {_INPUT_STYLE}")
+        ).props("dense borderless input-style='padding:6px 10px;font-size:13px;text-align:right'"
+        ).style(f"width:90px; {_INPUT_STYLE}")
 
-        # Date input
+        # Date input — on_change fires when value syncs
         date_inp = ui.input(
             placeholder="DD/MM/YYYY",
             value=row.date_input,
-        ).props("dense outlined dark").style(f"width:120px; {_INPUT_STYLE}")
-        date_inp.on(
-            "blur",
-            lambda e, r=row, inp=date_inp: asyncio.ensure_future(
-                _on_date_blur(r, inp.value, base_currency)
+            on_change=lambda e, r=row: asyncio.ensure_future(
+                _on_date_change(r, e.value, base_currency)
             ),
-        )
+        ).props("dense borderless input-style='padding:6px 10px;font-size:13px'"
+        ).style(f"min-width:110px; {_INPUT_STYLE}")
 
         # Date confirm label
         date_confirm = ui.label("").style(
