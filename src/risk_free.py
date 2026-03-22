@@ -132,7 +132,34 @@ def _fetch_riksbank(currency: str, start: str, end: str) -> pd.Series:
         return pd.Series(dtype=float)
 
 
-# ── SNB (CHF) — stub for Task 3 ─────────────────────────────────────
+# ── SNB (CHF) ────────────────────────────────────────────────────────
 
 def _fetch_snb(start: str, end: str) -> pd.Series:
-    raise NotImplementedError("SNB fetcher not yet implemented")
+    try:
+        resp = requests.get(
+            "https://data.snb.ch/api/cube/rendoblid/data/csv/en",
+            params={"dimSel": "D0(10J0)", "fromDate": start, "toDate": end},
+            timeout=15,
+        )
+        resp.raise_for_status()
+
+        from io import StringIO
+        # Skip the 2-line header + blank line; actual data starts at line 4
+        lines = resp.text.strip().split("\n")
+        # Find the header row with "Date"
+        header_idx = next(i for i, line in enumerate(lines) if '"Date"' in line)
+        csv_data = "\n".join(lines[header_idx:])
+
+        df = pd.read_csv(StringIO(csv_data), sep=";", quotechar='"')
+        # Drop rows with empty/missing Value
+        df = df.dropna(subset=["Value"])
+        df = df[df["Value"].astype(str).str.strip() != ""]
+
+        dates = pd.to_datetime(df["Date"])
+        values = pd.to_numeric(df["Value"], errors="coerce")
+        series = pd.Series(values.values, index=dates, dtype=float).dropna()
+        return series
+
+    except Exception as exc:
+        _log.warning("SNB fetch failed: %s", exc)
+        return pd.Series(dtype=float)
