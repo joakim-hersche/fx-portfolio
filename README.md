@@ -6,7 +6,9 @@ Real-time stock portfolio tracker with Monte Carlo simulations, multi-currency s
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![Python 3.12](https://img.shields.io/badge/Python-3.12-blue.svg)](https://python.org)
 
-![FX Portfolio](Screenshots/dark/01_overview_hero.png)
+![FX Portfolio](Screenshots/dark/01_overview.png)
+
+![Demo](Screenshots/dark/hero.gif)
 
 ## Features
 
@@ -29,49 +31,37 @@ Real-time stock portfolio tracker with Monte Carlo simulations, multi-currency s
 
 KPI cards (total value, daily P&L, total return, position count), allocation bar chart, and rebased performance chart with configurable time range and FX-adjusted toggle.
 
-![Overview](Screenshots/dark/02_overview_full.png)
+![Overview](Screenshots/dark/02_overview.png)
 
 ### Positions
 
 Multi-lot positions table with current price, total value, dividends, daily change, return %, analyst target prices, and portfolio weight. Per-ticker price history chart with buy-price overlay and purchase date markers.
 
-![Positions](Screenshots/dark/03_positions_hero.png)
+![Positions](Screenshots/dark/03_positions.png)
 
-### Risk & Analytics
+### Portfolio Health
 
-Per-ticker volatility, max drawdown, Sharpe ratio, and beta vs S&P 500. P/E ratio, dividend yield, 52-week range. Pairwise correlation heatmap. Sector breakdown and buy-only rebalancing calculator.
+Portfolio health score with per-position risk flags and recommendations. Per-ticker volatility, max drawdown, Sharpe ratio, beta, P/E ratio, dividend yield, 52-week range. Sector breakdown and buy-only rebalancing calculator.
 
-![Risk & Analytics](Screenshots/dark/04_risk_hero.png)
+![Portfolio Health](Screenshots/dark/04_health.png)
 
 ### Income
 
-Dividend income tracking with monthly breakdown by ticker, converted to your base currency at historical FX rates.
+Dividend income tracking with monthly breakdown by ticker, projected annual income, and portfolio yield. Converted to your base currency at historical FX rates.
 
-![Income](Screenshots/dark/07_income.png)
+![Income](Screenshots/dark/05_income.png)
 
 ### Forecast
 
-Monte Carlo simulation with correlated multi-ticker paths. Portfolio and per-ticker outlook with confidence bands, VaR/CVaR, and probability of breakeven. Backtesting against actual prices.
+Monte Carlo simulation with correlated multi-ticker paths. Portfolio and per-ticker outlook with confidence bands, VaR/CVaR, and probability of breakeven. Backtesting against actual prices. Includes model diagnostics (Jarque-Bera, Ljung-Box, QQ plots).
 
-![Forecast](Screenshots/dark/05_forecast_hero.png)
-
-### Diagnostics
-
-Model diagnostics testing normality (Jarque-Bera) and independence (Ljung-Box) of daily returns. QQ plots for visual inspection.
-
-![Diagnostics](Screenshots/dark/06_diagnostics_hero.png)
+![Forecast](Screenshots/dark/06_forecast.png)
 
 ### Research
 
 Stock screener with peer comparison, analyst price targets, and key fundamentals.
 
-![Research](Screenshots/dark/08_research.png)
-
-### Health
-
-Portfolio health score with per-position risk flags and actionable recommendations.
-
-![Health](Screenshots/dark/09_health.png)
+![Research](Screenshots/dark/07_research.png)
 
 ### Guide
 
