@@ -360,9 +360,11 @@ def build_contribution_timeline(portfolio: dict, base_currency: str) -> pd.DataF
 
         for lot in lots:
             lot_date = pd.Timestamp(lot["date"])
+            split_factor = get_split_factor(ticker, lot["date"])
+            adjusted_shares = lot["shares"] * split_factor
             # Only count this lot's value from its purchase date onwards
             mask = date_range >= lot_date
-            lot_value = prices * lot["shares"] * fx_series
+            lot_value = prices * adjusted_shares * fx_series
             lot_value = lot_value.where(mask, 0)
             portfolio_value += lot_value.fillna(0)
 
@@ -378,6 +380,9 @@ def build_contribution_timeline(portfolio: dict, base_currency: str) -> pd.DataF
 def fetch_buy_price(ticker: str, purchase_date: str) -> tuple[float, str] | None:
     """
     Fetch closing price on or just after a given purchase date.
+
+    Note: yfinance returns split-adjusted prices, so the price returned here
+    already reflects any subsequent splits.  No additional adjustment needed.
 
     Returns (price, actual_date_str) so callers can detect when the market
     was closed on the requested date and the next trading day was used instead.
@@ -428,7 +433,8 @@ def build_dividend_timeline(
 
                 # Only count shares from lots purchased on or before this dividend date
                 shares_held = sum(
-                    lot["shares"] for lot in lots
+                    lot["shares"] * get_split_factor(ticker, lot.get("purchase_date"))
+                    for lot in lots
                     if lot.get("purchase_date") and lot["purchase_date"] <= date_str
                 )
                 if shares_held <= 0:
