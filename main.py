@@ -1207,18 +1207,25 @@ async def admin_page(request: Request):
                     ui.label(label).style(f"font-size:12px; color:{TEXT_DIM};")
 
         # User table
+        admin_emails = set(
+            e.strip().lower()
+            for e in os.environ.get("ADMIN_EMAILS", "").split(",")
+            if e.strip()
+        )
         columns = [
-            {"name": "email", "label": "Email", "field": "email", "align": "left"},
-            {"name": "tier", "label": "Tier", "field": "tier", "align": "left"},
-            {"name": "created_at", "label": "Signed up", "field": "created_at", "align": "left"},
+            {"name": "email", "label": "Email", "field": "email", "align": "left", "sortable": True},
+            {"name": "tier", "label": "Tier", "field": "tier", "align": "left", "sortable": True},
+            {"name": "admin", "label": "Admin", "field": "admin", "align": "left", "sortable": True},
+            {"name": "created_at", "label": "Signed up", "field": "created_at", "align": "left", "sortable": True},
             {"name": "stripe_customer_id", "label": "Stripe", "field": "stripe_customer_id", "align": "left"},
-            {"name": "pro_expires_at", "label": "Pro expires", "field": "pro_expires_at", "align": "left"},
+            {"name": "pro_expires_at", "label": "Pro expires", "field": "pro_expires_at", "align": "left", "sortable": True},
         ]
         rows = [
             {
                 "id": u["id"],
                 "email": u["email"],
                 "tier": u.get("tier", "free"),
+                "admin": "Yes" if u["email"].lower() in admin_emails else "",
                 "created_at": str(u.get("created_at") or "")[:10],
                 "stripe_customer_id": u.get("stripe_customer_id") or "",
                 "pro_expires_at": str(u.get("pro_expires_at") or "")[:10] if u.get("pro_expires_at") else "",
@@ -1226,9 +1233,24 @@ async def admin_page(request: Request):
             for u in users
         ]
 
+        # Filter input
+        filter_input = ui.input("Filter users...").props("outlined dense clearable").style(
+            f"width:300px; background:{BG_INPUT}; margin-bottom:12px;"
+        )
+
         table = ui.table(columns=columns, rows=rows, row_key="id").style(
             f"background:{BG_CARD}; border-radius:10px; width:100%;"
         ).props("flat bordered")
+
+        def _filter(e):
+            query = (e.value or "").lower()
+            if not query:
+                table.rows = rows
+            else:
+                table.rows = [r for r in rows if query in r["email"].lower() or query in r["tier"].lower()]
+            table.update()
+
+        filter_input.on("update:model-value", _filter)
 
         # Tier override
         ui.label("Tier Override").style(
@@ -1280,6 +1302,72 @@ async def admin_page(request: Request):
 
             ui.button("Gift", on_click=_gift_pro).props("no-caps unelevated").style(
                 f"background:{ACCENT}; border-radius:6px;"
+            )
+
+        # Admin management
+        ui.label("Admin Access").style(
+            f"font-size:16px; font-weight:600; color:{TEXT_PRIMARY}; margin-top:24px; margin-bottom:8px;"
+        )
+        ui.label(
+            "Admin emails are stored in the ADMIN_EMAILS environment variable. "
+            "Add or remove emails below — changes take effect on next deploy."
+        ).style(f"font-size:12px; color:{TEXT_DIM}; margin-bottom:8px;")
+
+        current_admins = os.environ.get("ADMIN_EMAILS", "")
+        admin_display = ui.label(f"Current: {current_admins or 'none'}").style(
+            f"font-size:13px; color:{TEXT_MUTED}; margin-bottom:8px;"
+        )
+
+        with ui.row().classes("items-end gap-3"):
+            admin_email_input = ui.input("Email").props("outlined dense").style("width:250px;")
+
+            async def _add_admin():
+                new_email = admin_email_input.value.strip().lower()
+                if not new_email:
+                    return
+                current = os.environ.get("ADMIN_EMAILS", "")
+                existing = [e.strip() for e in current.split(",") if e.strip()]
+                if new_email in [e.lower() for e in existing]:
+                    ui.notify("Already an admin.", type="info")
+                    return
+                existing.append(new_email)
+                os.environ["ADMIN_EMAILS"] = ",".join(existing)
+                admin_display.text = f"Current: {os.environ['ADMIN_EMAILS']}"
+                ui.notify(
+                    f"Added {new_email} as admin for this session. "
+                    f"Run: fly secrets set ADMIN_EMAILS=\"{os.environ['ADMIN_EMAILS']}\" to persist.",
+                    type="positive",
+                )
+
+            async def _remove_admin():
+                rm_email = admin_email_input.value.strip().lower()
+                if not rm_email:
+                    return
+                current = os.environ.get("ADMIN_EMAILS", "")
+                existing = [e.strip() for e in current.split(",") if e.strip()]
+                if len(existing) <= 1:
+                    ui.notify("Cannot remove the last admin.", type="warning")
+                    return
+                if rm_email == auth_email.lower():
+                    ui.notify("Cannot remove yourself.", type="warning")
+                    return
+                updated = [e for e in existing if e.lower() != rm_email]
+                if len(updated) == len(existing):
+                    ui.notify("Not an admin.", type="info")
+                    return
+                os.environ["ADMIN_EMAILS"] = ",".join(updated)
+                admin_display.text = f"Current: {os.environ['ADMIN_EMAILS']}"
+                ui.notify(
+                    f"Removed {rm_email}. "
+                    f"Run: fly secrets set ADMIN_EMAILS=\"{os.environ['ADMIN_EMAILS']}\" to persist.",
+                    type="positive",
+                )
+
+            ui.button("Add", on_click=_add_admin).props("no-caps unelevated dense").style(
+                f"background:{ACCENT}; border-radius:6px;"
+            )
+            ui.button("Remove", on_click=_remove_admin).props("no-caps unelevated dense").style(
+                f"background:#EF4444; border-radius:6px;"
             )
 
 # ── Run ────────────────────────────────────────────────────
