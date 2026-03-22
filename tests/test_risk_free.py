@@ -126,9 +126,9 @@ class TestFetchSnb:
 class TestFetchRiskFreeYields:
     """Public dispatch function."""
 
-    def test_usd_dispatches_to_fred(self):
+    def test_usd_dispatches_to_riksbank(self):
         fake = pd.Series([4.0, 4.1], index=pd.to_datetime(["2025-01-02", "2025-01-03"]))
-        with patch("src.risk_free._fetch_fred", return_value=fake):
+        with patch("src.risk_free._fetch_riksbank", return_value=fake):
             result = fetch_risk_free_yields("USD", "2025-01-02", "2025-01-03")
         assert len(result) == 2
 

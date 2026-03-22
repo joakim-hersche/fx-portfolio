@@ -662,18 +662,33 @@ async def build_comparison(
                 try:
                     all_series = [s for s in data.values() if s is not None and not s.empty]
                     if all_series:
-                        rf_start = str(min(s.index.min() for s in all_series).date())
-                        rf_end = str(max(s.index.max() for s in all_series).date())
-                        yields = fetch_risk_free_yields(base_currency, rf_start, rf_end)
+                        chart_start = min(s.index.min() for s in all_series)
+                        chart_end = max(s.index.max() for s in all_series)
+                        # Fetch from well before chart range so we always have data
+                        # even if the API lags behind the current date
+                        fetch_start = str((chart_start - pd.DateOffset(years=1)).date())
+                        fetch_end = str(chart_end.date())
+                        yields = fetch_risk_free_yields(base_currency, fetch_start, fetch_end)
                         if not yields.empty:
-                            daily_rate = (1 + yields / 100) ** (1 / 365) - 1
-                            rf_cumulative = (1 + daily_rate).cumprod() * 100
+                            # Extend to cover the chart range via forward-fill
+                            full_range = pd.date_range(start=yields.index.min(), end=chart_end, freq="D")
+                            yields = yields.reindex(full_range).ffill().dropna()
+                            # Trim to chart range
+                            yields = yields[yields.index >= chart_start]
+                            if not yields.empty:
+                                daily_rate = (1 + yields / 100) ** (1 / 365) - 1
+                                rf_cumulative = (1 + daily_rate).cumprod() * 100
                 except Exception:
                     pass
 
             return data, bench_series, bench_name, rf_cumulative, rf_label
 
-        comparison_data, bench_series, bench_name, rf_cumulative, rf_label = await run.io_bound(_fetch_comparison_data)
+        result = await run.io_bound(_fetch_comparison_data)
+        if result is None:
+            with chart_container:
+                ui.html(f'<p style="font-size:12px;color:{TEXT_DIM};padding:20px 0;">Could not load comparison data.</p>')
+            return
+        comparison_data, bench_series, bench_name, rf_cumulative, rf_label = result
 
         comparison_df = pd.DataFrame(comparison_data).dropna()
         if not comparison_df.empty:
@@ -834,6 +849,13 @@ async def export_excel(portfolio: dict, currency: str) -> None:
         total_return = total_value + total_divs - cost_basis
         total_ret_pct = (total_return / cost_basis * 100) if cost_basis else 0.0
 
+        # Dividend timeline for forward calendar
+        from src.portfolio import build_dividend_timeline
+        try:
+            div_timeline = build_dividend_timeline(portfolio, base_currency)
+        except Exception:
+            div_timeline = []
+
         return build_excel_report(
             positions_df=df,
             analytics_df=analytics_df,
@@ -854,9 +876,19 @@ async def export_excel(portfolio: dict, currency: str) -> None:
             ticker_mc_results=ticker_mc_results,
             portfolio_mc=portfolio_mc,
             target_prices=excel_target_prices,
+            dividend_timeline=div_timeline,
+            portfolio=portfolio,
         )
 
-    excel_bytes = await run.io_bound(_build)
+    try:
+        excel_bytes = await run.io_bound(_build)
+    except Exception as exc:
+        notification.dismiss()
+        ui.notify(f"Excel export failed: {exc}", type="negative")
+        import traceback
+        traceback.print_exc()
+        return
+
     notification.dismiss()
 
     if excel_bytes is None:
