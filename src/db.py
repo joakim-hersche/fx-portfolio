@@ -219,6 +219,10 @@ def init_schema() -> None:
     _migrate("ALTER TABLE users ADD COLUMN stripe_customer_id TEXT")
     _migrate("ALTER TABLE users ADD COLUMN stripe_subscription_id TEXT")
 
+    # E: promo code expiry
+    _migrate("ALTER TABLE users ADD COLUMN pro_expires_at %s DEFAULT NULL" %
+             ("TIMESTAMP" if _backend == "postgres" else "TEXT"))
+
     # D: persistent auth tokens (survive server restarts)
     if _backend == "postgres":
         _execute("""
@@ -380,6 +384,13 @@ def set_stripe_ids(user_id: str, customer_id: str | None, subscription_id: str |
         f"UPDATE users SET stripe_customer_id = {ph[0]}, stripe_subscription_id = {ph[1]} WHERE id = {ph[2]}",
         (customer_id, subscription_id, user_id),
     )
+
+
+def set_pro_expires(user_id: str, expires_at) -> None:
+    """Set or clear the promo expiry timestamp."""
+    ph = _p(2)
+    value = expires_at.isoformat() if expires_at and _backend == "sqlite" else expires_at
+    _execute(f"UPDATE users SET pro_expires_at = {ph[0]} WHERE id = {ph[1]}", (value, user_id))
 
 
 def get_all_users() -> list[dict]:
