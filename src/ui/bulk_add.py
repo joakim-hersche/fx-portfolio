@@ -577,12 +577,12 @@ def _render_row(row: BulkRow, rows: list[BulkRow], base_currency: str,
             ),
         ).props("dense borderless debounce=500"
         ).classes("bulk-ticker-input").style(
-            f"min-width:160px; {_INPUT_STYLE} padding:6px 10px;"
+            f"min-width:170px; {_INPUT_STYLE} padding:6px 10px;"
         )
 
         # Confirm container
         confirm_container = ui.element("div").style(
-            "min-width:180px; display:flex; align-items:center;"
+            "min-width:200px; display:flex; align-items:center; overflow:hidden;"
         )
         row.ui_confirm_container = confirm_container
 
@@ -607,13 +607,13 @@ def _render_row(row: BulkRow, rows: list[BulkRow], base_currency: str,
 
         # Date confirm label
         date_confirm = ui.label("").style(
-            f"color:{TEXT_DIM}; font-size:12px; min-width:80px; white-space:nowrap;"
+            f"color:{TEXT_DIM}; font-size:12px; min-width:100px; white-space:nowrap;"
         )
         row.ui_date_confirm = date_confirm
 
         # Price container
         price_container = ui.element("div").style(
-            "min-width:90px; display:flex; align-items:center;"
+            "min-width:100px; display:flex; align-items:center; justify-content:flex-end;"
         )
         row.ui_price_container = price_container
 
@@ -759,7 +759,7 @@ def open_bulk_add_dialog(portfolio: dict, base_currency: str, on_complete):
     rows: list[BulkRow] = [BulkRow(index=i) for i in range(1, _INITIAL_ROWS + 1)]
 
     with ui.dialog() as dialog, ui.card().style(
-        f"min-width:min(960px, 95vw); max-width:960px; background:{BG_CARD};"
+        f"min-width:min(1120px, 95vw); max-width:1120px; background:{BG_CARD};"
         f" border:1px solid {BORDER}; border-radius:10px; padding:0;"
     ):
         dialog.props("persistent maximized=false")
@@ -792,8 +792,8 @@ def open_bulk_add_dialog(portfolio: dict, base_currency: str, on_complete):
                 f" border-bottom:1px solid {BORDER};"
             ):
                 ui.label("#").style(f"{_HEADER_CELL_STYLE} min-width:28px; text-align:left;")
-                ui.label("Ticker / Name").style(f"{_HEADER_CELL_STYLE} width:140px;")
-                ui.label("Confirmed Match").style(f"{_HEADER_CELL_STYLE} min-width:180px;")
+                ui.label("Ticker / Name").style(f"{_HEADER_CELL_STYLE} width:170px;")
+                ui.label("Confirmed Match").style(f"{_HEADER_CELL_STYLE} min-width:200px;")
                 ui.label("Shares").style(f"{_HEADER_CELL_STYLE} width:90px; text-align:right;")
                 ui.label("Purchase Date").style(f"{_HEADER_CELL_STYLE} width:110px;")
                 ui.label("Date Confirm").style(f"{_HEADER_CELL_STYLE} min-width:100px;")
