@@ -53,6 +53,9 @@ def is_pro(user_id: str | None) -> bool:
         return True  # Stripe Pro — no expiry
     if isinstance(expires, str):
         expires = datetime.fromisoformat(expires)
+    # Ensure timezone-aware comparison (Postgres may return naive timestamps)
+    if expires.tzinfo is None:
+        expires = expires.replace(tzinfo=timezone.utc)
     if datetime.now(timezone.utc) < expires:
         return True  # Promo still active
     # Promo expired — lazy downgrade (keep pro_expires_at as re-use evidence)
