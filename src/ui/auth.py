@@ -115,6 +115,23 @@ def _build_register_form(container, on_login_success: callable):
                 f"font-size:11px; color:{TEXT_DIM}; margin-top:2px;"
             )
 
+            # Promo code toggle
+            promo_container = ui.column().classes("w-full").style("margin-top:8px;")
+            promo_code_input = None
+
+            def _toggle_promo():
+                nonlocal promo_code_input
+                promo_container.clear()
+                with promo_container:
+                    promo_code_input = ui.input("Promo code").props("outlined dense").style(
+                        f"width:100%; background:{BG_INPUT};"
+                    )
+
+            ui.label("Have a promo code?").style(
+                f"font-size:12px; color:{ACCENT}; cursor:pointer; text-decoration:underline;"
+                f" margin-top:4px;"
+            ).on("click", _toggle_promo)
+
             error_label = ui.label("").style(
                 f"color:#EF4444; font-size:12px; min-height:18px; margin-top:4px;"
             )
@@ -125,6 +142,9 @@ def _build_register_form(container, on_login_success: callable):
                     user_id, code = await run.io_bound(
                         auth.register, email_input.value, password_input.value
                     )
+                    # Stash promo code for post-verification activation
+                    if promo_code_input and promo_code_input.value.strip():
+                        app.storage.user["_pending_promo"] = promo_code_input.value.strip()
                     # Send verification email (fire-and-forget for now)
                     await _send_verify_email(email_input.value, code)
                     container.clear()
