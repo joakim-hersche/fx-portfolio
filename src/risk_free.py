@@ -30,6 +30,7 @@ _RISK_FREE_LABEL = {
 }
 
 _RIKSBANK_SERIES = {
+    "USD": "USGVB10Y",
     "EUR": "DEGVB10Y",
     "GBP": "GBGVB10Y",
     "SEK": "SEGVB10YC",
@@ -49,9 +50,7 @@ def fetch_risk_free_yields(currency: str, start: str, end: str) -> pd.Series:
     unsupported. Values are forward-filled across weekends/holidays.
     """
     try:
-        if currency == "USD":
-            raw = _fetch_fred(start, end)
-        elif currency in _RIKSBANK_SERIES:
+        if currency in _RIKSBANK_SERIES:
             raw = _fetch_riksbank(currency, start, end)
         elif currency == "CHF":
             raw = _fetch_snb(start, end)
