@@ -3,7 +3,7 @@ import pandas as pd
 import pytest
 from unittest.mock import patch, MagicMock
 
-from src.risk_free import fetch_risk_free_yields, _fetch_fred, _fetch_riksbank
+from src.risk_free import fetch_risk_free_yields, _fetch_fred, _fetch_riksbank, _fetch_snb
 from src.cache import long_cache_risk_free
 
 
@@ -68,6 +68,58 @@ class TestFetchRiksbank:
     def test_returns_empty_on_error(self):
         with patch("src.risk_free.requests.get", side_effect=Exception("timeout")):
             result = _fetch_riksbank("EUR", "2025-01-02", "2025-01-03")
+        assert result.empty
+
+
+class TestFetchSnb:
+    """SNB API fetcher for CHF 10Y Confederation bond yield."""
+
+    def test_returns_series_on_success(self):
+        # Mimic actual SNB CSV format exactly
+        csv_content = (
+            '\ufeff"CubeId";"rendoblid"\n'
+            '"PublishingDate";"2025-09-01 14:29"\n'
+            '\n'
+            '"Date";"D0";"Value"\n'
+            '"2025-01-03";"10J0";"0.273"\n'
+            '"2025-01-06";"10J0";"0.319"\n'
+        )
+        mock_resp = MagicMock()
+        mock_resp.text = csv_content
+        mock_resp.raise_for_status = MagicMock()
+
+        with patch("src.risk_free.requests.get", return_value=mock_resp):
+            result = _fetch_snb("2025-01-01", "2025-01-07")
+
+        assert isinstance(result, pd.Series)
+        assert len(result) == 2
+        assert result.iloc[0] == pytest.approx(0.273)
+        assert result.iloc[1] == pytest.approx(0.319)
+
+    def test_handles_empty_values(self):
+        """Holidays have empty Value column — should be skipped."""
+        csv_content = (
+            '\ufeff"CubeId";"rendoblid"\n'
+            '"PublishingDate";"2025-09-01 14:29"\n'
+            '\n'
+            '"Date";"D0";"Value"\n'
+            '"2025-01-01";"10J0";\n'
+            '"2025-01-02";"10J0";\n'
+            '"2025-01-03";"10J0";"0.273"\n'
+        )
+        mock_resp = MagicMock()
+        mock_resp.text = csv_content
+        mock_resp.raise_for_status = MagicMock()
+
+        with patch("src.risk_free.requests.get", return_value=mock_resp):
+            result = _fetch_snb("2025-01-01", "2025-01-03")
+
+        assert len(result) == 1
+        assert result.iloc[0] == pytest.approx(0.273)
+
+    def test_returns_empty_on_error(self):
+        with patch("src.risk_free.requests.get", side_effect=Exception("timeout")):
+            result = _fetch_snb("2025-01-01", "2025-01-03")
         assert result.empty
 
 
