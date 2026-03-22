@@ -469,6 +469,7 @@ def _render_price_chart(ticker: str, hist: pd.DataFrame) -> None:
         plot_bgcolor="rgba(0,0,0,0)",
         margin=dict(l=0, r=0, t=10, b=0),
         height=320,
+        autosize=True,
         showlegend=False,
         hoverlabel=dict(
             bgcolor="#1C1D26",
@@ -485,11 +486,14 @@ def _render_price_chart(ticker: str, hist: pd.DataFrame) -> None:
         tickfont=dict(color="#CBD5E1", size=10),
     )
 
-    with ui.column().classes("chart-card w-full"):
+    with ui.column().style(
+        f"width:100%;background:{BG_PILL};border:1px solid {BORDER_SUBTLE};"
+        f"border-radius:8px;padding:16px 18px;"
+    ):
         ui.html(
             f'<div class="chart-title" style="margin-bottom:8px;">Price History (1Y)</div>'
         )
-        ui.plotly(fig).classes("w-full")
+        ui.plotly(fig).style("width:100%;")
 
 
 async def _render_peers(
@@ -733,8 +737,8 @@ async def build_research_tab(
                 ticker, fund, extra_info, portfolio, currency
             )
 
-            # Price chart (hidden on mobile)
-            with ui.element("div").classes("price-chart-section"):
+            # Price chart
+            with ui.element("div").classes("price-chart-section").style("width:100%;"):
                 _render_price_chart(ticker, hist)
 
             # Peer comparison
@@ -743,10 +747,18 @@ async def build_research_tab(
             # News
             _render_news(news)
 
+    # Search bar — preselect top portfolio stock if available
+    default_ticker = None
+    if portfolio:
+        first = next(iter(portfolio), None)
+        if first and first in select_opts:
+            default_ticker = first
+
     # Search bar
     with ui.row().classes("w-full items-center").style("gap:8px;margin-bottom:12px;"):
         search_select = ui.select(
             options=select_opts,
+            value=default_ticker,
             with_input=True,
             label="Search ticker...",
             on_change=lambda e: _do_search(e.value) if e.value else None,
