@@ -1,7 +1,10 @@
 """Bulk Add Positions dialog — add multiple positions at once."""
 
 import re
+from dataclasses import dataclass, field
 from datetime import datetime
+
+from src.data_fetch import load_stock_options
 
 
 def parse_date(raw: str) -> str | None:
@@ -55,3 +58,96 @@ def format_date_confirm(iso_date: str) -> str:
         return f"{dt.day}-{dt.strftime('%b')}-{dt.year}"
     except (ValueError, TypeError):
         return "Invalid"
+
+
+# ---------------------------------------------------------------------------
+# Ticker resolution
+# ---------------------------------------------------------------------------
+
+_ALT_ASSET_LISTS = {"Crypto", "Commodities"}
+
+
+@dataclass
+class TickerMatch:
+    status: str  # "resolved" | "ambiguous" | "not_found"
+    ticker: str | None = None
+    label: str | None = None
+    is_alt: bool = False
+    market: str | None = None
+    matches: list[dict] = field(default_factory=list)
+
+
+def resolve_ticker(query: str) -> TickerMatch:
+    """Resolve a user query to a ticker symbol.
+
+    Checks cached stock option lists first (exact symbol, then fuzzy name).
+    Falls back to yfinance validation if no cached match.
+    """
+    query = query.strip()
+    if not query:
+        return TickerMatch(status="not_found")
+
+    options = load_stock_options()
+    query_upper = query.upper()
+    query_lower = query.lower()
+
+    # Pass 1: exact symbol match
+    for market, tickers in options.items():
+        if query_upper in tickers:
+            return TickerMatch(
+                status="resolved",
+                ticker=query_upper,
+                label=tickers[query_upper],
+                is_alt=market in _ALT_ASSET_LISTS,
+                market=market,
+            )
+
+    # Pass 2: fuzzy name search
+    matches = []
+    for market, tickers in options.items():
+        for symbol, label in tickers.items():
+            if query_lower in label.lower() or query_lower in symbol.lower():
+                matches.append({
+                    "ticker": symbol,
+                    "label": label,
+                    "market": market,
+                    "is_alt": market in _ALT_ASSET_LISTS,
+                })
+
+    if len(matches) == 1:
+        m = matches[0]
+        return TickerMatch(
+            status="resolved",
+            ticker=m["ticker"],
+            label=m["label"],
+            is_alt=m["is_alt"],
+            market=m["market"],
+        )
+    if len(matches) > 1:
+        return TickerMatch(status="ambiguous", matches=matches)
+
+    # Pass 3: yfinance fallback
+    name = _validate_via_yfinance(query_upper)
+    if name:
+        return TickerMatch(
+            status="resolved",
+            ticker=query_upper,
+            label=f"{name} ({query_upper})",
+            is_alt=False,
+        )
+
+    return TickerMatch(status="not_found")
+
+
+def _validate_via_yfinance(ticker: str) -> str | None:
+    """Check if a ticker exists on Yahoo Finance. Returns company name or None."""
+    from src.data_fetch import get_provider
+
+    try:
+        hist = get_provider().get_price_history_short(ticker)
+        if hist.empty:
+            return None
+        info = get_provider().get_fundamentals(ticker)
+        return info.get("shortName") or ticker
+    except Exception:
+        return None
