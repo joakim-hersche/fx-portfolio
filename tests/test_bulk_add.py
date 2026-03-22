@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import patch, MagicMock
-from src.ui.bulk_add import parse_date
+from src.ui.bulk_add import parse_date, resolve_ticker
 
 
 class TestParseDate:
@@ -219,3 +219,75 @@ class TestBulkRow:
         assert row.parsed_date == "2024-03-15"
         assert row.ticker_status == "pending"
         assert row.price is None
+
+
+class TestEdgeCases:
+    """Test edge case behaviors."""
+
+    def test_empty_row_excluded_from_submission(self):
+        row = BulkRow(index=0)
+        assert not row.is_ready()
+
+    def test_zero_shares_excluded(self):
+        row = BulkRow(index=0)
+        row.ticker_status = "resolved"
+        row.resolved_ticker = "AAPL"
+        row.price = 150.0
+        row.shares = 0.0
+        assert not row.is_ready()
+
+    def test_negative_shares_excluded(self):
+        row = BulkRow(index=0)
+        row.ticker_status = "resolved"
+        row.resolved_ticker = "AAPL"
+        row.price = 150.0
+        row.shares = -5.0
+        assert not row.is_ready()
+
+    def test_no_price_not_ready(self):
+        row = BulkRow(index=0)
+        row.ticker_status = "resolved"
+        row.resolved_ticker = "AAPL"
+        row.shares = 10.0
+        row.price = None
+        assert not row.is_ready()
+
+    def test_invalid_date_returns_none(self):
+        assert parse_date("32/01/2024") is None
+        assert parse_date("01/13/2024") == "2024-01-13"  # 13 as day (European)
+
+    def test_date_with_no_year_fails(self):
+        assert parse_date("15/03") is None
+
+    def test_reset_preserves_shares_and_date(self):
+        row = BulkRow(index=0)
+        row.shares = 10.0
+        row.date_input = "2024-03-15"
+        row.parsed_date = "2024-03-15"
+        row.ticker_status = "resolved"
+        row.resolved_ticker = "AAPL"
+        row.price = 171.48
+        row.reset_resolution()
+        assert row.shares == 10.0
+        assert row.date_input == "2024-03-15"
+        assert row.parsed_date == "2024-03-15"
+        assert row.ticker_status == "pending"
+        assert row.price is None
+
+    def test_cancelled_flag_set_on_reset(self):
+        row = BulkRow(index=0)
+        row._cancelled = False
+        row.reset_resolution()
+        assert row._cancelled is True
+
+    @patch("src.ui.bulk_add.load_stock_options")
+    def test_empty_query_returns_not_found(self, mock_options):
+        mock_options.return_value = {}
+        result = resolve_ticker("")
+        assert result.status == "not_found"
+
+    @patch("src.ui.bulk_add.load_stock_options")
+    def test_whitespace_query_returns_not_found(self, mock_options):
+        mock_options.return_value = {}
+        result = resolve_ticker("   ")
+        assert result.status == "not_found"
