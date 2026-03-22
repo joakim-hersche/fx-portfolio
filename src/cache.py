@@ -26,6 +26,7 @@ long_cache_analytics = TTLCache(maxsize=256, ttl=86400)
 long_cache_fundamentals = TTLCache(maxsize=256, ttl=86400)
 long_cache_names = TTLCache(maxsize=256, ttl=86400)
 long_cache_risk_free = TTLCache(maxsize=64, ttl=86400)
+long_cache_splits = TTLCache(maxsize=256, ttl=86400)
 
 
 def _make_hashable(obj):

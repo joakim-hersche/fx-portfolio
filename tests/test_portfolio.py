@@ -7,24 +7,27 @@ from unittest.mock import patch, MagicMock
 @pytest.fixture(autouse=True)
 def clear_caches():
     """Clear relevant caches before each test."""
-    from src.cache import short_cache
+    from src.cache import short_cache, long_cache_splits
     short_cache.clear()
+    long_cache_splits.clear()
 
 
+@patch("src.portfolio.get_split_factor", return_value=1.0)
 @patch("src.portfolio.yf.download")
 @patch("src.portfolio.get_fx_rate", return_value=(1.0, True))
 @patch("src.portfolio._dividends_in_base_currency", return_value=0.0)
-def test_empty_portfolio_returns_empty_df(mock_divs, mock_fx, mock_download):
+def test_empty_portfolio_returns_empty_df(mock_divs, mock_fx, mock_download, mock_split):
     from src.portfolio import build_portfolio_df
     result = build_portfolio_df({}, "USD")
     assert isinstance(result, pd.DataFrame)
     assert result.empty
 
 
+@patch("src.portfolio.get_split_factor", return_value=1.0)
 @patch("src.portfolio.yf.download")
 @patch("src.portfolio.get_fx_rate", return_value=(1.0, True))
 @patch("src.portfolio._dividends_in_base_currency", return_value=0.0)
-def test_basic_portfolio_returns_expected_columns(mock_divs, mock_fx, mock_download):
+def test_basic_portfolio_returns_expected_columns(mock_divs, mock_fx, mock_download, mock_split):
     from src.portfolio import build_portfolio_df
 
     # Mock yfinance download: 5 days of prices for a single ticker
@@ -81,3 +84,40 @@ def test_dividend_timeline_respects_purchase_dates():
     amounts = {r["month"]: r["amount"] for r in result}
     assert amounts.get("2024-06") == 5.00, f"Expected 5.00 for 2024-06, got {amounts.get('2024-06')}"
     assert amounts.get("2025-08") == 12.00, f"Expected 12.00 for 2025-08, got {amounts.get('2025-08')}"
+
+
+@patch("src.portfolio.yf.Ticker")
+def test_get_split_factor_cumulative(mock_ticker_cls):
+    """Cumulative product of splits after purchase date."""
+    from src.portfolio import get_split_factor
+    from src.cache import long_cache_splits
+    long_cache_splits.clear()
+
+    # Simulate a 4:1 split on 2024-06-01 and a 2:1 split on 2024-09-01
+    splits = pd.Series(
+        [4.0, 2.0],
+        index=pd.DatetimeIndex(["2024-06-01", "2024-09-01"]),
+    )
+    mock_ticker_cls.return_value.splits = splits
+
+    # Purchased before both splits -> factor = 4 * 2 = 8
+    assert get_split_factor("AAPL", "2024-01-10") == 8.0
+
+
+@patch("src.portfolio.yf.Ticker")
+def test_get_split_factor_no_splits(mock_ticker_cls):
+    """Returns 1.0 when no splits exist."""
+    from src.portfolio import get_split_factor
+    from src.cache import long_cache_splits
+    long_cache_splits.clear()
+
+    mock_ticker_cls.return_value.splits = pd.Series(dtype=float)
+
+    assert get_split_factor("AAPL", "2024-01-10") == 1.0
+
+
+def test_get_split_factor_manual_date():
+    """Returns 1.0 for 'Manual' purchase date without calling yfinance."""
+    from src.portfolio import get_split_factor
+    assert get_split_factor("AAPL", "Manual") == 1.0
+    assert get_split_factor("AAPL", None) == 1.0

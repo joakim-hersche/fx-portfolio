@@ -7,7 +7,7 @@ _log = logging.getLogger(__name__)
 import pandas as pd
 from cachetools import cached
 
-from src.cache import short_cache, long_cache, lenient_key
+from src.cache import short_cache, long_cache, long_cache_splits, lenient_key
 from src.fx import get_ticker_currency, get_fx_rate, get_historical_fx_rate
 
 
@@ -128,6 +128,30 @@ def _dividends_in_base_currency(
     except Exception as exc:
         _log.warning("Dividend fetch failed for %s (from %s): %s", ticker, purchase_date, exc)
         return 0.0
+
+
+@cached(long_cache_splits)
+def get_split_factor(ticker: str, purchase_date: str) -> float:
+    """Cumulative stock-split ratio after *purchase_date* for *ticker*.
+
+    Returns the product of all split factors that occurred after the purchase
+    date.  E.g. a 5-for-1 split returns 5.0; a 5-for-1 followed by a 2-for-1
+    returns 10.0.  Returns 1.0 when there are no splits, the purchase date is
+    unknown, or on any fetch error.
+    """
+    if not purchase_date or purchase_date == "Manual":
+        return 1.0
+    try:
+        splits = yf.Ticker(ticker).splits
+        if splits.empty:
+            return 1.0
+        after = splits[splits.index > pd.Timestamp(purchase_date)]
+        if after.empty:
+            return 1.0
+        return float(after.prod())
+    except Exception:
+        return 1.0
+
 
 @cached(short_cache, key=lenient_key)
 def build_portfolio_df(portfolio: dict, base_currency: str) -> pd.DataFrame:
