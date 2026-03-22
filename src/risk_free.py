@@ -102,10 +102,34 @@ def _fetch_fred(start: str, end: str) -> pd.Series:
     return pd.Series(values, index=pd.to_datetime(dates), dtype=float)
 
 
-# ── Riksbank (EUR, GBP, SEK) — stub for Task 2 ─────────────────────
+# ── Riksbank (EUR, GBP, SEK) ────────────────────────────────────────
 
 def _fetch_riksbank(currency: str, start: str, end: str) -> pd.Series:
-    raise NotImplementedError("Riksbank fetcher not yet implemented")
+    series_id = _RIKSBANK_SERIES.get(currency)
+    if not series_id:
+        return pd.Series(dtype=float)
+
+    try:
+        resp = requests.get(
+            f"https://api.riksbank.se/swea/v1/Observations/{series_id}/{start}/{end}",
+            timeout=15,
+        )
+        resp.raise_for_status()
+
+        rows = resp.json()
+        if not rows:
+            return pd.Series(dtype=float)
+
+        data = [(r["date"], float(r["value"])) for r in rows if r.get("value") is not None]
+        if not data:
+            return pd.Series(dtype=float)
+
+        dates, values = zip(*data)
+        return pd.Series(values, index=pd.to_datetime(dates), dtype=float)
+
+    except Exception as exc:
+        _log.warning("Riksbank fetch failed for %s: %s", currency, exc)
+        return pd.Series(dtype=float)
 
 
 # ── SNB (CHF) — stub for Task 3 ─────────────────────────────────────
