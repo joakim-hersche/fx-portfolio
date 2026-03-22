@@ -227,7 +227,7 @@ def build_portfolio_df(portfolio: dict, base_currency: str) -> pd.DataFrame:
                 if purchase_date and purchase_date != "Manual"
                 else 0.0
             )
-            total_dividends = round(dividends_per_share * adjusted_shares, 2)
+            total_dividends = round(dividends_per_share * shares, 2)
             cost_basis = buy_price * shares  # what you paid — independent of splits
 
             rows.append({
