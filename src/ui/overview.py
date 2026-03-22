@@ -776,8 +776,10 @@ async def export_excel(portfolio: dict, currency: str) -> None:
 
         # Analytics
         price_data_1y = {t: fetch_analytics_history(t) for t in tickers}
-        spy_data = fetch_analytics_history("SPY")
-        analytics_df = compute_analytics(portfolio, price_data_1y, spy_data)
+        _bench = {"USD": "SPY", "CHF": "^SSMI", "EUR": "^STOXX50E", "GBP": "^FTSE", "SEK": "^OMX"}
+        bench_ticker = _bench.get(base_currency, "SPY")
+        bench_data = fetch_analytics_history(bench_ticker)
+        analytics_df = compute_analytics(portfolio, price_data_1y, bench_data, base_currency)
 
         # Monte Carlo
         price_data_5y = {t: fetch_simulation_history(t) for t in tickers}

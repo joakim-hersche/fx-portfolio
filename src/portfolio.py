@@ -11,18 +11,36 @@ from src.cache import short_cache, long_cache, lenient_key
 from src.fx import get_ticker_currency, get_fx_rate, get_historical_fx_rate
 
 
-def compute_analytics(portfolio: dict, price_data: dict, spy_data: pd.DataFrame) -> pd.DataFrame:
+def compute_analytics(
+    portfolio: dict,
+    price_data: dict,
+    bench_data: pd.DataFrame,
+    base_currency: str = "USD",
+) -> pd.DataFrame:
     """
     Compute per-ticker risk analytics from 1-year price history.
     price_data: {ticker: DataFrame with 'Close' column}
-    spy_data:   DataFrame with 'Close' column (SPY benchmark)
+    bench_data: DataFrame with 'Close' column (currency-specific benchmark)
+    base_currency: user's base currency (for risk-free rate + benchmark selection)
     Returns DataFrame with columns: Ticker, Volatility, Max Drawdown, Sharpe Ratio, Beta
     """
-    RISK_FREE_RATE = 0.04  # assumed annual risk-free rate
+    from src.risk_free import fetch_risk_free_yields
 
-    spy_returns = pd.Series(dtype=float)
-    if not spy_data.empty and "Close" in spy_data.columns:
-        spy_returns = spy_data["Close"].pct_change().dropna()
+    # Dynamic risk-free rate from 10Y government bonds
+    try:
+        end_date = str(pd.Timestamp.today().date())
+        start_date = str((pd.Timestamp.today() - pd.DateOffset(years=1)).date())
+        yields = fetch_risk_free_yields(base_currency, start_date, end_date)
+        if not yields.empty:
+            avg_annual_rf = yields.mean() / 100
+        else:
+            avg_annual_rf = 0.04  # fallback
+    except Exception:
+        avg_annual_rf = 0.04
+
+    bench_returns = pd.Series(dtype=float)
+    if not bench_data.empty and "Close" in bench_data.columns:
+        bench_returns = bench_data["Close"].pct_change().dropna()
 
     rows = []
     for ticker in portfolio:
@@ -43,18 +61,18 @@ def compute_analytics(portfolio: dict, price_data: dict, spy_data: pd.DataFrame)
         drawdown = (prices - rolling_max) / rolling_max
         max_drawdown = float(drawdown.min())
 
-        # Sharpe ratio (annualised, 4% risk-free rate)
-        daily_rf = RISK_FREE_RATE / 252
+        # Sharpe ratio (annualised, dynamic risk-free rate)
+        daily_rf = avg_annual_rf / 252
         excess = daily_returns - daily_rf
         sharpe = float((excess.mean() / excess.std()) * (252 ** 0.5)) if excess.std() > 0 else None
 
-        # Beta vs SPY
+        # Beta vs currency-specific benchmark
         beta = None
-        if not spy_returns.empty:
-            aligned = pd.concat([daily_returns, spy_returns], axis=1, join="inner").dropna()
-            aligned.columns = ["stock", "spy"]
-            if len(aligned) >= 30 and aligned["spy"].var() > 0:
-                beta = float(aligned["stock"].cov(aligned["spy"]) / aligned["spy"].var())
+        if not bench_returns.empty:
+            aligned = pd.concat([daily_returns, bench_returns], axis=1, join="inner").dropna()
+            aligned.columns = ["stock", "bench"]
+            if len(aligned) >= 30 and aligned["bench"].var() > 0:
+                beta = float(aligned["stock"].cov(aligned["bench"]) / aligned["bench"].var())
 
         rows.append({
             "Ticker":       ticker,
