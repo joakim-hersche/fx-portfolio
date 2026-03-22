@@ -43,7 +43,6 @@ def get_dax_stocks():
         url="https://en.wikipedia.org/wiki/DAX",
         ticker_col="Ticker",
         name_col="Company",
-        suffix=".DE"
     )
 
 def get_cac40_stocks():
@@ -51,7 +50,6 @@ def get_cac40_stocks():
         url="https://en.wikipedia.org/wiki/CAC_40",
         ticker_col="Ticker",
         name_col="Company",
-        suffix=".PA"
     )
 
 def get_smi_stocks():
@@ -98,7 +96,6 @@ def get_aex_stocks():
         url="https://en.wikipedia.org/wiki/AEX_index",
         ticker_col="Ticker",
         name_col="Company",
-        suffix=".AS"
     )
 
 def get_ibex_stocks():
@@ -106,7 +103,6 @@ def get_ibex_stocks():
         url="https://en.wikipedia.org/wiki/IBEX_35",
         ticker_col="Ticker",
         name_col="Company",
-        suffix=".MC"
     )
 
 def get_omx30_stocks():
@@ -114,7 +110,6 @@ def get_omx30_stocks():
         url="https://en.wikipedia.org/wiki/OMX_Stockholm_30",
         ticker_col="Ticker",
         name_col="Company",
-        suffix=".ST"
     )
 
 def get_crypto():
