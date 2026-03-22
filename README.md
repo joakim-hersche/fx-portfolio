@@ -6,8 +6,6 @@ Real-time stock portfolio tracker with Monte Carlo simulations, multi-currency s
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![Python 3.12](https://img.shields.io/badge/Python-3.12-blue.svg)](https://python.org)
 
-![FX Portfolio](Screenshots/dark/01_overview.png)
-
 ![Demo](Screenshots/dark/hero.gif)
 
 ## Features
@@ -126,7 +124,7 @@ fx-portfolio/
 
 ## Contributing
 
-See [TODO.md](TODO.md) for the current roadmap. Issues and PRs welcome.
+Issues and PRs welcome.
 
 ## License
 
