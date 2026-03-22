@@ -181,9 +181,10 @@ git commit -m "feat: add Sortino ratio to risk analytics"
 - Modify: `src/monte_carlo.py:38-80` — add `method` parameter to `_simulate_paths`
 - Modify: `src/monte_carlo.py:349-461` — pass `method` through `run_monte_carlo_portfolio`
 - Modify: `src/monte_carlo.py:490+` — pass `method` through `run_monte_carlo_ticker`
-- Modify: `src/data_fetch.py` — update cached wrappers to include method in cache key
-- Modify: `src/ui/forecast.py` — add Normal/KDE toggle
+- Modify: `src/data_fetch.py` — update cached wrappers
 - Test: `tests/test_monte_carlo_kde.py`
+
+**Note:** KDE is the default. No UI toggle — falls back to normal silently when insufficient data.
 
 - [ ] **Step 1: Write test**
 
@@ -329,29 +330,15 @@ Update function signature to accept `method: str = "kde"`. Pass `log_returns.val
 
 Same pattern — add `method` parameter, pass through to `_simulate_paths`.
 
-- [ ] **Step 6: Update cached wrappers in `src/data_fetch.py`**
-
-The `cached_run_monte_carlo_portfolio` and `cached_run_monte_carlo_ticker` wrappers need to accept and forward the `method` parameter. Since the cache uses `lenient_key`, adding the parameter will create separate cache entries for "normal" and "kde".
-
-- [ ] **Step 7: Add toggle to forecast tab**
-
-In `src/ui/forecast.py`, at the top of the forecast tab layout (where outlook sections begin), add:
-
-```python
-mc_method = ui.toggle(["KDE", "Normal"], value="KDE").props("dense size=sm no-caps").style("font-size:10px;")
-```
-
-Pass `mc_method.value.lower()` to the Monte Carlo calls.
-
-- [ ] **Step 8: Run all tests**
+- [ ] **Step 6: Run all tests**
 
 Run: `python3 -m pytest tests/ -v`
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add src/monte_carlo.py src/data_fetch.py src/ui/forecast.py tests/test_monte_carlo_kde.py
-git commit -m "feat: add KDE-based Monte Carlo simulation method"
+git add src/monte_carlo.py tests/test_monte_carlo_kde.py
+git commit -m "feat: use KDE for Monte Carlo simulation (captures fat tails)"
 ```
 
 ---
