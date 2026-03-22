@@ -6,6 +6,7 @@ All blocking calls should be wrapped in run.io_bound() by callers.
 from __future__ import annotations
 
 import datetime
+import logging
 import os
 import sqlite3
 import threading
@@ -15,6 +16,7 @@ from typing import Any
 _conn: sqlite3.Connection | Any = None
 _backend: str = "sqlite"  # "sqlite" or "postgres"
 _lock = threading.Lock()
+_log = logging.getLogger(__name__)
 
 
 class DuplicateEmailError(Exception):
@@ -47,6 +49,38 @@ def _close_connection() -> None:
         _conn = None
 
 
+def _reconnect() -> None:
+    """Re-establish the database connection after it has been lost."""
+    global _conn
+    if _backend == "postgres":
+        import psycopg
+        try:
+            _conn.close()
+        except Exception:
+            pass
+        _conn = psycopg.connect(os.environ["DATABASE_URL"])
+        _log.info("Reconnected to Postgres")
+    # SQLite connections don't drop, so no reconnect needed.
+
+
+def _with_reconnect(fn):
+    """Decorator: retry once on closed-connection errors (Postgres only)."""
+    def wrapper(*args, **kwargs):
+        try:
+            return fn(*args, **kwargs)
+        except Exception as exc:
+            if _backend != "postgres":
+                raise
+            msg = str(exc).lower()
+            if "close" not in msg and "connection" not in msg:
+                raise
+            _log.warning("Connection lost, reconnecting: %s", exc)
+            _reconnect()
+            return fn(*args, **kwargs)
+    return wrapper
+
+
+@_with_reconnect
 def _execute(sql: str, params: tuple = ()) -> Any:
     """Execute a query and return the cursor."""
     with _lock:
@@ -56,6 +90,7 @@ def _execute(sql: str, params: tuple = ()) -> Any:
         return cur
 
 
+@_with_reconnect
 def _fetchone(sql: str, params: tuple = ()) -> dict | None:
     with _lock:
         cur = _conn.cursor()
@@ -65,11 +100,11 @@ def _fetchone(sql: str, params: tuple = ()) -> dict | None:
             return None
         if _backend == "sqlite":
             return dict(row)
-        # psycopg returns tuples; use description for column names
         cols = [d.name for d in cur.description]
         return dict(zip(cols, row))
 
 
+@_with_reconnect
 def _fetchall(sql: str, params: tuple = ()) -> list[dict]:
     with _lock:
         cur = _conn.cursor()
@@ -183,6 +218,26 @@ def init_schema() -> None:
     _migrate("ALTER TABLE users ADD COLUMN tier TEXT DEFAULT 'free'")
     _migrate("ALTER TABLE users ADD COLUMN stripe_customer_id TEXT")
     _migrate("ALTER TABLE users ADD COLUMN stripe_subscription_id TEXT")
+
+    # D: persistent auth tokens (survive server restarts)
+    if _backend == "postgres":
+        _execute("""
+            CREATE TABLE IF NOT EXISTS auth_tokens (
+                id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                user_id     UUID REFERENCES users(id) ON DELETE CASCADE,
+                token_hash  TEXT NOT NULL,
+                created_at  TIMESTAMP DEFAULT now()
+            )
+        """)
+    else:
+        _execute("""
+            CREATE TABLE IF NOT EXISTS auth_tokens (
+                id          TEXT PRIMARY KEY,
+                user_id     TEXT REFERENCES users(id) ON DELETE CASCADE,
+                token_hash  TEXT NOT NULL,
+                created_at  TEXT
+            )
+        """)
 
 
 # ── User queries ──────────────────────────────────────────
@@ -387,3 +442,41 @@ def get_password_resets(user_id: str) -> list[dict]:
 def delete_password_reset(reset_id: str) -> None:
     ph = _p(1)[0]
     _execute(f"DELETE FROM password_resets WHERE id = {ph}", (reset_id,))
+
+
+# ── Auth token queries (persistent login) ────────────────
+
+
+def create_auth_token(user_id: str, token_hash: str) -> None:
+    """Store a hashed auth token for persistent login."""
+    token_id = str(uuid.uuid4())
+    now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    ph = _p(4)
+    _execute(
+        f"INSERT INTO auth_tokens (id, user_id, token_hash, created_at) VALUES ({', '.join(ph)})",
+        (token_id, user_id, token_hash, now),
+    )
+
+
+def get_auth_tokens(user_id: str) -> list[dict]:
+    """Return all auth tokens for a user."""
+    ph = _p(1)[0]
+    return _fetchall(f"SELECT * FROM auth_tokens WHERE user_id = {ph}", (user_id,))
+
+
+def delete_auth_tokens(user_id: str) -> None:
+    """Delete all auth tokens for a user (logout everywhere)."""
+    ph = _p(1)[0]
+    _execute(f"DELETE FROM auth_tokens WHERE user_id = {ph}", (user_id,))
+
+
+def delete_auth_token(token_id: str) -> None:
+    """Delete a single auth token."""
+    ph = _p(1)[0]
+    _execute(f"DELETE FROM auth_tokens WHERE id = {ph}", (token_id,))
+
+
+def find_auth_token_by_hash(token_hash: str) -> dict | None:
+    """Look up an auth token by its hash."""
+    ph = _p(1)[0]
+    return _fetchone(f"SELECT * FROM auth_tokens WHERE token_hash = {ph}", (token_hash,))

@@ -227,3 +227,40 @@ def _all_active_resets() -> list[dict]:
     return db._fetchall(
         f"SELECT * FROM password_resets WHERE expires_at > {ph}", (now,)
     )
+
+
+# ── Persistent auth tokens ──────────────────────────────
+
+import hashlib
+
+
+def _hash_token(raw_token: str) -> str:
+    """SHA-256 hash a high-entropy token (no need for bcrypt here)."""
+    return hashlib.sha256(raw_token.encode()).hexdigest()
+
+
+def create_auth_token(user_id: str) -> str:
+    """Generate a persistent auth token, store its hash in the DB.
+
+    Returns the raw token (to be set as a browser cookie).
+    """
+    raw_token = secrets.token_urlsafe(32)
+    db.create_auth_token(user_id, _hash_token(raw_token))
+    return raw_token
+
+
+def validate_auth_token(raw_token: str) -> dict | None:
+    """Validate a raw auth token. Returns user dict if valid, else None."""
+    token_row = db.find_auth_token_by_hash(_hash_token(raw_token))
+    if not token_row:
+        return None
+    user = db.get_user_by_id(token_row["user_id"])
+    if not user:
+        db.delete_auth_token(token_row["id"])
+        return None
+    return user
+
+
+def delete_user_auth_tokens(user_id: str) -> None:
+    """Delete all auth tokens for a user (logout)."""
+    db.delete_auth_tokens(user_id)

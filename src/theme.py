@@ -665,8 +665,21 @@ body, .q-page, .nicegui-content {
   .header-export-btn { display: none !important; }
   .header-info-btn { display: none !important; }
 
+  /* Account button: icon-only on mobile */
+  .header-account-btn .q-btn__content span {
+    display: none !important;
+  }
+  .header-account-btn {
+    padding: 0 !important;
+    width: 32px !important;
+    height: 32px !important;
+    border-radius: 50%% !important;
+  }
+
   /* Hide sidebar entirely on touch devices */
   .q-drawer-container { display: none !important; }
+  .q-page-container { padding-left: 0 !important; margin-left: 0 !important; }
+  .q-layout { padding-left: 0 !important; }
   .header-currency-pills { display: none !important; }
 
   /* Topbar: safe area for standalone PWA */
@@ -751,14 +764,18 @@ body, .q-page, .nicegui-content {
   .touch-large-only { display: block !important; }
   .mobile-only { display: none !important; }
 
-  /* Grids: 2-column layout */
+  /* Grids: single-column layout (match phone) */
   .kpi-row { grid-template-columns: 1fr 1fr; gap: 10px; }
-  .charts-row { grid-template-columns: 1fr 1fr; gap: 12px; }
-  .risk-triple { grid-template-columns: 1fr 1fr; gap: 12px; }
-  .risk-grid { grid-template-columns: 1fr 1fr; }
+  .charts-row { grid-template-columns: 1fr; gap: 10px; }
+  .risk-triple { grid-template-columns: 1fr; gap: 10px; }
+  .risk-grid { grid-template-columns: 1fr; }
   .metric-grid-4 { grid-template-columns: repeat(2, 1fr); }
   .metric-grid-3 { grid-template-columns: repeat(2, 1fr); }
   .preview-grid { grid-template-columns: repeat(2, 1fr); }
+
+  /* Match phone: hide desktop elements, show mobile elements */
+  .not-phone { display: none !important; }
+  .mobile-only { display: block !important; }
 
   /* Sidebar: partial-width overlay, not full-screen */
   .q-drawer { width: min(320px, 75vw) !important; max-width: min(320px, 75vw) !important; }
@@ -802,8 +819,9 @@ body, .q-page, .nicegui-content {
   .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .table-wrap table.wide-table { min-width: 600px; }
 
-  /* Diag row: 2-col */
-  .diag-row > * { min-width: 0; flex-basis: calc(50%% - var(--grid-gap)); }
+  /* Diag row: single-col (match phone) */
+  .diag-row { flex-direction: column; }
+  .diag-row > * { min-width: 0; flex-basis: auto; }
 
   /* Chart card padding */
   .chart-card { padding: 12px !important; }
