@@ -380,14 +380,14 @@ async def build_overview_tab(
                 )
 
             alloc_html = (
-                f'<div style="display:flex;flex-direction:column;flex:1;">'
-                f'<div style="display:flex;flex-direction:column;gap:{bar_gap}px;flex:1;justify-content:center;">'
+                f'<div style="display:flex;flex-direction:column;flex:1;width:100%;">'
+                f'<div style="display:flex;flex-direction:column;gap:{bar_gap}px;flex:1;justify-content:center;width:100%;">'
                 f'{bar_rows}'
                 f'</div>'
                 f'</div>'
             )
 
-            ui.html(alloc_html).classes("w-full").style("flex:1;display:flex;")
+            ui.html(alloc_html).classes("w-full").style("flex:1;display:flex;width:100%;min-width:0;")
 
         # Comparison chart — compute height to match allocation card
         # Allocation height: n_bars * (bar_h + bar_gap) + card padding (~32px) + header (~30px)

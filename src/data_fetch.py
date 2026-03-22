@@ -211,8 +211,56 @@ def fetch_ticker_news(ticker: str) -> list[dict]:
 
 @cached(long_cache_fundamentals, key=lenient_key)
 def fetch_sector_peers(sector, candidate_tickers, target_ticker, max_peers=4):
-    """Find same-sector peers from candidate tickers. Cached for 24 hours."""
+    """Find peers via Yahoo recommended symbols, falling back to sector scan."""
+    import requests
+
+    # Try Yahoo's recommended symbols endpoint first
     peers = []
+    try:
+        url = f"https://query2.finance.yahoo.com/v6/finance/recommendationsbysymbol/{target_ticker}"
+        resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=5)
+        if resp.ok:
+            data = resp.json()
+            recs = (
+                data.get("finance", {})
+                .get("result", [{}])[0]
+                .get("recommendedSymbols", [])
+            )
+            for rec in recs[:max_peers]:
+                sym = rec.get("symbol")
+                if not sym or sym == target_ticker:
+                    continue
+                try:
+                    info = yf.Ticker(sym).info
+                    hist = yf.Ticker(sym).history(period="1y")
+                    return_1y = None
+                    if not hist.empty and "Close" in hist.columns:
+                        close = hist["Close"].dropna()
+                        if len(close) >= 2:
+                            return_1y = round((close.iloc[-1] / close.iloc[0] - 1) * 100, 1)
+                    dy_raw = info.get("dividendYield")
+                    if dy_raw:
+                        dy_pct = dy_raw * 100
+                        dy_val = round(dy_pct if dy_pct <= 20.0 else dy_raw, 2)
+                    else:
+                        dy_val = None
+                    peers.append({
+                        "ticker": sym,
+                        "name": info.get("shortName", sym),
+                        "pe": info.get("trailingPE"),
+                        "div_yield": dy_val,
+                        "beta": info.get("beta"),
+                        "return_1y": return_1y,
+                    })
+                except Exception:
+                    continue
+    except Exception:
+        pass
+
+    if peers:
+        return peers
+
+    # Fallback: scan candidate tickers by sector
     for ticker in candidate_tickers:
         if len(peers) >= max_peers:
             break
@@ -228,11 +276,17 @@ def fetch_sector_peers(sector, candidate_tickers, target_ticker, max_peers=4):
                 close = hist["Close"].dropna()
                 if len(close) >= 2:
                     return_1y = round((close.iloc[-1] / close.iloc[0] - 1) * 100, 1)
+            dy_raw = info.get("dividendYield")
+            if dy_raw:
+                dy_pct = dy_raw * 100
+                dy_val = round(dy_pct if dy_pct <= 20.0 else dy_raw, 2)
+            else:
+                dy_val = None
             peers.append({
                 "ticker": ticker,
                 "name": info.get("shortName", ticker),
                 "pe": info.get("trailingPE"),
-                "div_yield": round(info.get("dividendYield", 0) * 100, 2) if info.get("dividendYield") else None,
+                "div_yield": dy_val,
                 "beta": info.get("beta"),
                 "return_1y": return_1y,
             })
@@ -261,7 +315,8 @@ def fetch_sector_medians(sector, candidate_tickers, max_samples=10):
                 pe_values.append(pe)
             dy = info.get("dividendYield")
             if dy and dy > 0:
-                dy_values.append(dy * 100)
+                dy_pct = dy * 100
+                dy_values.append(dy_pct if dy_pct <= 20.0 else dy)
         except Exception:
             continue
     return {

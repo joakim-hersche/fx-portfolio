@@ -769,6 +769,12 @@ def build_sidebar(
             _action_btn_style.replace(f"color:{TEXT_MUTED}", f"color:{TEXT_DIM}")
         )
 
+        ui.html(
+            f'<a href="mailto:support@fxportfolio.app" style="display:block;text-align:center;'
+            f'font-size:11px;color:{TEXT_DIM};text-decoration:none;margin-top:4px;">'
+            f'Report a bug</a>'
+        )
+
     # Mobile: compact action grid
     _actions_ctx = actions_container if actions_container is not None else None
     if _actions_ctx is not None:
