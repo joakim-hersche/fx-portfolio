@@ -215,15 +215,29 @@ def _build_income_chart(
     for r in timeline:
         month_totals[r["month"]] += r["amount"]
 
-    months = sorted(month_totals.keys())
+    raw_months = sorted(month_totals.keys())
 
-    if not months:
+    if not raw_months:
         with ui.column().classes("chart-card w-full"):
             ui.html('<div class="chart-title">Income Growth</div>')
             ui.html(f'<p style="font-size:12px;color:{TEXT_MUTED};padding:20px 0;">No dividend payments recorded.</p>')
         return
 
-    totals = [month_totals[m] for m in months]
+    # Fill in all months between first and last for even spacing
+    from datetime import datetime, timedelta
+    start = datetime.strptime(raw_months[0], "%Y-%m")
+    end = datetime.strptime(raw_months[-1], "%Y-%m")
+    months = []
+    cur = start
+    while cur <= end:
+        months.append(cur.strftime("%Y-%m"))
+        # Advance to next month
+        if cur.month == 12:
+            cur = cur.replace(year=cur.year + 1, month=1)
+        else:
+            cur = cur.replace(month=cur.month + 1)
+
+    totals = [month_totals.get(m, 0) for m in months]
 
     # Build per-ticker breakdown for hover text
     month_ticker: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
@@ -240,11 +254,17 @@ def _build_income_chart(
         parts.append(f"<b>Total: {currency_symbol}{month_totals[m]:,.2f}</b>")
         hover_texts.append("<br>".join(parts))
 
+    mobile = is_mobile()
+
     traces = [{
         "x": months,
         "y": totals,
         "type": "bar",
-        "marker": {"color": ACCENT, "opacity": 0.3},
+        "marker": {
+            "color": ACCENT,
+            "opacity": 0.3,
+            "line": {"width": 0},
+        },
         "hovertemplate": "%{customdata}<extra></extra>",
         "customdata": hover_texts,
         "showlegend": False,
@@ -267,14 +287,52 @@ def _build_income_chart(
         })
 
     fig = go.Figure({"data": traces})
-    _apply_default_layout(
-        fig,
-        height=280 if is_mobile() else 380,
-        margin=dict(l=50, r=20, t=10, b=40),
-        yaxis=dict(tickprefix=currency_symbol),
-        showlegend=False,
-        bargap=0.02,
-    )
+
+    if mobile:
+        _apply_default_layout(
+            fig,
+            height=280,
+            margin=dict(l=45, r=10, t=10, b=30),
+            yaxis=dict(tickprefix=currency_symbol, tickformat="~s"),
+            xaxis=dict(type="category"),
+            showlegend=False,
+            bargap=0.05,
+            barcornerradius=4,
+        )
+        fig.update_xaxes(gridcolor="rgba(255,255,255,0.04)")
+        fig.update_yaxes(gridcolor="rgba(255,255,255,0.04)")
+    else:
+        fig.update_layout(
+            template="plotly",
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            height=380,
+            margin=dict(l=50, r=20, t=10, b=40),
+            xaxis=dict(type="category"),
+            yaxis=dict(tickprefix=currency_symbol, title=f"Dividends ({currency_symbol})"),
+            showlegend=False,
+            bargap=0.05,
+            barcornerradius=4,
+            hoverlabel=dict(
+                bgcolor="#1C1D26", bordercolor="#1E293B",
+                font=dict(color="#F1F5F9", size=11, family="Inter, sans-serif"),
+                namelength=-1,
+            ),
+            modebar=dict(
+                bgcolor="rgba(0,0,0,0)",
+                color="#64748B",
+                activecolor="#94A3B8",
+            ),
+        )
+        fig.update_xaxes(
+            gridcolor="rgba(255,255,255,0.04)",
+            tickfont=dict(color="#CBD5E1", size=10),
+        )
+        fig.update_yaxes(
+            gridcolor="rgba(255,255,255,0.04)",
+            tickfont=dict(color="#CBD5E1", size=10),
+            title_font=dict(color="#CBD5E1", size=11),
+        )
 
     with ui.column().classes("chart-card w-full"):
         with ui.row().classes("w-full items-center justify-between").style("margin:0;"):

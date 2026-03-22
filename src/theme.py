@@ -1026,6 +1026,7 @@ body, .q-page, .nicegui-content {
     min-height: 380px;
 }
 
+
 /* ── Tertiary card (rebalancing calculator) ── */
 .card-tertiary {
     border-top: 2px solid %(BORDER)s;
