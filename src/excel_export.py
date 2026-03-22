@@ -2109,7 +2109,11 @@ def _sheet_income(wb: Workbook, positions_df: pd.DataFrame, fund_rows: list[dict
             payments_per_year = len(typical_months)
             fund = fund_map.get(ticker, {})
             div_rate = fund.get("Dividend Rate")
-            total_shares = sum(lot["shares"] for lot in portfolio.get(ticker, []))
+            from src.portfolio import get_split_factor
+            total_shares = sum(
+                lot["shares"] * get_split_factor(ticker, lot.get("purchase_date"))
+                for lot in portfolio.get(ticker, [])
+            )
 
             if not (div_rate and div_rate > 0 and total_shares > 0):
                 continue

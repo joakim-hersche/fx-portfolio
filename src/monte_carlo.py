@@ -12,9 +12,13 @@ from statsmodels.stats.diagnostic import acorr_ljungbox
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _total_shares(portfolio: dict) -> dict:
-    """Sum shares across all lots per ticker."""
+    """Sum split-adjusted shares across all lots per ticker."""
+    from src.portfolio import get_split_factor
     return {
-        ticker: sum(lot["shares"] for lot in lots)
+        ticker: sum(
+            lot["shares"] * get_split_factor(ticker, lot.get("purchase_date"))
+            for lot in lots
+        )
         for ticker, lots in portfolio.items()
     }
 
