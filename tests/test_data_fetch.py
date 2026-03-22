@@ -103,8 +103,9 @@ def test_fetch_ticker_news_handles_failure(mock_ticker):
 # ── fetch_sector_peers tests ──
 
 
+@patch("requests.get", side_effect=Exception("mocked: skip recommendations API"))
 @patch("src.data_fetch.yf.Ticker")
-def test_fetch_sector_peers_returns_peer_data(mock_ticker):
+def test_fetch_sector_peers_returns_peer_data(mock_ticker, mock_requests_get):
     mock_info = {
         "sector": "Technology",
         "shortName": "Microsoft Corp",
