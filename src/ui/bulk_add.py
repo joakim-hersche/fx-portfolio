@@ -151,3 +151,69 @@ def _validate_via_yfinance(ticker: str) -> str | None:
         return info.get("shortName") or ticker
     except Exception:
         return None
+
+
+# ---------------------------------------------------------------------------
+# Row state model
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class BulkRow:
+    """State model for one row in the bulk-add table."""
+
+    index: int
+    ticker_input: str = ""
+    resolved_ticker: str | None = None
+    resolved_label: str | None = None
+    ticker_status: str = "pending"  # pending | resolved | ambiguous | not_found
+    is_alt: bool = False
+    market: str | None = None
+    ambiguous_matches: list[dict] = field(default_factory=list)
+
+    shares: float = 0.0
+    date_input: str = ""
+    parsed_date: str | None = None
+    price: float | None = None
+    price_status: str = "idle"  # idle | loading | fetched | failed
+    buy_fx_rate: float | None = None
+    manual_price: bool = False
+    _cancelled: bool = False  # for cancelling in-flight fetches
+
+    def is_empty(self) -> bool:
+        return not self.ticker_input.strip()
+
+    def is_ready(self) -> bool:
+        """True if this row can be submitted."""
+        if self.ticker_status != "resolved":
+            return False
+        if self.is_alt:
+            return self.shares > 0 and self.price is not None and self.price > 0
+        return self.shares > 0 and self.price is not None
+
+    def to_lot(self) -> dict:
+        """Convert to the portfolio lot structure."""
+        shares = self.shares
+        if self.is_alt and self.price and self.price > 0:
+            shares = round(self.shares / self.price, 6)
+        return {
+            "shares": shares,
+            "buy_price": self.price or 0.0,
+            "buy_fx_rate": self.buy_fx_rate or 1.0,
+            "purchase_date": self.parsed_date,
+            "manual_price": self.manual_price,
+        }
+
+    def reset_resolution(self):
+        """Clear derived state when ticker input changes. Preserves shares and date."""
+        self.resolved_ticker = None
+        self.resolved_label = None
+        self.ticker_status = "pending"
+        self.is_alt = False
+        self.market = None
+        self.ambiguous_matches = []
+        self.price = None
+        self.price_status = "idle"
+        self.buy_fx_rate = None
+        self.manual_price = False
+        self._cancelled = True  # cancel any in-flight fetches

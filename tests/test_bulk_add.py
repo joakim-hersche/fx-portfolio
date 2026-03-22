@@ -109,3 +109,113 @@ class TestResolveTicker:
         mock_validate.return_value = None
         result = resolve_ticker("XYZFAKE")
         assert result.status == "not_found"
+
+
+from src.ui.bulk_add import BulkRow
+
+
+class TestBulkRow:
+    """Test per-row state management."""
+
+    def test_new_row_is_empty(self):
+        row = BulkRow(index=0)
+        assert row.is_empty()
+        assert not row.is_ready()
+
+    def test_resolved_with_shares_and_price_is_ready(self):
+        row = BulkRow(index=0)
+        row.ticker_input = "AAPL"
+        row.resolved_ticker = "AAPL"
+        row.resolved_label = "Apple Inc (AAPL)"
+        row.ticker_status = "resolved"
+        row.shares = 10.0
+        row.parsed_date = "2024-03-15"
+        row.price = 171.48
+        row.buy_fx_rate = 1.0
+        assert row.is_ready()
+
+    def test_resolved_without_price_not_ready(self):
+        row = BulkRow(index=0)
+        row.ticker_status = "resolved"
+        row.resolved_ticker = "AAPL"
+        row.shares = 10.0
+        row.price = None
+        assert not row.is_ready()
+
+    def test_ambiguous_not_ready(self):
+        row = BulkRow(index=0)
+        row.ticker_input = "Shell"
+        row.ticker_status = "ambiguous"
+        row.shares = 10.0
+        assert not row.is_ready()
+
+    def test_not_found_not_ready(self):
+        row = BulkRow(index=0)
+        row.ticker_input = "XYZFAKE"
+        row.ticker_status = "not_found"
+        assert not row.is_ready()
+
+    def test_missing_shares_not_ready(self):
+        row = BulkRow(index=0)
+        row.ticker_status = "resolved"
+        row.resolved_ticker = "AAPL"
+        row.shares = 0.0
+        assert not row.is_ready()
+
+    def test_to_lot(self):
+        row = BulkRow(index=0)
+        row.resolved_ticker = "AAPL"
+        row.ticker_status = "resolved"
+        row.shares = 10.0
+        row.parsed_date = "2024-03-15"
+        row.price = 171.48
+        row.buy_fx_rate = 1.0
+        row.manual_price = False
+        lot = row.to_lot()
+        assert lot == {
+            "shares": 10.0,
+            "buy_price": 171.48,
+            "buy_fx_rate": 1.0,
+            "purchase_date": "2024-03-15",
+            "manual_price": False,
+        }
+
+    def test_alt_asset_to_lot_converts_amount(self):
+        row = BulkRow(index=0)
+        row.resolved_ticker = "BTC-USD"
+        row.ticker_status = "resolved"
+        row.is_alt = True
+        row.shares = 500.0  # fiat amount
+        row.price = 50000.0
+        row.parsed_date = "2024-03-15"
+        row.buy_fx_rate = 1.0
+        row.manual_price = False
+        lot = row.to_lot()
+        assert lot["shares"] == round(500.0 / 50000.0, 6)  # 0.01
+
+    def test_reset_clears_derived_state(self):
+        row = BulkRow(index=0)
+        row.resolved_ticker = "AAPL"
+        row.ticker_status = "resolved"
+        row.price = 171.48
+        row.buy_fx_rate = 1.0
+        row.reset_resolution()
+        assert row.ticker_status == "pending"
+        assert row.resolved_ticker is None
+        assert row.price is None
+        assert row.buy_fx_rate is None
+
+    def test_reset_preserves_shares_and_date(self):
+        row = BulkRow(index=0)
+        row.shares = 10.0
+        row.date_input = "2024-03-15"
+        row.parsed_date = "2024-03-15"
+        row.ticker_status = "resolved"
+        row.resolved_ticker = "AAPL"
+        row.price = 171.48
+        row.reset_resolution()
+        assert row.shares == 10.0
+        assert row.date_input == "2024-03-15"
+        assert row.parsed_date == "2024-03-15"
+        assert row.ticker_status == "pending"
+        assert row.price is None
