@@ -638,7 +638,7 @@ function triggerSwipeHint() {
                         # Promo code (non-Pro users only)
                         if not is_pro(auth_user_id):
                             ui.separator().style("margin:4px 14px; opacity:0.15;")
-                            with ui.menu_item().style("padding:10px 14px;"):
+                            with ui.element("div").style("padding:10px 14px;").on("click.stop", lambda: None):
                                 promo_col = ui.column().classes("w-full").style("gap:6px;")
                                 promo_input = None
 
