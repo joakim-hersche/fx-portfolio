@@ -44,6 +44,13 @@ def is_pro(user_id: str | None) -> bool:
     """Check if a user has Pro access. Lazy-downgrades expired promos."""
     if os.environ.get("TESTING_MODE", "").lower() == "true":
         return True
+    # Guest pro access via promo code (no account required)
+    try:
+        from nicegui import app as _app
+        if _app.storage.user.get("guest_pro"):
+            return True
+    except Exception:
+        pass
     if not user_id:
         return False
     user = db.get_user_by_id(user_id)
@@ -72,6 +79,12 @@ def is_tab_locked(tab_name: str) -> bool:
 
 
 # ── Promo codes ──────────────────────────────────────────
+
+
+def validate_promo_code(code: str) -> bool:
+    """Return True if the code matches the PROMO_CODE env var (case-insensitive)."""
+    expected = os.environ.get("PROMO_CODE", "")
+    return bool(expected) and code.strip().upper() == expected.strip().upper()
 
 
 def apply_promo_code(user_id: str, code: str) -> str:
