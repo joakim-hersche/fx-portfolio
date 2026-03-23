@@ -154,8 +154,9 @@ def _fetch_snb(start: str, end: str) -> pd.Series:
         df = df.dropna(subset=["Value"])
         df = df[df["Value"].astype(str).str.strip() != ""]
 
+        from typing import cast as _cast
         dates = pd.to_datetime(df["Date"])
-        values = pd.to_numeric(df["Value"], errors="coerce")
+        values = _cast(pd.Series, pd.to_numeric(df["Value"], errors="coerce"))
         series = pd.Series(values.values, index=dates, dtype=float).dropna()
         return series
 

@@ -25,8 +25,9 @@ class _JSONFormatter(logging.Formatter):
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "level": record.levelname,
         }
-        if hasattr(record, "event_data"):
-            payload.update(record.event_data)
+        event_data = getattr(record, "event_data", None)
+        if event_data is not None:
+            payload.update(event_data)
         else:
             payload["message"] = record.getMessage()
         return json.dumps(payload, default=str)

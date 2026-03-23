@@ -100,7 +100,7 @@ def _fetchone(sql: str, params: tuple = ()) -> dict | None:
             return None
         if _backend == "sqlite":
             return dict(row)
-        cols = [d.name for d in cur.description]
+        cols = [d.name for d in cur.description]  # type: ignore[union-attr]
         return dict(zip(cols, row))
 
 
@@ -112,7 +112,7 @@ def _fetchall(sql: str, params: tuple = ()) -> list[dict]:
         rows = cur.fetchall()
         if _backend == "sqlite":
             return [dict(r) for r in rows]
-        cols = [d.name for d in cur.description]
+        cols = [d.name for d in cur.description]  # type: ignore[union-attr]
         return [dict(zip(cols, row)) for row in rows]
 
 

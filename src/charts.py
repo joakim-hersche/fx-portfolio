@@ -1,5 +1,7 @@
 """Plotly chart builders. All functions return go.Figure — no st.* calls."""
 
+from typing import cast
+
 import numpy as np
 import pandas as pd
 import plotly.express as px
@@ -48,15 +50,15 @@ def _apply_default_layout(fig: go.Figure, **overrides) -> go.Figure:
         ),
     )
     defaults.update(overrides)
-    fig.update_layout(**defaults)
+    fig.update_layout(**defaults)  # type: ignore[call-arg]
     _axis_style = dict(
         showgrid=False,
         tickfont=dict(color="#64748B", size=9),
         title_font=dict(color="#64748B", size=10),
         nticks=3,
     )
-    fig.update_xaxes(**_axis_style)
-    fig.update_yaxes(**_axis_style)
+    fig.update_xaxes(**_axis_style)  # type: ignore[call-arg]
+    fig.update_yaxes(**_axis_style)  # type: ignore[call-arg]
     return fig
 
 
@@ -240,7 +242,7 @@ def build_allocation_chart(
     portfolio_color_map: dict,
 ) -> go.Figure:
     alloc_df = alloc_df.copy()
-    alloc_df["Company"] = alloc_df["Ticker"].map(name_map)
+    alloc_df["Company"] = alloc_df["Ticker"].map(lambda x: name_map.get(x, x))
     alloc_df["Company"] = alloc_df["Company"].str[:20]
     color_map = {name_map[t]: portfolio_color_map[t] for t in alloc_df["Ticker"]}
     fig = px.bar(
@@ -250,7 +252,7 @@ def build_allocation_chart(
         orientation="h",
         color="Company",
         color_discrete_map=color_map,
-        text=alloc_df["Portfolio Share (%)"].map(lambda v: f"{v:.1f}%"),
+        text=alloc_df["Portfolio Share (%)"].map(lambda v: f"{v:.1f}%"),  # type: ignore[call-arg]
     )
     fig.update_traces(textposition="outside", cliponaxis=False)
     _apply_default_layout(
@@ -296,8 +298,9 @@ def build_comparison_chart(
     fig.update_traces(
         hovertemplate="<b>%{customdata[0]}</b><br>%{x|%b %d, %Y}<br>Index: %{y:.1f}<extra></extra>",
     )
-    for trace in fig.data:
-        trace.customdata = [[trace.name]] * len(trace.x)
+    for _trace in fig.data:
+        trace = cast(go.Scatter, _trace)
+        trace.customdata = [[trace.name]] * len(trace.x)  # type: ignore[arg-type]
 
     if mobile:
         _apply_default_layout(
@@ -435,7 +438,7 @@ def build_correlation_heatmap(corr_df: pd.DataFrame) -> go.Figure:
     n = len(corr_df)
     cell_size = max(50, min(80, 400 // max(n, 1)))
     fig_height = max(350, n * cell_size + 100)
-    fig = px.imshow(corr_df, color_continuous_scale=_scale, zmin=-1, zmax=1, text_auto=".2f")
+    fig = px.imshow(corr_df, color_continuous_scale=_scale, zmin=-1, zmax=1, text_auto=cast(bool, ".2f"))
     fig.update_traces(
         textfont=dict(color="#E2E8F0", size=12),
         hovertemplate="<b>%{x}</b> vs <b>%{y}</b><br>Correlation: %{z:.2f}<extra></extra>",
@@ -463,21 +466,45 @@ def build_portfolio_histogram(
     currency_symbol: str,
     base_currency: str,
     title: str | None = None,
+    horizon_label: str | None = None,
 ) -> go.Figure:
+    arr = np.asarray(end_values, dtype=float)
+    n_total = len(arr)
+
+    # Clip extreme outliers for display (keep 1st–99th pct), note how many hidden
+    lo_clip = float(np.percentile(arr, 1))
+    hi_clip = float(np.percentile(arr, 99))
+    clipped = arr[(arr >= lo_clip) & (arr <= hi_clip)]
+    n_hidden = n_total - len(clipped)
+
+    # Dynamic bin count: Freedman-Diaconis rule, capped 20–50
+    iqr = float(np.percentile(clipped, 75) - np.percentile(clipped, 25))
+    if iqr > 0:
+        bin_width = 2 * iqr / (len(clipped) ** (1 / 3))
+        nbins = int(np.clip((hi_clip - lo_clip) / bin_width, 20, 50))
+    else:
+        nbins = 30
+
+    def _pct_label(val: float) -> str:
+        pct = (val - start_value) / start_value * 100
+        sign = "+" if pct >= 0 else ""
+        return f"{sign}{pct:.1f}%"
+
     fig = go.Figure()
     fig.add_trace(go.Histogram(
-        x=list(end_values),
-        nbinsx=60,
+        x=list(clipped),
+        nbinsx=nbins,
         marker_color="rgba(99,110,250,0.6)",
         marker_line=dict(color="rgba(99,110,250,0.9)", width=0.5),
         name="Simulated end values",
         hovertemplate=f"{currency_symbol}%{{x:,.0f}}<br>Count: %{{y}}<extra></extra>",
     ))
+
     for val, label, color, pos in [
-        (p10,         "p10",     C_NEGATIVE, "top left"),
-        (p50,         "Median",  "#6366F1",  "top right"),
-        (p90,         "p90",     C_POSITIVE, "top right"),
-        (start_value, "Current", C_NEUTRAL, "bottom right"),
+        (p10,         f"p10 ({_pct_label(p10)})",       C_NEGATIVE, "top left"),
+        (p50,         f"Median ({_pct_label(p50)})",     "#6366F1",  "top right"),
+        (p90,         f"p90 ({_pct_label(p90)})",        C_POSITIVE, "top right"),
+        (start_value, "Current",                          C_NEUTRAL,  "bottom right"),
     ]:
         fig.add_vline(
             x=val,
@@ -485,18 +512,41 @@ def build_portfolio_histogram(
             annotation_text=label,
             annotation_position=pos,
             annotation_font_color=color,
+            annotation_font_size=11,
         )
+
+    # Probability of gain annotation
+    prob_gain = float(np.mean(arr > start_value)) * 100
+    prob_text = f"{prob_gain:.0f}% of paths ended above current value"
+    if n_hidden > 0:
+        prob_text += f"<br><span style='font-size:10px;color:#64748B;'>{n_hidden} extreme paths not shown</span>"
+    fig.add_annotation(
+        xref="paper", yref="paper",
+        x=0.99, y=0.97,
+        text=prob_text,
+        showarrow=False,
+        font=dict(size=11, color="#94A3B8"),
+        align="right",
+        xanchor="right",
+        yanchor="top",
+        bgcolor="rgba(15,23,42,0.7)",
+        borderpad=4,
+    )
+
+    title_text = title or "Distribution of Simulated Outcomes"
+    if horizon_label:
+        title_text = f"{title_text} — {horizon_label}"
+
     _apply_default_layout(
         fig,
-        margin=dict(t=20, b=40),
+        margin=dict(t=30, b=40),
         xaxis=dict(tickprefix=currency_symbol, title=f"Portfolio Value ({base_currency})"),
         yaxis=dict(title="Number of simulations"),
         showlegend=False,
         bargap=0.02,
     )
     fig.update_yaxes(nticks=5)
-    if title:
-        fig.update_layout(
-            title=dict(text=title, font=dict(size=12, color="#94A3B8"), x=0, y=0.98),
-        )
+    fig.update_layout(
+        title=dict(text=title_text, font=dict(size=12, color="#94A3B8"), x=0, y=0.99),
+    )
     return fig

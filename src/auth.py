@@ -48,7 +48,7 @@ def _get_redis():
     redis_url = os.environ.get("REDIS_URL")
     if redis_url:
         try:
-            import redis
+            import redis  # type: ignore[import-untyped]
             _redis_client = redis.Redis.from_url(redis_url, decode_responses=True)
             _redis_client.ping()
             _log.info("Rate limiter using Redis")

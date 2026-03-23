@@ -638,7 +638,8 @@ async def build_research_tab(
 ) -> None:
     """Build the Stock Research tab."""
     currency_symbol = CURRENCY_SYMBOLS.get(currency, "$")
-    stock_options = stock_options or getattr(app.state, "stock_options", None) or {}
+    _opts: dict = stock_options or getattr(app.state, "stock_options", None) or {}
+    stock_options = _opts
 
     # Build select options from stock_options (dict of group -> {ticker: name} or [tickers])
     select_opts = {}
@@ -699,7 +700,7 @@ async def build_research_tab(
             hist = fetch_price_history_range(ticker, "1y")
 
             sector = fund.get("Sector", "Unknown")
-            candidates = _flat_tickers(stock_options)
+            candidates = _flat_tickers(stock_options or {})
             medians = {}
             if sector != "Unknown" and candidates:
                 medians = fetch_sector_medians(sector, candidates)
@@ -753,7 +754,7 @@ async def build_research_tab(
                 _render_price_chart(ticker, hist)
 
             # Peer comparison
-            await _render_peers(ticker, fund, stock_options, currency_symbol)
+            await _render_peers(ticker, fund, stock_options or {}, currency_symbol)
 
             # News
             _render_news(news)
@@ -797,7 +798,7 @@ async def build_research_tab(
                 for t in display:
                     ui.button(
                         t,
-                        on_click=lambda ticker=t: _do_search(ticker),
+                        on_click=lambda _e, ticker=t: _do_search(ticker),
                     ).props("flat dense no-caps size=sm").style(
                         f"font-size:11px;color:{TEXT_MUTED};background:{BG_PILL};"
                         f"border:1px solid {BORDER_SUBTLE};border-radius:4px;"

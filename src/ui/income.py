@@ -374,7 +374,7 @@ def _build_dividend_calendar(
         future_months.append((y, m))
 
     # For each ticker, infer which future months will have payments
-    calendar_data: dict[str, dict[str, str]] = {}  # ticker -> {month_key: amount_str}
+    calendar_data: dict[str, dict[str, str] | None] = {}  # ticker -> {month_key: amount_str}
     calendar_amounts: dict[str, dict[str, float]] = {}  # ticker -> {month_key: numeric amount}
     has_any_data = False
 
@@ -407,7 +407,7 @@ def _build_dividend_calendar(
         else:
             per_payment = 0
 
-        projected: dict[str, str] = {}
+        projected: dict[str, str] | None = {}
         amounts: dict[str, float] = {}
         for y, m in future_months:
             key = f"{y}-{m:02d}"

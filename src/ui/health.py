@@ -6,6 +6,7 @@ collapsible detailed metrics, and rebalancing calculator.
 """
 
 import time as _time
+from typing import cast
 
 import numpy as np
 import pandas as pd
@@ -306,8 +307,9 @@ def _compute_portfolio_vol(
         return 0.0
 
     # Portfolio daily return (weight-adjusted)
-    portfolio_returns = sum(
-        df[t] * weights.get(t, 0) for t in df.columns
+    portfolio_returns: pd.Series = sum(  # type: ignore[assignment]
+        (df[t] * weights.get(t, 0) for t in df.columns),
+        pd.Series(0.0, index=df.index),
     )
     return float(portfolio_returns.std() * (252 ** 0.5))
 
@@ -384,7 +386,7 @@ def _render_flat_table(
         analytics_map: dict[str, dict] = {}
         if not analytics_df.empty:
             for _, arow in analytics_df.iterrows():
-                analytics_map[arow["Ticker"]] = {
+                analytics_map[str(arow["Ticker"])] = {
                     "Volatility": arow.get("Volatility"),
                     "Max Drawdown": arow.get("Max Drawdown"),
                     "Sharpe Ratio": arow.get("Sharpe Ratio"),
@@ -399,9 +401,10 @@ def _render_flat_table(
         # ── Build table rows ──
         rows_html = ""
         for _, row in ticker_data.iterrows():
-            ticker = row["Ticker"]
-            weight = row["Weight (%)"]
-            pos_return = ticker_1y_return.get(ticker, row["Return (%)"])
+            ticker = str(row["Ticker"])
+            weight = float(row["Weight (%)"])
+            _fallback_return = float(row["Return (%)"])
+            pos_return: float = ticker_1y_return.get(ticker, _fallback_return)
             contribution = round(weight * pos_return / 100, 2) if pd.notna(pos_return) else None
 
             vs_bench = None
@@ -634,7 +637,7 @@ def _render_correlation_heatmap(price_data: dict, tickers: list) -> None:
             mask = np.triu(np.ones(corr_df.shape, dtype=bool), k=1)
             stacked = corr_df.where(mask).stack()
             if not stacked.empty:
-                max_pair = stacked.idxmax()
+                max_pair = cast(tuple, stacked.idxmax())
                 max_val = stacked.max()
                 if len(stacked) == 1:
                     ui.html(
@@ -642,7 +645,7 @@ def _render_correlation_heatmap(price_data: dict, tickers: list) -> None:
                         f'Correlation: {max_pair[0]} & {max_pair[1]} ({max_val:.2f})</div>'
                     )
                 else:
-                    min_pair = stacked.idxmin()
+                    min_pair = cast(tuple, stacked.idxmin())
                     min_val = stacked.min()
                     ui.html(
                         f'<div style="font-size:11px;color:{TEXT_DIM};margin-top:8px;">'
@@ -690,9 +693,8 @@ def _render_frontier_chart(
         return
 
     # Current portfolio weights
-    weights = (
-        portfolio_df.groupby("Ticker")["Weight (%)"].sum() / 100
-    ).to_dict()
+    _w_series = cast(pd.Series, portfolio_df.groupby("Ticker")["Weight (%)"].sum())
+    weights = (_w_series.astype(float) / 100).to_dict()
     port_cvar, port_ret = portfolio_position(returns, weights)
 
     fig = go.Figure()
@@ -952,12 +954,12 @@ def _render_rebalancing_calculator(
             )
 
         target_weights: dict[str, float] = {
-            row["Ticker"]: round(row["Weight (%)"], 2)
+            str(row["Ticker"]): round(float(row["Weight (%)"]), 2)
             for _, row in ticker_data.iterrows()
         }
         deposit_ref = {"value": 0.0}
-        bar_containers: dict[str, ui.column] = {}
-        footer_ref = {"ref": None}
+        bar_containers: dict[str, ui.element] = {}
+        footer_ref: dict[str, ui.column | None] = {"ref": None}
 
         def _recalculate():
             deposit = deposit_ref["value"] or 0.0
@@ -970,7 +972,7 @@ def _render_rebalancing_calculator(
                 new_total = total_value + deposit
                 suggestions = []
                 for _, row in ticker_data.iterrows():
-                    t = row["Ticker"]
+                    t = str(row["Ticker"])
                     cur_pct = row["Weight (%)"]
                     tgt_pct = target_weights.get(t, cur_pct)
                     cur_val = row["Total Value"]
@@ -1014,7 +1016,7 @@ def _render_rebalancing_calculator(
 
             # Update each ticker's drift bar
             for _, row in ticker_data.iterrows():
-                t = row["Ticker"]
+                t = str(row["Ticker"])
                 if t not in bar_containers:
                     continue
                 cur = row["Weight (%)"]
@@ -1092,7 +1094,7 @@ def _render_rebalancing_calculator(
 
             # Drift alert
             drift_container.clear()
-            drifts = [abs(target_weights.get(row["Ticker"], row["Weight (%)"]) - row["Weight (%)"])
+            drifts = [abs(target_weights.get(str(row["Ticker"]), row["Weight (%)"]) - row["Weight (%)"])
                       for _, row in ticker_data.iterrows()]
             max_drift = max(drifts) if drifts else 0
             if max_drift > 5:
@@ -1378,9 +1380,8 @@ async def build_health_tab(portfolio: dict, currency: str) -> None:
     }
 
     # Compute health score inputs
-    ticker_weights_decimal = (
-        portfolio_df.groupby("Ticker")["Weight (%)"].sum() / 100
-    ).to_dict()
+    _tw_series = cast(pd.Series, portfolio_df.groupby("Ticker")["Weight (%)"].sum())
+    ticker_weights_decimal = (_tw_series.astype(float) / 100).to_dict()
 
     sectors = set()
     regions = set()

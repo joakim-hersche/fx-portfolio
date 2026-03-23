@@ -1,5 +1,6 @@
 import io
 from datetime import datetime
+from typing import cast
 
 import numpy as np
 import pandas as pd
@@ -90,7 +91,7 @@ def _add_table(ws, name: str, ref: str) -> None:
     ws.add_table(t)
 
 
-def _set_print(ws, area: str = None) -> None:
+def _set_print(ws, area: str | None = None) -> None:
     ws.page_setup.orientation = "landscape"
     ws.page_setup.fitToPage   = True
     ws.page_setup.fitToWidth  = 1
@@ -409,7 +410,7 @@ def _sheet_positions(wb: Workbook, df: pd.DataFrame, name_map: dict, currency: s
     _no_gridlines(ws)
 
     export_df = df.copy()
-    export_df.insert(1, "Company", export_df["Ticker"].map(name_map))
+    export_df.insert(1, "Company", cast(pd.Series, export_df["Ticker"]).map(lambda x: name_map.get(x, x)))
 
     # Add Target Price column from fundamentals data
     _tp = target_prices or {}
@@ -417,7 +418,7 @@ def _sheet_positions(wb: Workbook, df: pd.DataFrame, name_map: dict, currency: s
     # Upside % is computed as formula in Excel, but we need a placeholder column
     export_df["Upside (%)"] = None
 
-    export_df = export_df[[c for c in _POS_COLS if c in export_df.columns]]
+    export_df = cast(pd.DataFrame, export_df[[c for c in _POS_COLS if c in export_df.columns]])
     export_df = export_df.rename(columns={"Purchase": "Lot #"})
 
     # Column letters
@@ -607,7 +608,6 @@ def _sheet_allocation(wb: Workbook, df: pd.DataFrame, name_map: dict, currency: 
     chart.set_categories(cats)
     chart.series[0].graphicalProperties.solidFill = _CHART_COLORS[0]
     chart.series[0].graphicalProperties.line.solidFill = _CHART_COLORS[0]
-    chart.shape  = 4
     chart.width  = 20
     chart.height = max(10, n * 1.2)
     ws.add_chart(chart, "F2")
@@ -628,7 +628,7 @@ def _sheet_risk(wb: Workbook, analytics_df: pd.DataFrame, name_map: dict, positi
         return
 
     export_df = analytics_df.copy()
-    export_df.insert(1, "Company", export_df["Ticker"].map(name_map))
+    export_df.insert(1, "Company", cast(pd.Series, export_df["Ticker"]).map(lambda x: name_map.get(x, x)))
     export_df = export_df.rename(columns={"Volatility": "Volatility (%)", "Max Drawdown": "Max Drawdown (%)"})
     headers   = ["Ticker", "Company", "Volatility (%)", "Max Drawdown (%)", "Sharpe Ratio", "Beta"]
     export_df = export_df[[c for c in headers if c in export_df.columns]]
@@ -737,11 +737,11 @@ def _sheet_attribution(wb: Workbook, positions_df: pd.DataFrame, name_map: dict)
         return
 
     # Aggregate to ticker level
-    grouped = positions_df.groupby("Ticker", sort=False).agg(
+    grouped: pd.DataFrame = cast(pd.DataFrame, positions_df.groupby("Ticker", sort=False).agg(
         total_value=("Total Value", "sum"),
         cost_basis_sum=pd.NamedAgg(column="Cost Basis", aggfunc="sum"),
         dividends=("Dividends", "sum"),
-    )
+    ))
     total_portfolio = grouped["total_value"].sum()
     if total_portfolio == 0:
         ws["A1"] = "No portfolio value to attribute."
@@ -804,7 +804,7 @@ def _sheet_fundamentals(wb: Workbook, fund_rows: list[dict], name_map: dict) -> 
         return
 
     fund_df = pd.DataFrame(fund_rows)
-    fund_df.insert(1, "Company", fund_df["Ticker"].map(name_map))
+    fund_df.insert(1, "Company", cast(pd.Series, fund_df["Ticker"]).map(lambda x: name_map.get(x, x)))
     headers = ["Ticker", "Company", "Sector", "P/E Ratio", "Div Yield (%)", "1-Year Low", "1-Year High", "1-Year Position"]
     fund_df = fund_df[[c for c in headers if c in fund_df.columns]]
 
@@ -955,7 +955,7 @@ def _sheet_price_history(wb: Workbook, price_histories: dict) -> None:
 
     for row_idx, (date, row) in enumerate(pivot.iterrows(), 3):
         alt           = _row_fill(row_idx)
-        date_cell     = ws.cell(row_idx, 1, date.to_pydatetime())
+        date_cell     = ws.cell(row_idx, 1, cast(pd.Timestamp, date).to_pydatetime())
         date_cell.number_format = "YYYY-MM-DD"
         date_cell.font          = Font(size=10)
         date_cell.border        = _CELL_BORDER
@@ -1033,7 +1033,7 @@ def _sheet_daily_returns(wb: Workbook, price_histories: dict) -> None:
     ws.row_dimensions[1].height = 22
 
     for row_idx, (date, row) in enumerate(returns.iterrows(), 2):
-        date_cell               = ws.cell(row_idx, 1, date.to_pydatetime())
+        date_cell               = ws.cell(row_idx, 1, cast(pd.Timestamp, date).to_pydatetime())
         date_cell.number_format = "YYYY-MM-DD"
         date_cell.font          = Font(size=10)
         date_cell.border        = _CELL_BORDER
@@ -2132,7 +2132,7 @@ def _sheet_income(wb: Workbook, positions_df: pd.DataFrame, fund_rows: list[dict
             # Month headers
             month_keys = [f"{y}-{m:02d}" for y, m in future_months]
             cal_headers = ["Ticker"] + [
-                pd.Timestamp(f"{y}-{m:02d}-01").strftime("%b %Y") for y, m in future_months
+                cast(pd.Timestamp, pd.Timestamp(f"{y}-{m:02d}-01")).strftime("%b %Y") for y, m in future_months
             ] + ["Annual Total"]
             _write_headers(ws, cal_headers, start_row=row)
             cal_header_row = row
@@ -2237,7 +2237,8 @@ def build_excel_report(
     Returns raw bytes suitable for st.download_button(data=...).
     """
     wb = Workbook()
-    wb.remove(wb.active)
+    if wb.active is not None:
+        wb.remove(wb.active)
 
     _bt  = bt_result          or {}
     _tmc = ticker_mc_results  or {}

@@ -7,6 +7,7 @@ using NiceGUI widgets and Plotly charts.
 import numpy as np
 import pandas as pd
 from nicegui import run, ui
+from typing import cast
 
 from src.charts import (
     C_POSITIVE,
@@ -41,6 +42,7 @@ from src.theme import (
     GREEN,
     RED,
     AMBER,
+    ACCENT,
 )
 
 # Unicode symbols
@@ -180,7 +182,7 @@ def _render_portfolio_outlook(
     caption_container = ui.column().classes("w-full").style("gap:8px;")
 
     def _update_portfolio_outlook() -> None:
-        day_idx = horizon_options[horizon_label.value]
+        day_idx = horizon_options[cast(str, horizon_label.value)]
         pct = portfolio_mc["percentiles"]
         paths = portfolio_mc["portfolio_paths"]
         paths_i = portfolio_mc["portfolio_paths_i"]
@@ -277,12 +279,11 @@ def _render_portfolio_outlook(
             p90=p90_val,
             currency_symbol=currency_symbol,
             base_currency=currency,
-            title="Distribution of Simulated Outcomes",
+            horizon_label=horizon_label.value,
         )
 
         hist_container.clear()
         with hist_container:
-            _section_header("Distribution of Simulated Outcomes")
             _section_intro(
                 "Each bar represents the number of simulated portfolios that ended within that value range. "
                 "A tall central peak means outcomes are tightly clustered; a wide spread means high uncertainty."
@@ -296,10 +297,24 @@ def _render_portfolio_outlook(
                 f" Excluded (insufficient history): {', '.join(excluded)}."
                 if excluded else ""
             )
+            fallback_count = sum(
+                1 for t in portfolio_mc["tickers_used"]
+                if portfolio_mc.get("garch_params", {}).get(t, {}).get("model") == "constant-vol"
+            )
+            garch_caption = (
+                "GARCH(1,1) model with Student-t innovations. "
+                "Volatility is time-varying; tail risk is modelled explicitly."
+            )
+            if fallback_count > 0:
+                garch_caption += (
+                    f" {fallback_count} position(s) used constant-volatility fallback "
+                    f"(GARCH did not converge)."
+                )
             _caption(
                 f"Based on {portfolio_mc['train_days']} trading days of calibration data. "
                 f"Positions included: {', '.join(portfolio_mc['tickers_used'])}."
                 f"{excluded_text} "
+                f"{garch_caption} "
                 f"This is a statistical model, not financial advice."
             )
 
@@ -350,9 +365,9 @@ def _render_position_outlook(
     info_container = ui.column().classes("w-full").style("gap:8px;")
 
     def _update_position_outlook() -> None:
-        ticker = ticker_select.value
-        horizon_days = horizon_options[horizon_toggle.value]
-        lookback_days = lookback_options[lookback_toggle.value]
+        ticker = cast(str, ticker_select.value)
+        horizon_days = horizon_options[cast(str, horizon_toggle.value)]
+        lookback_days = lookback_options[cast(str, lookback_toggle.value)]
 
         hist = price_data.get(ticker, pd.DataFrame())
         fx, _ = get_fx_rate(get_ticker_currency(ticker), currency)
@@ -389,7 +404,7 @@ def _render_position_outlook(
 
         # Build portfolio DF to get buy prices for hlines
         df = build_portfolio_df(portfolio, currency)
-        lots = df[df["Ticker"] == ticker][["Purchase", "Buy Price", "Shares", "Cost Basis"]].copy() if not df.empty else pd.DataFrame()
+        lots: pd.DataFrame = cast(pd.DataFrame, df[df["Ticker"] == ticker][["Purchase", "Buy Price", "Shares", "Cost Basis"]].copy()) if not df.empty else pd.DataFrame()
         wavg = None
         if not lots.empty:
             wavg = float(
@@ -570,6 +585,7 @@ def _render_backtest(
             rel = _reliability_label(hr80)
             rel_color = _reliability_color(rel)
             kurt_color = _kurtosis_color(kurt)
+            model = bt.get("garch_params", {}).get(t, {}).get("model", EM_DASH)
 
             rows_html += (
                 f'<tr>'
@@ -580,6 +596,7 @@ def _render_backtest(
                 f'<td>{_fmt(skew, "{:.2f}")}</td>'
                 f'<td>{fat}</td>'
                 f'<td style="color:{rel_color}; font-weight:600;">{rel}</td>'
+                f'<td>{model}</td>'
                 f'</tr>'
             )
 
@@ -594,6 +611,7 @@ def _render_backtest(
                 <th scope="col" class="th-tip" title="Whether returns lean more to one side. Negative = more large drops, positive = more large gains.">Skewness</th>
                 <th scope="col" class="th-tip" title="Yes means this stock has unusually extreme price swings. The simulation will understate how bad a bad day can really be.">Fat-tailed</th>
                 <th scope="col" class="th-tip" title="Overall model quality for this stock. Well-calibrated = trustworthy bands. Poorly-calibrated = take the fan chart with a grain of salt.">Reliability</th>
+                <th scope="col" class="th-tip" title="Whether GARCH(1,1) or constant-vol was used for this ticker.">Model</th>
             </tr></thead>
             <tbody>{rows_html}</tbody>
         </table>
@@ -602,9 +620,10 @@ def _render_backtest(
 
     _caption(
         f"Simulated using up to {bt['train_days']} days of historical log-returns calibrated before "
-        f"{bt['split_date']}. The model assumes returns are normally distributed and that historical "
-        f"correlations are stable. Positions flagged as fat-tailed violate the normality assumption; "
-        f"their confidence bands will understate tail risk. This is a statistical model, not financial advice."
+        f"{bt['split_date']}. "
+        f"GARCH(1,1) model with Student-t innovations. "
+        f"Positions flagged as low-confidence have limited calibration data. "
+        f"This is a statistical model, not financial advice."
     )
 
 
@@ -617,14 +636,15 @@ def _render_model_diagnostics(
     """Render the Model Diagnostics section with tests and QQ plots."""
     _section_header("Model Diagnostics")
     _section_intro(
-        "The Monte Carlo simulation assumes that daily returns are <b>normally distributed</b> "
-        "and <b>independent</b> from one day to the next. This section tests both assumptions "
-        "for each position.<br><br>"
-        "\u2022 <b>Jarque-Bera test</b> \u2014 checks whether returns follow a normal distribution. "
+        "The GARCH model diagnostics below show how well the fitted model captured each position's "
+        "volatility dynamics.<br><br>"
+        "\u2022 <b>Jarque-Bera test</b> \u2014 checks whether standardised residuals follow a normal distribution. "
         "p < 0.05 means non-normal (fat tails or skew).<br>"
-        "\u2022 <b>Ljung-Box test</b> \u2014 checks whether returns are independent (no autocorrelation). "
+        "\u2022 <b>Ljung-Box test</b> \u2014 checks whether residuals are independent (no autocorrelation). "
         "p < 0.01 means autocorrelated.<br>"
-        "\u2022 <b>QQ plot</b> \u2014 points on the red line = normal. Tails curving away = fat tails."
+        "\u2022 <b>Volatility clustering (LB on squared residuals)</b> \u2014 checks whether GARCH captured volatility dynamics. "
+        "Fail = clustered vol not fully modelled.<br>"
+        "\u2022 <b>QQ plot</b> \u2014 points on the red line = Student-t or normal fit. Tails curving away = fat tails."
     )
 
     diag = compute_model_diagnostics({t: price_data[t] for t in tickers if t in price_data})
@@ -649,6 +669,8 @@ def _render_model_diagnostics(
         label="Select ticker for QQ plot",
     ).style("min-width:140px;max-width:300px;width:100%;")
 
+    garch_metrics_container = ui.row().classes("w-full").style("gap:8px; flex-wrap:wrap; margin:8px 0;")
+
     # Side by side: QQ plot | test table
     with ui.row().classes("diag-row w-full"):
         # QQ plot column
@@ -663,7 +685,7 @@ def _render_model_diagnostics(
             qq_caption_container = ui.column().classes("w-full")
 
             def _update_qq() -> None:
-                t = qq_select.value
+                t = cast(str, qq_select.value)
                 d = diag[t]
                 fig = build_qq_plot(d["qq_theoretical"], d["qq_observed"], t)
 
@@ -673,13 +695,45 @@ def _render_model_diagnostics(
 
                 qq_caption_container.clear()
                 with qq_caption_container:
+                    lb_sq_info = ""
+                    if "lb_sq_pvalue" in d:
+                        lb_sq_info = (
+                            f" LB(resid\u00b2) p = {d['lb_sq_pvalue']:.4f} "
+                            f"({'vol captured' if d.get('lb_sq_pass') else 'clustering remains'})."
+                        )
                     _caption(
                         f"{t}: Jarque-Bera p = {d['jb_pvalue']:.4f} "
                         f"({'normal' if d['jb_normal'] else 'non-normal'}), "
                         f"Ljung-Box p = {d['lb_pvalue']:.4f} "
-                        f"({'independent' if d['lb_independent'] else 'autocorrelated'}). "
+                        f"({'independent' if d['lb_independent'] else 'autocorrelated'})."
+                        f"{lb_sq_info} "
                         f"{d['verdict']}"
                     )
+
+                # GARCH metric cards
+                garch_metrics_container.clear()
+                with garch_metrics_container:
+                    gp = d.get("garch_params", {})
+                    half_life = gp.get("half_life")
+                    nu = gp.get("nu", float("inf"))
+                    persistence = gp.get("persistence", 0.0)
+
+                    hl_str = f"~{half_life:.0f} days" if half_life is not None else "non-stationary"
+                    nu_str = f"\u03bd = {nu:.1f}" if (nu is not None and np.isfinite(nu)) else "\u221e (normal)"
+                    pers_str = f"{persistence * 100:.1f}%"
+
+                    for label, value, subtitle in [
+                        ("Volatility half-life", hl_str, "How quickly volatility shocks fade"),
+                        ("Tail thickness", nu_str, "Lower = heavier tails (normal \u2248 \u221e)"),
+                        ("GARCH persistence", pers_str, "How much of today's vol carries forward"),
+                    ]:
+                        ui.html(
+                            f'<div class="metric-card">'
+                            f'<div class="metric-label">{label}</div>'
+                            f'<div class="metric-value">{value}</div>'
+                            f'<div class="metric-sub">{subtitle}</div>'
+                            f'</div>'
+                        )
 
             _update_qq()
             qq_select.on_value_change(lambda _: _update_qq())
@@ -809,6 +863,41 @@ async def build_forecast_tab(portfolio: dict, currency: str) -> None:
         ui.html('<hr class="content-divider">')
 
         _render_model_diagnostics(tickers, price_data)
+
+        ui.html('<hr class="content-divider">')
+
+        async def _download_garch_report():
+            from src.garch_export import export_garch_report
+            from src.monte_carlo import compute_model_diagnostics
+            notification = ui.notification("Generating GARCH report...", spinner=True, timeout=None)
+            try:
+                start_prices = _get_start_prices(tickers, price_data, currency)
+                mc = await run.io_bound(
+                    cached_run_monte_carlo_portfolio,
+                    portfolio,
+                    price_data,
+                    start_prices,
+                )
+                gp = mc.get("garch_params", {})
+                mc_compare = mc.get("model_comparison", {})
+                diag = await run.io_bound(
+                    compute_model_diagnostics,
+                    {t: price_data[t] for t in tickers if t in price_data},
+                )
+                xlsx_bytes = export_garch_report(
+                    portfolio, price_data, gp, mc_compare, mc, diag, currency
+                )
+                ui.download(xlsx_bytes, "garch_report.xlsx")
+            finally:
+                notification.dismiss()
+
+        ui.button(
+            "Export GARCH Report",
+            icon="download",
+            on_click=_download_garch_report,
+        ).props("no-caps unelevated outline").style(
+            f"margin-top:8px; color:{ACCENT}; border-color:{ACCENT};"
+        )
 
 
 async def build_diagnostics_tab(portfolio: dict, currency: str) -> None:

@@ -108,6 +108,8 @@ def check_user_alerts(user_id: str, encryption_key: bytes) -> None:
     # Diff against last-sent
     current_ids = [a.rule_id for a in alerts]
     user = db.get_user_by_id(user_id)
+    if user is None:
+        return
     last_sent = json.loads(user.get("last_alert_ids", "[]"))
 
     new_ids = compute_new_alerts(current_ids, last_sent)

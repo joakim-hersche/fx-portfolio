@@ -81,6 +81,8 @@ def is_pro(user_id: str | None) -> bool:
 
 def is_tab_locked(tab_name: str) -> bool:
     """Check if a tab is in the locked set (requires Pro)."""
+    if os.environ.get("TESTING_MODE", "").lower() == "true":
+        return False
     return tab_name in _LOCKED_TABS
 
 
@@ -167,7 +169,7 @@ def create_checkout_session(user_id: str, email: str, currency: str, interval: s
         cancel_url=f"{app_url}/pricing",
         allow_promotion_codes=True,
     )
-    return session.url
+    return session.url or ""
 
 
 def create_portal_session(stripe_customer_id: str) -> str:

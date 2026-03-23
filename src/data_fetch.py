@@ -47,7 +47,7 @@ def fetch_price_history_short(ticker: str) -> pd.DataFrame:
     """Fetch 6-month price history. Cached for 5 minutes."""
     try:
         hist = yf.Ticker(ticker).history(period="6mo")
-        hist.index = hist.index.tz_localize(None)
+        hist.index = hist.index.tz_localize(None)  # type: ignore[union-attr]
         return hist
     except Exception:
         return pd.DataFrame()
@@ -58,7 +58,7 @@ def fetch_price_history_long(ticker: str) -> pd.DataFrame:
     """Fetch full price history. Cached for 24 hours."""
     try:
         hist = yf.Ticker(ticker).history(period="max")
-        hist.index = hist.index.tz_localize(None)
+        hist.index = hist.index.tz_localize(None)  # type: ignore[union-attr]
         return hist
     except Exception:
         return pd.DataFrame()
@@ -144,7 +144,7 @@ def fetch_simulation_history(ticker: str) -> pd.DataFrame:
         if hist.empty:
             logger.warning("fetch_simulation_history(%s): yfinance returned empty DataFrame", ticker)
             return pd.DataFrame()
-        hist.index = hist.index.tz_localize(None)
+        hist.index = hist.index.tz_localize(None)  # type: ignore[union-attr]
         logger.info("fetch_simulation_history(%s): %d rows fetched", ticker, len(hist))
         return hist
     except Exception as e:
@@ -157,7 +157,7 @@ def fetch_analytics_history(ticker: str) -> pd.DataFrame:
     """Fetch 1-year price history for analytics. Cached for 24 hours."""
     try:
         hist = yf.Ticker(ticker).history(period="1y")
-        hist.index = hist.index.tz_localize(None)
+        hist.index = hist.index.tz_localize(None)  # type: ignore[union-attr]
         return hist
     except Exception:
         return pd.DataFrame()
@@ -168,7 +168,7 @@ def fetch_price_history_range(ticker: str, period: str) -> pd.DataFrame:
     """Fetch price history for a given period string (e.g. '3mo', '1y'). Cached for 5 minutes."""
     try:
         hist = yf.Ticker(ticker).history(period=period)
-        hist.index = hist.index.tz_localize(None)
+        hist.index = hist.index.tz_localize(None)  # type: ignore[union-attr]
         return hist
     except Exception:
         return pd.DataFrame()
@@ -366,6 +366,13 @@ def cached_run_monte_carlo_ticker(
         horizon_days=horizon_days,
         lookback_days=lookback_days,
     )
+
+
+@cached(long_cache_analytics, key=lambda ticker, log_returns: hashkey(f"garch:{ticker}:{len(log_returns)}"))
+def cached_fit_garch_params(ticker: str, log_returns: pd.Series) -> dict:
+    """Cached GARCH(1,1) parameter fitting per ticker. 24h TTL keyed by ticker + data length."""
+    from src.monte_carlo import _fit_garch_params
+    return _fit_garch_params(log_returns)
 
 
 @cached(long_cache)

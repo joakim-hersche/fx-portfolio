@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import re
+from typing import Awaitable, Callable
 
 import pandas as pd
 from nicegui import app, run, ui
@@ -118,7 +120,7 @@ def build_sidebar(
     )
 
     # ── Live yf.Search fallback for tickers not in cached lists ──
-    _search_timer = {"handle": None}
+    _search_timer: dict[str, asyncio.TimerHandle | None] = {"handle": None}
 
     async def _on_search_input(e):
         query = e.args if isinstance(e.args, str) else ""
@@ -231,11 +233,12 @@ def build_sidebar(
         )
 
         # Placeholder — real handler assigned after definition below
-        _add_handler = {"fn": None}
+        _add_handler: dict[str, Callable[[], Awaitable[object]] | None] = {"fn": None}
 
         async def _on_add_click():
-            if _add_handler["fn"]:
-                await _add_handler["fn"]()
+            fn = _add_handler["fn"]
+            if fn:
+                await fn()
 
         add_btn = ui.button("+ Add", on_click=_on_add_click).props(
             'no-caps unelevated no-ripple color=none'
@@ -416,8 +419,8 @@ def build_sidebar(
 
         # Reset form
         search_select.value = None
-        shares_input.value = None
-        price_input.value = None
+        shares_input.value = 0.0
+        price_input.value = 0.0
         date_input.value = ""
         detail_container.set_visibility(False)
 

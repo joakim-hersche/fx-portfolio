@@ -5,6 +5,7 @@ Renders inside the main content area (not a separate page).
 from __future__ import annotations
 
 import logging
+from typing import Callable
 
 from nicegui import app, run, ui
 
@@ -19,7 +20,7 @@ _log = logging.getLogger(__name__)
 
 async def show_auth_ui(
     container,
-    on_login_success: callable,
+    on_login_success: Callable,
 ):
     """Render the auth flow inside `container`. Calls on_login_success(result) on success."""
     container.clear()
@@ -27,7 +28,7 @@ async def show_auth_ui(
         _build_login_form(container, on_login_success)
 
 
-def _build_login_form(container, on_login_success: callable):
+def _build_login_form(container, on_login_success: Callable):
     """Login form with email + password."""
     with ui.column().classes("w-full items-center").style("padding-top:60px;"):
         with ui.card().style(
@@ -135,7 +136,7 @@ def _swap_to_register(container, on_login_success):
         _build_register_form(container, on_login_success)
 
 
-def _build_register_form(container, on_login_success: callable):
+def _build_register_form(container, on_login_success: Callable):
     """Registration form with email + password."""
     with ui.column().classes("w-full items-center").style("padding-top:60px;"):
         with ui.card().style(
@@ -196,7 +197,7 @@ def _swap_to_login(container, on_login_success):
         _build_login_form(container, on_login_success)
 
 
-def _build_verify_form(container, user_id: str, email: str, on_login_success: callable):
+def _build_verify_form(container, user_id: str, email: str, on_login_success: Callable):
     """6-digit verification code form."""
     with ui.column().classes("w-full items-center").style("padding-top:60px;"):
         with ui.card().style(
@@ -231,6 +232,9 @@ def _build_verify_form(container, user_id: str, email: str, on_login_success: ca
                     # Fetch user data directly (no re-login needed)
                     user = await run.io_bound(db.get_user_by_id, user_id)
                     from src.auth import _unwrap_key
+                    if user is None:
+                        error_label.text = "User not found. Please try logging in."
+                        return
                     enc_key = user["encryption_key"]
                     if not isinstance(enc_key, bytes):
                         enc_key = enc_key.encode()
@@ -264,7 +268,7 @@ def _swap_to_reset_request(container, on_login_success):
         _build_reset_request_form(container, on_login_success)
 
 
-def _build_reset_request_form(container, on_login_success: callable):
+def _build_reset_request_form(container, on_login_success: Callable):
     """Password reset — enter email step."""
     with ui.column().classes("w-full items-center").style("padding-top:60px;"):
         with ui.card().style(

@@ -156,7 +156,7 @@ def build_pricing_page(user_id: str | None, currency: str) -> None:
                     else:
                         async def _checkout(iv=interval):
                             url = await run.io_bound(
-                                create_checkout_session, user_id, email, currency, iv
+                                create_checkout_session, user_id, email or "", currency, iv
                             )
                             ui.navigate.to(url, new_tab=False)
 

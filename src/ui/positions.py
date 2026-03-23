@@ -8,6 +8,7 @@ Exports a single function `build_positions_tab` that renders:
 from __future__ import annotations
 
 import json
+from typing import cast
 
 import pandas as pd
 from nicegui import run, ui
@@ -204,11 +205,13 @@ def _build_positions_table(
             clean_ticker = str(ticker_raw).replace("\u25ba ", "")
             company = name_map.get(clean_ticker, clean_ticker)
 
-            daily_pnl = row["Daily P&L"]
-            ret_pct = row["Return (%)"]
+            _daily_raw: object = row["Daily P&L"]
+            _ret_raw: object = row["Return (%)"]
+            daily_pnl = float(_daily_raw) if isinstance(_daily_raw, (int, float)) and _daily_raw == _daily_raw else None
+            ret_pct = float(_ret_raw) if isinstance(_ret_raw, (int, float)) and _ret_raw == _ret_raw else None
 
-            daily_cls = _color_class(daily_pnl) if pd.notna(daily_pnl) else ""
-            ret_cls = _color_class(ret_pct) if pd.notna(ret_pct) else ""
+            daily_cls = _color_class(daily_pnl) if daily_pnl is not None else ""
+            ret_cls = _color_class(ret_pct) if ret_pct is not None else ""
 
             row_style = (
                 f"font-weight:700;background:rgba(29,78,216,0.08);"
@@ -230,8 +233,9 @@ def _build_positions_table(
 
             # Target price + upside badge
             tp = _target_prices.get(clean_ticker)
-            cur_price = row['Current Price']
-            if tp and cur_price and cur_price > 0:
+            _cur_raw: object = row['Current Price']
+            cur_price = float(_cur_raw) if isinstance(_cur_raw, (int, float)) and _cur_raw == _cur_raw else None
+            if tp and cur_price is not None and cur_price > 0:
                 upside_pct = (tp - cur_price) / cur_price * 100
                 if upside_pct > 10:
                     badge_cls = "badge-green"
@@ -262,20 +266,20 @@ def _build_positions_table(
 
             # Format display values outside f-strings to avoid backslash issues
             em_dash = '\u2014'
-            daily_pnl_display = f"{'+' if pd.notna(daily_pnl) and daily_pnl > 0 else ''}{_fmt_currency(daily_pnl, currency_symbol) if pd.notna(daily_pnl) else em_dash}"
-            ret_display = _fmt_return(ret_pct) if pd.notna(ret_pct) else em_dash
+            daily_pnl_display = f"{'+' if daily_pnl is not None and daily_pnl > 0 else ''}{_fmt_currency(daily_pnl, currency_symbol) if daily_pnl is not None else em_dash}"
+            ret_display = _fmt_return(ret_pct) if ret_pct is not None else em_dash
 
             cells = [
                 ticker_cell,
                 company_cell,
                 f"<td style=\"{row_style}\">{row['Purchase']}</td>",
-                f"<td style=\"{row_style}\" class=\"right\">{_fmt_shares(row['Shares'])}</td>",
-                f"<td style=\"{row_style}\" class=\"right\">{_fmt_currency(row['Buy Price'], currency_symbol)}</td>",
+                f"<td style=\"{row_style}\" class=\"right\">{_fmt_shares(float(row['Shares']))}</td>",
+                f"<td style=\"{row_style}\" class=\"right\">{_fmt_currency(float(row['Buy Price']), currency_symbol)}</td>",
                 f"<td style=\"{row_style}\" class=\"right\">{row['Purchase Date']}</td>",
-                f"<td style=\"{row_style}\" class=\"right\">{_fmt_currency(row['Current Price'], currency_symbol)}</td>",
+                f"<td style=\"{row_style}\" class=\"right\">{_fmt_currency(float(row['Current Price']), currency_symbol)}</td>",
                 target_cell,
-                f"<td style=\"{row_style}\" class=\"right\">{_fmt_currency(row['Total Value'], currency_symbol)}</td>",
-                f"<td style=\"{row_style}\" class=\"right\">{_fmt_currency(row['Dividends'], currency_symbol)}</td>",
+                f"<td style=\"{row_style}\" class=\"right\">{_fmt_currency(float(row['Total Value']), currency_symbol)}</td>",
+                f"<td style=\"{row_style}\" class=\"right\">{_fmt_currency(float(row['Dividends']), currency_symbol)}</td>",
                 f"<td style=\"{row_style}\" class=\"{daily_cls} right\">{daily_pnl_display}</td>",
                 f"<td style=\"{row_style}\" class=\"{ret_cls} right\">{ret_display}</td>",
                 f"<td style=\"{row_style}\" class=\"right\">{row['Weight (%)']:.2f}%</td>",
@@ -373,7 +377,7 @@ def _build_mobile_position_cards(
         weight = group["Weight (%)"].sum()
         agg_rows.append({
             "Ticker": ticker,
-            "Company": name_map.get(ticker, ticker),
+            "Company": name_map.get(str(ticker), str(ticker)),
             "Shares": total_shares,
             "Total Value": total_val,
             "Daily P&L": daily,
@@ -482,7 +486,7 @@ def _build_price_history(
 
         ticker_currency = get_ticker_currency(t)
         fx_adjust = fx_switch.value
-        range_months = range_options.get(range_toggle.value, 6)  # None = Since purchase
+        range_months = range_options.get(str(range_toggle.value) if range_toggle.value is not None else "Since Purchase", 6)  # None = Since purchase
 
         lots = portfolio[t]
         hist = fetch_price_history_long(t)
@@ -528,7 +532,7 @@ def _build_price_history(
         # Determine the start date
         if range_months is None:
             # "Max" — show full history
-            effective_from = hist_converted.index[0]
+            effective_from = cast(pd.Timestamp, hist_converted.index[0])
         elif range_months == -1:
             # "Since purchase" — start 2 months before earliest purchase
             purchase_dates = [
@@ -537,9 +541,13 @@ def _build_price_history(
                 if lot.get("purchase_date")
             ]
             if purchase_dates:
-                effective_from = min(purchase_dates) - pd.DateOffset(months=2)
+                _earliest = min(purchase_dates)
+                if isinstance(_earliest, pd.Timestamp) and not pd.isnull(_earliest):
+                    effective_from = _earliest - pd.DateOffset(months=2)
+                else:
+                    effective_from = cast(pd.Timestamp, hist_converted.index[0])
             else:
-                effective_from = hist_converted.index[0]
+                effective_from = cast(pd.Timestamp, hist_converted.index[0])
         else:
             effective_from = pd.Timestamp.today() - pd.DateOffset(months=range_months)
 

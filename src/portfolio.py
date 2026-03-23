@@ -1,5 +1,6 @@
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import cast
 
 import yfinance as yf
 
@@ -76,7 +77,9 @@ def compute_analytics(
             aligned = pd.concat([daily_returns, bench_returns], axis=1, join="inner").dropna()
             aligned.columns = ["stock", "bench"]
             if len(aligned) >= 30 and aligned["bench"].var() > 0:
-                beta = float(aligned["stock"].cov(aligned["bench"]) / aligned["bench"].var())
+                stock_s = cast(pd.Series, aligned["stock"])
+                bench_s = cast(pd.Series, aligned["bench"])
+                beta = float(stock_s.cov(bench_s) / bench_s.var())
 
         rows.append({
             "Ticker":        ticker,
@@ -104,8 +107,8 @@ def _dividends_in_base_currency(
         if hist.empty or "Dividends" not in hist.columns:
             return 0.0
 
-        dividends = hist["Dividends"]
-        dividends = dividends[dividends > 0]
+        dividends = cast(pd.Series, hist["Dividends"])
+        dividends = cast(pd.Series, dividends[dividends > 0])
         if dividends.empty:
             return 0.0
 
@@ -150,7 +153,8 @@ def get_split_factor(ticker: str, purchase_date: str) -> float:
         splits = yf.Ticker(ticker).splits
         if splits.empty:
             return 1.0
-        after = splits[splits.index.tz_localize(None) > pd.Timestamp(purchase_date)]
+        splits_idx = cast(pd.DatetimeIndex, splits.index)
+        after = cast(pd.Series, splits[splits_idx.tz_localize(None) > pd.Timestamp(purchase_date)])
         if after.empty:
             return 1.0
         return float(after.prod())
@@ -170,7 +174,7 @@ def build_portfolio_df(portfolio: dict, base_currency: str) -> pd.DataFrame:
         return pd.DataFrame()
 
     # Batch-fetch all ticker prices in a single HTTP request
-    batch_data = yf.download(tickers, period="5d", group_by="ticker", progress=False, threads=True)
+    batch_data: pd.DataFrame = cast(pd.DataFrame, yf.download(tickers, period="5d", group_by="ticker", progress=False, threads=True))
 
     # Fetch FX rates and dividends in parallel
     def _fetch_extras(ticker):
@@ -196,15 +200,15 @@ def build_portfolio_df(portfolio: dict, base_currency: str) -> pd.DataFrame:
     for ticker, lots in portfolio.items():
         # Extract this ticker's data from the batch result
         if len(tickers) == 1:
-            data = batch_data
+            data: pd.DataFrame = cast(pd.DataFrame, batch_data)
         else:
             try:
-                data = batch_data[ticker]
+                data = cast(pd.DataFrame, batch_data[ticker])
             except (KeyError, TypeError):
                 continue
-        if data.empty or "Close" not in data.columns:
+        if data is None or data.empty or "Close" not in data.columns:
             continue
-        close = data["Close"].dropna()
+        close = cast(pd.Series, data["Close"]).dropna()
         if len(close) < 2:
             continue
 
@@ -399,7 +403,7 @@ def fetch_buy_price(ticker: str, purchase_date: str) -> tuple[float, str] | None
         hist = yf.Ticker(ticker).history(start=purchase_date, end=end)
         if hist.empty:
             return None
-        actual_date = str(hist.index[0].date())
+        actual_date = str(cast(pd.Timestamp, cast(pd.DatetimeIndex, hist.index)[0]).date())
         return round(hist["Close"].iloc[0], 2), actual_date
     except Exception:
         return None
@@ -428,13 +432,16 @@ def build_dividend_timeline(
             hist = yf.Ticker(ticker).history(start=cutoff_str, end=today_str)
             if hist.empty or "Dividends" not in hist.columns:
                 continue
-            divs = hist["Dividends"]
-            divs = divs[divs > 0]
+            divs = cast(pd.Series, hist["Dividends"])
+            divs = cast(pd.Series, divs[divs > 0])
             if divs.empty:
                 continue
 
             for date, amount in divs.items():
-                date_str = str(date.date()) if hasattr(date, "date") else str(date)[:10]
+                if isinstance(date, pd.Timestamp):
+                    date_str = str(date.date())
+                else:
+                    date_str = str(date)[:10]
                 month_key = date_str[:7]  # "YYYY-MM"
 
                 # Only count shares from lots purchased on or before this dividend date

@@ -3,6 +3,7 @@
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Any
 
 from src.data_fetch import load_stock_options
 
@@ -232,6 +233,14 @@ class BulkRow:
     manual_price: bool = False
     _cancelled: bool = False  # for cancelling in-flight fetches
 
+    # UI element references (set at render time, not part of __init__)
+    _base_currency: str = field(default="", init=False, repr=False)
+    _footer_refs: Any = field(default=None, init=False, repr=False)
+    ui_row_element: Any = field(default=None, init=False, repr=False)
+    ui_confirm_container: Any = field(default=None, init=False, repr=False)
+    ui_date_confirm: Any = field(default=None, init=False, repr=False)
+    ui_price_container: Any = field(default=None, init=False, repr=False)
+
     def is_empty(self) -> bool:
         return not self.ticker_input.strip()
 
@@ -343,9 +352,14 @@ async def _fetch_price_and_fx(row: BulkRow, base_currency: str):
     _update_price_cell(row)
 
     try:
-        ticker_ccy = await run.io_bound(get_ticker_currency, row.resolved_ticker)
+        if row.resolved_ticker is None:
+            row.price_status = "failed"
+            _update_price_cell(row)
+            return
+        resolved_ticker: str = row.resolved_ticker
+        ticker_ccy = await run.io_bound(get_ticker_currency, resolved_ticker)
 
-        price_task = run.io_bound(fetch_buy_price, row.resolved_ticker, row.parsed_date)
+        price_task = run.io_bound(fetch_buy_price, resolved_ticker, row.parsed_date or "")
         if ticker_ccy == base_currency:
 
             async def _unity():

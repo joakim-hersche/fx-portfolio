@@ -12,6 +12,8 @@ import datetime
 import json
 import logging
 import os
+from collections.abc import Callable
+from typing import cast
 from urllib.parse import quote
 
 import pandas as pd
@@ -496,7 +498,7 @@ function triggerSwipeHint() {
                         style = style.replace("border-left:1px solid rgba(59,130,246,0.2); ", "")
                     btn = ui.button(
                         ccy,
-                        on_click=lambda c=ccy: _on_pill_click(c),
+                        on_click=lambda _e, c=ccy: _on_pill_click(c),
                     ).props("flat dense no-caps size=sm unelevated").style(style)
                     currency_buttons[ccy] = btn
 
@@ -656,7 +658,7 @@ function triggerSwipeHint() {
                                             async def _apply():
                                                 from src.billing import apply_promo_code
                                                 result = await run.io_bound(
-                                                    apply_promo_code, auth_user_id, promo_input.value
+                                                    apply_promo_code, auth_user_id, promo_input.value if promo_input is not None else ""
                                                 )
                                                 if result == "ok":
                                                     ui.notify("Pro activated for 30 days!", type="positive")
@@ -810,7 +812,7 @@ function triggerSwipeHint() {
     }
 
     # Forward reference for mutation callback (defined after tab panels)
-    _mutation_ref = {"fn": None}
+    _mutation_ref: dict[str, Callable | None] = {"fn": None}
 
     # ── Sidebar (left drawer) ──────────────────────────────
     with ui.left_drawer(value=True, fixed=True).classes("sidebar").style(
@@ -867,7 +869,7 @@ function triggerSwipeHint() {
                         style = style.replace("border-left:1px solid rgba(59,130,246,0.2); ", "")
                     ui.button(
                         ccy,
-                        on_click=lambda c=ccy: _on_pill_click(c),
+                        on_click=lambda _e, c=ccy: _on_pill_click(c),
                     ).props("flat dense no-caps size=sm unelevated").style(style)
 
     # Close sidebar on mobile (it starts open for desktop, but covers everything on mobile)
@@ -1097,8 +1099,9 @@ function triggerSwipeHint() {
         await _build_tab(_active_tab["name"])
         # Refresh market status and sidebar
         market_status_indicator.refresh()
-        if _mutation_ref.get("sidebar_refresh"):
-            _mutation_ref["sidebar_refresh"]()
+        _sidebar_refresh = _mutation_ref.get("sidebar_refresh")
+        if _sidebar_refresh is not None:
+            _sidebar_refresh()
 
 
 # ── Domain redirect middleware ─────────────────────────────
@@ -1314,7 +1317,7 @@ async def admin_page(request: Request):
                 if not target:
                     ui.notify("User not found.", type="warning")
                     return
-                await run.io_bound(db.set_tier, target["id"], tier_select.value)
+                await run.io_bound(db.set_tier, target["id"], cast(str, tier_select.value))
                 ui.notify(f"Set {email_input.value} to {tier_select.value}.", type="positive")
                 ui.navigate.to("/admin")
 
@@ -1336,7 +1339,7 @@ async def admin_page(request: Request):
                 if not target:
                     ui.notify("User not found.", type="warning")
                     return
-                expires = datetime.now(timezone.utc) + timedelta(days=gift_days_select.value)
+                expires = datetime.now(timezone.utc) + timedelta(days=cast(int, gift_days_select.value))
                 await run.io_bound(db.set_tier, target["id"], "pro")
                 await run.io_bound(db.set_pro_expires, target["id"], expires)
                 log_security_event(ADMIN_ACTION, "MEDIUM", details={
@@ -1350,7 +1353,7 @@ async def admin_page(request: Request):
                 await run.io_bound(
                     _send_gift_email,
                     gift_email_input.value.strip().lower(),
-                    gift_days_select.value,
+                    cast(int, gift_days_select.value),
                     expires,
                 )
                 ui.notify(f"Gifted {gift_days_select.value} days Pro to {gift_email_input.value}.", type="positive")
@@ -1404,7 +1407,7 @@ async def admin_page(request: Request):
                 if len(existing) <= 1:
                     ui.notify("Cannot remove the last admin.", type="warning")
                     return
-                if rm_email == auth_email.lower():
+                if rm_email == cast(str, auth_email).lower():
                     ui.notify("Cannot remove yourself.", type="warning")
                     return
                 updated = [e for e in existing if e.lower() != rm_email]
@@ -1432,6 +1435,7 @@ ui.run(
     host=os.environ.get("HOST", "0.0.0.0"),
     port=int(os.environ.get("PORT", "8080")),
     dark=True,
+    reload=False,
     storage_secret=get_storage_secret(),
     reconnect_timeout=10.0,
     viewport="width=device-width, initial-scale=1, viewport-fit=cover",

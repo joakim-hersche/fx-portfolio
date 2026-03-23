@@ -8,7 +8,7 @@ EodProvider and update the factory; no other code changes required.
 import logging
 import statistics
 from datetime import datetime, timezone
-from typing import Protocol, runtime_checkable
+from typing import Protocol, cast, runtime_checkable
 
 import pandas as pd
 import yfinance as yf
@@ -46,14 +46,17 @@ class YFinanceProvider:
                 threads=True,
             )
             result: dict[str, float] = {}
+            if df is None:
+                return result
             if len(tickers) == 1:
                 ticker = tickers[0]
-                if "Close" in df.columns and not df["Close"].dropna().empty:
-                    result[ticker] = float(df["Close"].dropna().iloc[-1])
+                close_col = cast(pd.Series, df["Close"])
+                if "Close" in df.columns and not close_col.dropna().empty:
+                    result[ticker] = float(close_col.dropna().iloc[-1])
             else:
                 for ticker in tickers:
                     try:
-                        close = df[ticker]["Close"].dropna()
+                        close = cast(pd.Series, df[ticker]["Close"]).dropna()
                         if not close.empty:
                             result[ticker] = float(close.iloc[-1])
                     except (KeyError, TypeError):
@@ -68,7 +71,7 @@ class YFinanceProvider:
     def _safe_history(self, ticker: str, period: str) -> pd.DataFrame:
         try:
             hist = yf.Ticker(ticker).history(period=period)
-            hist.index = hist.index.tz_localize(None)
+            hist.index = cast(pd.DatetimeIndex, hist.index).tz_localize(None)
             return hist
         except Exception:
             return pd.DataFrame()
@@ -88,7 +91,7 @@ class YFinanceProvider:
             if hist.empty:
                 logger.warning("get_simulation_history(%s): empty DataFrame", ticker)
                 return pd.DataFrame()
-            hist.index = hist.index.tz_localize(None)
+            hist.index = cast(pd.DatetimeIndex, hist.index).tz_localize(None)
             logger.info("get_simulation_history(%s): %d rows", ticker, len(hist))
             return hist
         except Exception as e:

@@ -5,6 +5,7 @@ import datetime
 import io
 import json
 from concurrent.futures import ThreadPoolExecutor
+from typing import Optional, cast
 
 import pandas as pd
 from nicegui import run, ui
@@ -357,7 +358,7 @@ async def build_overview_tab(
 
             bar_rows = ""
             for _, row in alloc_df.iterrows():
-                ticker = row["Ticker"]
+                ticker = cast(str, row["Ticker"])
                 pct = row["Portfolio Share (%)"]
                 val = row["Total Value"]
                 bar_width = (pct / max_pct * 100) if max_pct > 0 else 0
@@ -561,7 +562,7 @@ async def build_comparison(
                 opacity = "1" if active else "0.35"
                 text_style = "text-decoration:line-through;" if not active else ""
 
-                with ui.button(on_click=lambda t=ticker: _toggle_ticker(t)).props(
+                with ui.button(on_click=lambda _e, t=ticker: _toggle_ticker(t)).props(
                     "flat dense no-caps"
                 ).style(
                     f"opacity:{opacity};border:1px solid {color}40;border-radius:20px;"
@@ -590,7 +591,7 @@ async def build_comparison(
 
     async def update_chart():
         chart_container.clear()
-        range_label = range_toggle.value
+        range_label: str = range_toggle.value or "6M"
         selected_range = range_options[range_label]
         fx_adjust = fx_switch.value
         show_bench = bench_switch.value
@@ -626,7 +627,7 @@ async def build_comparison(
                         return t, hist["Close"]
                     if fx_hist.empty:
                         return t, hist["Close"]
-                    fx_series = fx_hist["Close"].reindex(hist.index, method="ffill")
+                    fx_series = cast(pd.Series, fx_hist["Close"]).reindex(hist.index, method="ffill")
                     if ticker_currency == "GBX":
                         fx_series = fx_series / 100
                     return t, hist["Close"] * fx_series
@@ -664,10 +665,10 @@ async def build_comparison(
             if show_rf:
                 rf_label = f"Risk-Free ({risk_free_label(base_currency)})"
                 try:
-                    all_series = [s for s in data.values() if s is not None and not s.empty]
+                    all_series: list[pd.Series] = [cast(pd.Series, s) for s in data.values() if s is not None and not cast(pd.Series, s).empty]
                     if all_series:
-                        chart_start = min(s.index.min() for s in all_series)
-                        chart_end = max(s.index.max() for s in all_series)
+                        chart_start = cast(pd.Timestamp, min(cast(pd.Timestamp, s.index.min()) for s in all_series))
+                        chart_end = cast(pd.Timestamp, max(cast(pd.Timestamp, s.index.max()) for s in all_series))
                         # Fetch from well before chart range so we always have data
                         # even if the API lags behind the current date
                         fetch_start = str((chart_start - pd.DateOffset(years=1)).date())
@@ -678,7 +679,7 @@ async def build_comparison(
                             full_range = pd.date_range(start=yields.index.min(), end=chart_end, freq="D")
                             yields = yields.reindex(full_range).ffill().dropna()
                             # Trim to chart range
-                            yields = yields[yields.index >= chart_start]
+                            yields = cast(pd.Series, yields[yields.index >= chart_start])
                             if not yields.empty:
                                 daily_rate = (1 + yields / 100) ** (1 / 365) - 1
                                 rf_cumulative = (1 + daily_rate).cumprod() * 100
@@ -706,8 +707,8 @@ async def build_comparison(
         )
 
         # Add local market benchmark overlay
-        if show_bench and bench_series is not None and not bench_series.empty:
-            bench_rebased = bench_series / bench_series.iloc[0] * 100
+        if show_bench and bench_series is not None and not cast(pd.Series, bench_series).empty:
+            bench_rebased = cast(pd.Series, bench_series) / cast(pd.Series, bench_series).iloc[0] * 100
             import plotly.graph_objects as go
             fig.add_trace(go.Scatter(
                 x=bench_rebased.index, y=bench_rebased.values,
@@ -717,20 +718,23 @@ async def build_comparison(
             ))
 
         # Add risk-free rate overlay
-        if show_rf and rf_cumulative is not None and not rf_cumulative.empty:
+        if show_rf and rf_cumulative is not None and not cast(pd.Series, rf_cumulative).empty:
             import plotly.graph_objects as go
+            _rf_series = cast(pd.Series, rf_cumulative)
             fig.add_trace(go.Scatter(
-                x=rf_cumulative.index, y=rf_cumulative.values,
+                x=_rf_series.index, y=_rf_series.values,
                 mode="lines", name=rf_label,
                 line=dict(color="#10B981", width=2, dash="dash"),
                 hovertemplate=f"{rf_label}: %{{y:.1f}}<extra></extra>",
             ))
 
         # Apply ticker visibility toggles — match by trace name, not index
+        import plotly.graph_objects as go
         for trace in fig.data:
+            _trace = cast(go.Scatter, trace)
             for ticker, visible in ticker_visibility.items():
-                if ticker in trace.name:
-                    trace.visible = True if visible else "legendonly"
+                if ticker in (_trace.name or ""):
+                    _trace.visible = True if visible else "legendonly"
                     break
 
         if chart_height:
@@ -753,12 +757,13 @@ async def build_comparison(
         await _debounced_update()
 
     # Debounce rapid toggles (#27)
-    _debounce_timer = {"handle": None}
+    _debounce_handle: Optional[asyncio.Handle] = None
     async def _debounced_update(_=None):
-        if _debounce_timer["handle"]:
-            _debounce_timer["handle"].cancel()
+        nonlocal _debounce_handle
+        if _debounce_handle:
+            _debounce_handle.cancel()
         loop = asyncio.get_event_loop()
-        _debounce_timer["handle"] = loop.call_later(0.3, lambda: asyncio.ensure_future(update_chart()))
+        _debounce_handle = loop.call_later(0.3, lambda: asyncio.ensure_future(update_chart()))
     range_toggle.on_value_change(_debounced_update)
     fx_switch.on_value_change(_debounced_update)
     bench_switch.on_value_change(_debounced_update)
@@ -866,7 +871,7 @@ async def export_excel(portfolio: dict, currency: str) -> None:
         from src.ui.health import _compute_weighted_corr, _compute_portfolio_vol
 
         ticker_weights_dec = (
-            df.groupby("Ticker")["Weight (%)"].sum() / 100
+            cast(pd.Series, df.groupby("Ticker")["Weight (%)"].sum()) / 100
         ).to_dict()
 
         h_sectors: set[str] = set()
@@ -900,9 +905,9 @@ async def export_excel(portfolio: dict, currency: str) -> None:
         if _port_returns:
             _port_df = pd.DataFrame(_port_returns).dropna()
             if not _port_df.empty:
-                _port_daily = sum(
+                _port_daily = cast(pd.Series, sum(
                     _port_df[t] * ticker_weights_dec.get(t, 0) for t in _port_df.columns
-                )
+                ))
                 # Sharpe (same risk-free rate as compute_analytics)
                 from src.risk_free import fetch_risk_free_yields
                 try:
