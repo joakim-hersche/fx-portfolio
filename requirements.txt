@@ -11,7 +11,7 @@ cachetools==7.0.5
 nicegui==3.9.0
 cryptography==46.0.5
 psycopg[binary]==3.3.3
-bcrypt==4.3.0
+bcrypt==5.0.0
 resend==2.12.0
 stripe==14.4.1
 python-dotenv==1.2.2
