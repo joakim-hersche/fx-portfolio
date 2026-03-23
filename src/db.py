@@ -263,6 +263,14 @@ def init_schema() -> None:
     _migrate("ALTER TABLE auth_tokens ADD COLUMN expires_at %s DEFAULT NULL" %
              ("TIMESTAMP" if _backend == "postgres" else "TEXT"))
 
+    # F: generic key-value config (e.g. promo counters)
+    _execute("""
+        CREATE TABLE IF NOT EXISTS config (
+            key   TEXT PRIMARY KEY,
+            value TEXT NOT NULL DEFAULT '0'
+        )
+    """)
+
 
 # ── User queries ──────────────────────────────────────────
 
@@ -420,6 +428,36 @@ def get_all_users() -> list[dict]:
         for r in rows:
             r["email_verified"] = bool(r["email_verified"])
     return rows
+
+
+def get_registered_promo_count() -> int:
+    """Count users who got Pro via promo code (not Stripe)."""
+    row = _fetchone(
+        "SELECT COUNT(*) AS n FROM users"
+        " WHERE tier = 'pro' AND pro_expires_at IS NOT NULL"
+        " AND (stripe_subscription_id IS NULL OR stripe_subscription_id = '')"
+    )
+    return int(row["n"]) if row else 0
+
+
+def increment_guest_promo_count() -> None:
+    """Atomically increment the guest promo use counter."""
+    if _backend == "postgres":
+        _execute(
+            "INSERT INTO config (key, value) VALUES ('guest_promo_uses', '1')"
+            " ON CONFLICT (key) DO UPDATE SET value = (CAST(config.value AS INTEGER) + 1)::TEXT"
+        )
+    else:
+        _execute(
+            "INSERT INTO config (key, value) VALUES ('guest_promo_uses', '1')"
+            " ON CONFLICT(key) DO UPDATE SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT)"
+        )
+
+
+def get_guest_promo_count() -> int:
+    """Return total guest (no-account) promo uses."""
+    row = _fetchone("SELECT value FROM config WHERE key = 'guest_promo_uses'")
+    return int(row["value"]) if row else 0
 
 
 # ── Portfolio queries ─────────────────────────────────────

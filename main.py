@@ -1224,7 +1224,11 @@ async def admin_page(request: Request):
         return
 
     log_security_event(ADMIN_ACTION, "LOW", details={"email": auth_email, "action": "view_admin_dashboard"})
-    users = await run.io_bound(db.get_all_users)
+    users, promo_registered, promo_guest = await asyncio.gather(
+        run.io_bound(db.get_all_users),
+        run.io_bound(db.get_registered_promo_count),
+        run.io_bound(db.get_guest_promo_count),
+    )
 
     with ui.column().classes("w-full").style(f"background:{BG_MAIN}; min-height:100vh; padding:24px;"):
         ui.label("Admin Dashboard").style(
@@ -1238,7 +1242,12 @@ async def admin_page(request: Request):
         sub_count = sum(1 for u in users if u.get("stripe_subscription_id"))
 
         with ui.row().classes("gap-4 flex-wrap").style("margin-bottom:24px;"):
-            for label, value in [("Total users", total), ("Pro", pro_count), ("Free", free_count), ("Subscriptions", sub_count)]:
+            for label, value in [
+                ("Total users", total), ("Pro", pro_count), ("Free", free_count),
+                ("Subscriptions", sub_count),
+                ("Promo (registered)", promo_registered),
+                ("Promo (guest)", promo_guest),
+            ]:
                 with ui.card().style(
                     f"background:{BG_CARD}; border:1px solid rgba(255,255,255,0.08);"
                     f" border-radius:10px; padding:16px 24px; min-width:120px;"

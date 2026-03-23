@@ -100,6 +100,7 @@ def _build_login_form(container, on_login_success: callable):
                             from datetime import datetime, timedelta, timezone
                             expires = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
                             app.storage.user["guest_pro_expires"] = expires
+                            await run.io_bound(db.increment_guest_promo_count)
                             ui.navigate.to("/")
                             ui.notify(
                                 "Sign up to save your portfolio between sessions.",
