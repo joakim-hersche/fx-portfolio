@@ -155,8 +155,8 @@ async def _preload():
     db._init_connection()
     db.init_schema()
     app.state.stock_options = await run.io_bound(load_stock_options)
-    # Pre-warm 24h caches for sample portfolio tickers so first load is fast
-    await run.io_bound(_prewarm_caches)
+    # Fire cache warm in background so startup completes and /healthz responds immediately
+    asyncio.create_task(run.io_bound(_prewarm_caches))
     start_alert_scheduler()
 
 
