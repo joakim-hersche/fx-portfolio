@@ -97,7 +97,9 @@ def _build_login_form(container, on_login_success: callable):
                             return
                         from src.billing import validate_promo_code
                         if validate_promo_code(code):
-                            app.storage.user["guest_pro"] = True
+                            from datetime import datetime, timedelta, timezone
+                            expires = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
+                            app.storage.user["guest_pro_expires"] = expires
                             ui.navigate.to("/")
                             ui.notify(
                                 "Sign up to save your portfolio between sessions.",

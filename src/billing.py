@@ -47,8 +47,14 @@ def is_pro(user_id: str | None) -> bool:
     # Guest pro access via promo code (no account required)
     try:
         from nicegui import app as _app
-        if _app.storage.user.get("guest_pro"):
-            return True
+        guest_expires = _app.storage.user.get("guest_pro_expires")
+        if guest_expires:
+            expires_dt = datetime.fromisoformat(guest_expires)
+            if expires_dt.tzinfo is None:
+                expires_dt = expires_dt.replace(tzinfo=timezone.utc)
+            if datetime.now(timezone.utc) < expires_dt:
+                return True
+            del _app.storage.user["guest_pro_expires"]
     except Exception:
         pass
     if not user_id:
