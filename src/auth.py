@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import base64
 import datetime
+import logging
 import os
 import secrets
 import time
@@ -15,6 +16,12 @@ import bcrypt
 from cryptography.fernet import Fernet
 
 from src import db
+from src.security_logger import (
+    log_security_event, LOGIN_SUCCESS, LOGIN_FAILURE,
+    PASSWORD_RESET_REQ, PASSWORD_RESET_DONE, RATE_LIMIT_HIT,
+)
+
+_log = logging.getLogger(__name__)
 
 
 class ValidationError(Exception):
@@ -29,31 +36,74 @@ class RateLimitError(Exception):
     pass
 
 
-# ── Rate limiting (in-memory) ────────────────────────────
+# ── Rate limiting (Redis with in-memory fallback) ────────
 
-# In-memory only — resets on restart, not shared across processes.
-# Sufficient for single-process NiceGUI; would need Redis for multi-instance.
+_redis_client = None
+
+def _get_redis():
+    """Lazy-init Redis. Falls back to in-memory if unavailable."""
+    global _redis_client
+    if _redis_client is not None:
+        return _redis_client
+    redis_url = os.environ.get("REDIS_URL")
+    if redis_url:
+        try:
+            import redis
+            _redis_client = redis.Redis.from_url(redis_url, decode_responses=True)
+            _redis_client.ping()
+            _log.info("Rate limiter using Redis")
+            return _redis_client
+        except Exception:
+            _log.warning("Redis unavailable — falling back to in-memory rate limiter")
+    _redis_client = False  # sentinel: don't retry
+    return None
+
+# In-memory fallback (used when Redis is not available)
 _rate_limits: dict[str, list[float]] = {}
 
 _RATE_WINDOWS = {
     "login": (5, 900),       # 5 attempts per 15 min
     "verify": (5, 900),      # 5 attempts per 15 min
     "reset": (3, 3600),      # 3 per hour
+    "promo": (5, 3600),      # 5 promo attempts per hour
 }
 
 
 def _check_rate(action: str, key: str) -> None:
-    """Raise RateLimitError if too many attempts."""
+    """Raise RateLimitError if too many attempts. Uses Redis when available."""
     max_attempts, window = _RATE_WINDOWS[action]
-    rate_key = f"{action}:{key}"
+    rate_key = f"rl:{action}:{key}"
+
+    r = _get_redis()
+    if r:
+        # Redis sliding window: INCR + EXPIRE
+        count = r.incr(rate_key)
+        if count == 1:
+            r.expire(rate_key, window)
+        if count > max_attempts:
+            log_security_event(RATE_LIMIT_HIT, "HIGH", details={"action": action, "key": key})
+            raise RateLimitError("Too many attempts — try again later.")
+        return
+
+    # In-memory fallback
     now = time.monotonic()
     attempts = _rate_limits.get(rate_key, [])
-    # Prune old attempts
     attempts = [t for t in attempts if now - t < window]
     if len(attempts) >= max_attempts:
+        log_security_event(RATE_LIMIT_HIT, "HIGH", details={"action": action, "key": key})
         raise RateLimitError("Too many attempts — try again later.")
     attempts.append(now)
     _rate_limits[rate_key] = attempts
+
+
+def _clear_rate(action: str, key: str) -> None:
+    """Clear rate-limit counter on successful action."""
+    rate_key = f"rl:{action}:{key}"
+    r = _get_redis()
+    if r:
+        r.delete(rate_key)
+    else:
+        _rate_limits.pop(rate_key, None)
 
 
 # ── Key wrapping ──────────────────────────────────────────
@@ -118,13 +168,17 @@ def login(email: str, password: str) -> dict[str, Any]:
 
     user = db.get_user_by_email(email)
     if not user:
+        log_security_event(LOGIN_FAILURE, "MEDIUM", details={"email": email, "reason": "unknown_email"})
         raise AuthError("Invalid email or password.")
 
     if not bcrypt.checkpw(password.encode(), user["password_hash"].encode()):
+        log_security_event(LOGIN_FAILURE, "HIGH", user_id=user["id"], details={"email": email, "reason": "bad_password"})
         raise AuthError("Invalid email or password.")
 
     # Clear rate limit on successful login
-    _rate_limits.pop(f"login:{email}", None)
+    _clear_rate("login", email)
+
+    log_security_event(LOGIN_SUCCESS, "LOW", user_id=user["id"], details={"email": email})
 
     encryption_key = _unwrap_key(
         user["encryption_key"]
@@ -160,7 +214,7 @@ def verify_email(user_id: str, code: str) -> bool:
             return False
 
     db.mark_email_verified(user_id)
-    _rate_limits.pop(f"verify:{user_id}", None)
+    _clear_rate("verify", user_id)
     return True
 
 
@@ -168,7 +222,7 @@ def generate_new_verify_code(user_id: str) -> str:
     """Generate and store a fresh 6-digit code. Returns the code."""
     code = f"{secrets.randbelow(1_000_000):06d}"
     db.set_verify_code(user_id, code, minutes=15)
-    _rate_limits.pop(f"verify:{user_id}", None)
+    _clear_rate("verify", user_id)
     return code
 
 
@@ -188,9 +242,16 @@ def create_password_reset(email: str) -> str | None:
     if not user:
         return None
 
+    # Invalidate any existing reset tokens for this user
+    db.delete_password_resets_for_user(user["id"])
+
     raw_token = secrets.token_urlsafe(32)
     token_hash = bcrypt.hashpw(raw_token.encode(), bcrypt.gensalt()).decode()
-    db.create_password_reset(user["id"], token_hash, minutes=60)
+    # Store a fast-lookup prefix (first 8 chars of raw token) to avoid O(n) scan
+    token_prefix = raw_token[:8]
+    db.create_password_reset(user["id"], token_hash, minutes=60, token_prefix=token_prefix)
+
+    log_security_event(PASSWORD_RESET_REQ, "MEDIUM", user_id=user["id"], details={"email": email})
     return raw_token
 
 
@@ -202,10 +263,12 @@ def complete_password_reset(token: str, new_password: str) -> None:
     if len(new_password) < 8:
         raise ValidationError("Password must be at least 8 characters.")
 
-    # Scan all non-expired resets (brute-force safe: bcrypt comparison is slow)
-    # This is fine at low scale; at high scale you'd index by a token prefix.
+    # Use token prefix for fast lookup, then bcrypt verify for security
+    token_prefix = token[:8]
     now = datetime.datetime.now(datetime.timezone.utc)
-    for table_row in _all_active_resets():
+
+    candidates = db.find_resets_by_prefix(token_prefix)
+    for table_row in candidates:
         expires = datetime.datetime.fromisoformat(str(table_row["expires_at"]))
         if expires.tzinfo is None:
             expires = expires.replace(tzinfo=datetime.timezone.utc)
@@ -215,18 +278,10 @@ def complete_password_reset(token: str, new_password: str) -> None:
             new_hash = bcrypt.hashpw(new_password.encode(), bcrypt.gensalt()).decode()
             db.update_password_hash(table_row["user_id"], new_hash)
             db.delete_password_reset(table_row["id"])
+            log_security_event(PASSWORD_RESET_DONE, "MEDIUM", user_id=table_row["user_id"])
             return
 
     raise AuthError("Invalid or expired reset link.")
-
-
-def _all_active_resets() -> list[dict]:
-    """Return all non-expired password_reset rows."""
-    now = datetime.datetime.now(datetime.timezone.utc).isoformat()
-    ph = db._p(1)[0]
-    return db._fetchall(
-        f"SELECT * FROM password_resets WHERE expires_at > {ph}", (now,)
-    )
 
 
 # ── Persistent auth tokens ──────────────────────────────

@@ -5,8 +5,8 @@ history, fundamentals, and name lookups.
 """
 
 import hashlib
+import json
 import logging
-import pickle
 
 from cachetools import TTLCache, cached
 from cachetools.keys import hashkey
@@ -30,12 +30,20 @@ long_cache_splits = TTLCache(maxsize=256, ttl=86400)
 
 
 def _make_hashable(obj):
-    """Convert unhashable types (dict, list, DataFrame) to a hashable digest."""
+    """Convert unhashable types (dict, list, DataFrame) to a hashable digest.
+
+    Uses JSON serialisation instead of pickle to avoid RCE risk from
+    deserialising untrusted data.
+    """
     try:
         hash(obj)
         return obj
     except TypeError:
-        return hashlib.md5(pickle.dumps(obj, protocol=pickle.HIGHEST_PROTOCOL)).hexdigest()
+        # Use JSON for safe serialisation; fall back to repr for non-JSON types
+        try:
+            return hashlib.md5(json.dumps(obj, sort_keys=True, default=str).encode()).hexdigest()
+        except (TypeError, ValueError):
+            return hashlib.md5(repr(obj).encode()).hexdigest()
 
 
 

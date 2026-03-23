@@ -156,6 +156,109 @@ Treat this as an exhaustive audit — do not stop at the first finding per categ
 - No privacy policy or terms of service linked from the application
 - Analytics or third-party scripts loading without user consent mechanism where required
 
+### 16. Database Security
+- Unencrypted database connections or missing TLS requirement
+- No prepared statements / parameterized queries for Python (using string concatenation in queries)
+- Missing or weak database user permissions (overly privileged database users)
+- No database backup strategy or encrypted backups
+- Sensitive columns (portfolio values, financial data) not encrypted at rest
+- Database query logging enabled in production (exposing sensitive data)
+- No database activity monitoring or audit logs for financial transactions
+
+### 17. Cache Security
+- Sensitive data cached without expiration (user sessions, paywall status, subscription tokens)
+- Cache invalidation logic missing or incomplete
+- Shared cache across users or tenants (cache poisoning risk)
+- Cache keys predictable or enumerable by attackers
+- No cache encryption for distributed caches (Redis, Memcached)
+- Session data stored in cache without proper isolation
+
+### 18. Third-Party API Integration & Data Fetching
+- External API credentials (stock data providers, FX rates) stored insecurely
+- Non-HTTPS calls to external APIs or services
+- No validation of data returned from external APIs (injection risk)
+- Missing authentication/verification for webhook callbacks from data providers
+- No retry logic with exponential backoff for API timeouts
+- API rate limits from external providers not respected (risk of IP blocking)
+- No fallback or circuit breaker for failed data fetches
+- Cached financial data not refreshed at appropriate intervals
+
+### 19. Background Jobs & Async Tasks
+- Job queue credentials or connection strings stored insecurely
+- Background jobs not logging execution for audit trail
+- Failed jobs silently dropped without alerting
+- Job data (portfolio calculations, financial metrics) not encrypted in queue
+- No idempotency handling for retried financial calculations
+- Sensitive data passed in job arguments instead of job ID references
+- No timeout on long-running background tasks
+
+### 20. Cryptography & Key Management
+- Encryption/decryption using weak algorithms (DES, RC4)
+- Hardcoded encryption keys in source code
+- Same encryption key used across environments
+- No key rotation policy in place
+- Random number generation using non-cryptographic generators (random module instead of secrets)
+- Encrypted data stored without IV or salt
+
+### 21. Financial Data Security & Compliance
+- Portfolio calculations or valuations performed client-side and trusted on server
+- No audit trail for financial transactions, portfolio changes, or trade execution
+- Foreign exchange rates or stock prices from unverified sources
+- No validation that FX rates are recent (stale data risk)
+- PII combined with financial data without segregation (joint encryption/access model)
+- No protection against concurrent modifications of portfolio (race conditions)
+- Financial data transmitted unencrypted or without additional encryption layer
+- No compliance audit trail for regulatory requirements (SOX, GDPR, financial regulations)
+
+### 22. Service Worker & Progressive Web App Security
+- Service Worker scripts not versioned or integrity-checked
+- Service Worker caching stale financial data
+- No Content-Security-Policy (CSP) headers restricting Service Worker scope
+- Service Worker initialization code open to modification
+- Offline mode exposing sensitive financial data without re-authentication
+- Service Worker requests not authenticated or validated
+- Stale Service Worker updates not forcing user re-authentication for sensitive operations
+
+### 23. API Rate Limiting & Abuse Prevention
+- Data export, PDF generation, or report endpoints not rate limited
+- WebSocket connections or streaming endpoints not rate limited
+- No abuse detection for unusual portfolio activity or bulk data fetches
+- Bot detection or CAPTCHA missing on sensitive endpoints
+- DDoS protection not implemented (Cloudflare, AWS Shield, etc.)
+
+### 24. Monitoring, Alerting & Incident Response
+- No alerting on suspicious activity: failed auth, bulk data access, unusual API usage
+- No alerting on payment failures or subscription issues
+- No monitoring of external data feed failures (stock/FX provider down)
+- No alert for certificate expiry, key rotation due dates
+- No incident response plan or runbook for security events
+- Critical errors not escalating appropriately
+
+### 25. Mobile & Client-Side Security (if applicable)
+- Financial data stored unencrypted in local storage or IndexedDB
+- API credentials or tokens stored locally accessible to scripts
+- No certificate pinning for API calls to mobile app
+- App version checks not forcing security updates
+- No timeout for inactive sessions on mobile
+
+### 26. Dependency & Library Version Management
+- `requirements.txt` or equivalent lockfile missing or using unpinned versions (e.g., `Flask>=2.0` instead of `Flask==2.3.1`)
+- Outdated library versions with known CVEs (check with `pip audit`, `pip-audit`, or Snyk)
+- Dependencies not scanned automatically (no CI/CD checks for vulnerable versions)
+- No documented dependency update strategy or schedule
+- Security patches not being applied promptly for critical vulnerabilities
+- Transitive dependencies (dependencies of dependencies) not tracked or audited
+- No version pinning for production deployments
+- Abandoned or unmaintained libraries still in use (check last update date on PyPI)
+- No separate dev/test and production dependency groups (e.g., `requirements-dev.txt`)
+- Pinned versions too old (preventing security updates from being applied)
+- No automated dependency update tooling (Dependabot, Renovate) configured in CI/CD
+- Breaking changes in minor or patch versions causing unexpected failures
+- Security advisories from GitHub/PyPI not monitored or acted upon
+- Docker base images not regularly updated or scanning for vulnerabilities
+- Framework versions (Flask, FastAPI, Django, Streamlit) outdated or end-of-life
+- Python version itself outdated or no longer receiving security updates (e.g., Python < 3.8)
+
 ---
 
 ## Output Format

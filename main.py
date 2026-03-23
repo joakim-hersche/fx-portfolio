@@ -58,6 +58,7 @@ from src import db
 from src.ui.auth import show_auth_ui, build_reset_complete_form
 from src.alert_job import start_alert_scheduler
 from src.billing import is_pro, is_tab_locked, create_portal_session, is_admin, FREE_POSITION_LIMIT
+from src.security_logger import log_security_event, UNAUTHORIZED_ACCESS, ADMIN_ACTION
 from src.ui.paywall import render_locked_overlay, build_pricing_page
 from src.ui.sidebar import build_sidebar
 from src.theme import (
@@ -1121,9 +1122,46 @@ class _SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com; "
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+            "font-src 'self' https://fonts.gstatic.com; "
+            "img-src 'self' data: blob:; "
+            "connect-src 'self' wss: ws: https://api.stripe.com; "
+            "frame-src https://js.stripe.com; "
+            "frame-ancestors 'none'; "
+            "base-uri 'self'; "
+            "form-action 'self'"
+        )
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         return response
 
 app.add_middleware(_SecurityHeadersMiddleware)
+
+# ── Global rate limit middleware ───────────────────────────
+import time as _time
+_global_rate: dict[str, list[float]] = {}
+_GLOBAL_RATE_MAX = 120   # requests per window
+_GLOBAL_RATE_WINDOW = 60  # seconds
+
+class _GlobalRateLimitMiddleware(BaseHTTPMiddleware):
+    """Per-IP rate limit across all endpoints (120 req/min)."""
+    async def dispatch(self, request, call_next):
+        ip = request.client.host if request.client else "unknown"
+        now = _time.monotonic()
+        hits = _global_rate.get(ip, [])
+        hits = [t for t in hits if now - t < _GLOBAL_RATE_WINDOW]
+        if len(hits) >= _GLOBAL_RATE_MAX:
+            from starlette.responses import JSONResponse
+            return JSONResponse({"error": "Rate limit exceeded"}, status_code=429,
+                                headers={"Retry-After": str(_GLOBAL_RATE_WINDOW)})
+        hits.append(now)
+        _global_rate[ip] = hits
+        return await call_next(request)
+
+app.add_middleware(_GlobalRateLimitMiddleware)
 
 @ui.page("/reset")
 async def reset_page(token: str = ""):
@@ -1181,9 +1219,11 @@ async def admin_page(request: Request):
     await _restore_session_from_cookie(request)
     auth_email = app.storage.user.get("auth_email")
     if not is_admin(auth_email):
+        log_security_event(UNAUTHORIZED_ACCESS, "HIGH", details={"email": auth_email, "path": "/admin"})
         ui.label("Access denied.").style(f"color:{TEXT_MUTED}; padding:40px;")
         return
 
+    log_security_event(ADMIN_ACTION, "LOW", details={"email": auth_email, "action": "view_admin_dashboard"})
     users = await run.io_bound(db.get_all_users)
 
     with ui.column().classes("w-full").style(f"background:{BG_MAIN}; min-height:100vh; padding:24px;"):
@@ -1290,6 +1330,13 @@ async def admin_page(request: Request):
                 expires = datetime.now(timezone.utc) + timedelta(days=gift_days_select.value)
                 await run.io_bound(db.set_tier, target["id"], "pro")
                 await run.io_bound(db.set_pro_expires, target["id"], expires)
+                log_security_event(ADMIN_ACTION, "MEDIUM", details={
+                    "admin_email": app.storage.user.get("auth_email"),
+                    "action": "gift_pro",
+                    "target_user_id": target["id"],
+                    "target_email": gift_email_input.value.strip().lower(),
+                    "days": gift_days_select.value,
+                })
                 # Send gift notification email
                 await run.io_bound(
                     _send_gift_email,

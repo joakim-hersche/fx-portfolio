@@ -2,18 +2,38 @@
 .claude/
 __pycache__/
 *.pyc
+*.pyo
+*.egg-info/
 .env
 .DS_Store
 .nicegui/
+.pytest_cache/
+.mcp.json
+.worktrees/
+.superpowers/
+.github/
+venv/
+.venv/
+
+# Not needed in production image
+tests/
+conftest.py
+docs/
+logs/
+data/
 Screenshots/
 audit_screenshots/
 demo_raw/
+
+# Docs & metadata
+*.md
+LICENSE
+fly.toml
+
+# Artifacts
 *.webm
 *.xlsx
 *.gif
-explainer_day_*.md
-MIGRATION_PLAN.md
-TODO.md
 design_proposal.html
 record_demo.py
 take_screenshots.py

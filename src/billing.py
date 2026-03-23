@@ -11,6 +11,9 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from src import db
+from src.security_logger import (
+    log_security_event, SUBSCRIPTION_CHANGED, PROMO_CODE_ATTEMPT,
+)
 
 _log = logging.getLogger(__name__)
 
@@ -72,17 +75,26 @@ def is_tab_locked(tab_name: str) -> bool:
 
 
 def apply_promo_code(user_id: str, code: str) -> str:
-    """Apply a promo code. Returns 'ok', 'invalid', or 'already_used'."""
+    """Apply a promo code. Returns 'ok', 'invalid', 'already_used', or 'rate_limited'."""
+    from src.auth import _check_rate, RateLimitError
+    try:
+        _check_rate("promo", user_id)
+    except RateLimitError:
+        log_security_event(PROMO_CODE_ATTEMPT, "HIGH", user_id=user_id, details={"result": "rate_limited"})
+        return "rate_limited"
     expected = os.environ.get("PROMO_CODE", "")
     if not expected or code.strip().upper() != expected.strip().upper():
+        log_security_event(PROMO_CODE_ATTEMPT, "MEDIUM", user_id=user_id, details={"result": "invalid"})
         return "invalid"
     user = db.get_user_by_id(user_id)
     if not user:
         return "invalid"
     if user.get("pro_expires_at") is not None:
+        log_security_event(PROMO_CODE_ATTEMPT, "LOW", user_id=user_id, details={"result": "already_used"})
         return "already_used"
     db.set_tier(user_id, "pro")
     db.set_pro_expires(user_id, datetime.now(timezone.utc) + timedelta(days=30))
+    log_security_event(PROMO_CODE_ATTEMPT, "LOW", user_id=user_id, details={"result": "ok"})
     return "ok"
 
 
@@ -160,6 +172,7 @@ def handle_checkout_completed(user_id: str, customer_id: str, subscription_id: s
     db.set_tier(user_id, "pro")
     db.set_stripe_ids(user_id, customer_id, subscription_id)
     db.set_pro_expires(user_id, None)  # Clear any promo expiry
+    log_security_event(SUBSCRIPTION_CHANGED, "LOW", user_id=user_id, details={"action": "upgrade_to_pro", "customer_id": customer_id})
 
 
 def handle_subscription_deleted(customer_id: str) -> None:
@@ -170,6 +183,7 @@ def handle_subscription_deleted(customer_id: str) -> None:
         return
     db.set_tier(user["id"], "free")
     db.set_stripe_ids(user["id"], customer_id, None)
+    log_security_event(SUBSCRIPTION_CHANGED, "MEDIUM", user_id=user["id"], details={"action": "downgrade_to_free", "customer_id": customer_id})
 
 
 # ── Admin helpers ─────────────────────────────────────────

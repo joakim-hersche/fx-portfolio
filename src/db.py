@@ -234,6 +234,9 @@ def init_schema() -> None:
         )
     """)
 
+    # Password reset prefix column for fast token lookup
+    _migrate("ALTER TABLE password_resets ADD COLUMN token_prefix TEXT DEFAULT NULL")
+
     # D: persistent auth tokens (survive server restarts)
     if _backend == "postgres":
         _execute("""
@@ -241,7 +244,8 @@ def init_schema() -> None:
                 id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 user_id     UUID REFERENCES users(id) ON DELETE CASCADE,
                 token_hash  TEXT NOT NULL,
-                created_at  TIMESTAMP DEFAULT now()
+                created_at  TIMESTAMP DEFAULT now(),
+                expires_at  TIMESTAMP
             )
         """)
     else:
@@ -250,9 +254,14 @@ def init_schema() -> None:
                 id          TEXT PRIMARY KEY,
                 user_id     TEXT REFERENCES users(id) ON DELETE CASCADE,
                 token_hash  TEXT NOT NULL,
-                created_at  TEXT
+                created_at  TEXT,
+                expires_at  TEXT
             )
         """)
+
+    # Auth token expiry column (migration for existing tables)
+    _migrate("ALTER TABLE auth_tokens ADD COLUMN expires_at %s DEFAULT NULL" %
+             ("TIMESTAMP" if _backend == "postgres" else "TEXT"))
 
 
 # ── User queries ──────────────────────────────────────────
@@ -441,16 +450,16 @@ def upsert_portfolio(user_id: str, data: bytes) -> None:
 # ── Password reset queries ───────────────────────────────
 
 
-def create_password_reset(user_id: str, token_hash: str, minutes: int) -> None:
+def create_password_reset(user_id: str, token_hash: str, minutes: int, token_prefix: str | None = None) -> None:
     reset_id = str(uuid.uuid4())
     expires = (
         datetime.datetime.now(datetime.timezone.utc)
         + datetime.timedelta(minutes=minutes)
     ).isoformat()
-    ph = _p(4)
+    ph = _p(5)
     _execute(
-        f"INSERT INTO password_resets (id, user_id, token_hash, expires_at) VALUES ({', '.join(ph)})",
-        (reset_id, user_id, token_hash, expires),
+        f"INSERT INTO password_resets (id, user_id, token_hash, expires_at, token_prefix) VALUES ({', '.join(ph)})",
+        (reset_id, user_id, token_hash, expires, token_prefix),
     )
 
 
@@ -461,6 +470,22 @@ def get_password_resets(user_id: str) -> list[dict]:
     )
 
 
+def find_resets_by_prefix(token_prefix: str) -> list[dict]:
+    """Look up password resets by their token prefix for fast candidate narrowing."""
+    now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    ph = _p(2)
+    return _fetchall(
+        f"SELECT * FROM password_resets WHERE token_prefix = {ph[0]} AND expires_at > {ph[1]}",
+        (token_prefix, now),
+    )
+
+
+def delete_password_resets_for_user(user_id: str) -> None:
+    """Delete all password reset tokens for a user (invalidate previous requests)."""
+    ph = _p(1)[0]
+    _execute(f"DELETE FROM password_resets WHERE user_id = {ph}", (user_id,))
+
+
 def delete_password_reset(reset_id: str) -> None:
     ph = _p(1)[0]
     _execute(f"DELETE FROM password_resets WHERE id = {ph}", (reset_id,))
@@ -469,14 +494,18 @@ def delete_password_reset(reset_id: str) -> None:
 # ── Auth token queries (persistent login) ────────────────
 
 
+AUTH_TOKEN_MAX_AGE_DAYS = 30
+
+
 def create_auth_token(user_id: str, token_hash: str) -> None:
-    """Store a hashed auth token for persistent login."""
+    """Store a hashed auth token for persistent login (expires in 30 days)."""
     token_id = str(uuid.uuid4())
-    now = datetime.datetime.now(datetime.timezone.utc).isoformat()
-    ph = _p(4)
+    now = datetime.datetime.now(datetime.timezone.utc)
+    expires = (now + datetime.timedelta(days=AUTH_TOKEN_MAX_AGE_DAYS)).isoformat()
+    ph = _p(5)
     _execute(
-        f"INSERT INTO auth_tokens (id, user_id, token_hash, created_at) VALUES ({', '.join(ph)})",
-        (token_id, user_id, token_hash, now),
+        f"INSERT INTO auth_tokens (id, user_id, token_hash, created_at, expires_at) VALUES ({', '.join(ph)})",
+        (token_id, user_id, token_hash, now.isoformat(), expires),
     )
 
 
@@ -499,9 +528,30 @@ def delete_auth_token(token_id: str) -> None:
 
 
 def find_auth_token_by_hash(token_hash: str) -> dict | None:
-    """Look up an auth token by its hash."""
+    """Look up a non-expired auth token by its hash."""
+    now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    ph = _p(2)
+    return _fetchone(
+        f"SELECT * FROM auth_tokens WHERE token_hash = {ph[0]}"
+        f" AND (expires_at IS NULL OR expires_at > {ph[1]})",
+        (token_hash, now),
+    )
+
+
+def delete_expired_auth_tokens() -> None:
+    """Purge expired auth tokens."""
+    now = datetime.datetime.now(datetime.timezone.utc).isoformat()
     ph = _p(1)[0]
-    return _fetchone(f"SELECT * FROM auth_tokens WHERE token_hash = {ph}", (token_hash,))
+    _execute(f"DELETE FROM auth_tokens WHERE expires_at IS NOT NULL AND expires_at <= {ph}", (now,))
+
+
+def delete_user_account(user_id: str) -> None:
+    """Delete a user and all associated data (GDPR right to erasure).
+
+    CASCADE constraints handle portfolios, auth_tokens, password_resets.
+    """
+    ph = _p(1)[0]
+    _execute(f"DELETE FROM users WHERE id = {ph}", (user_id,))
 
 
 # ── Stock ticker cache ──────────────────────────────────
