@@ -36,7 +36,8 @@ from src.theme import (
     AMBER,
     ACCENT,
 )
-
+# Unicode symbols
+APPROX = '\u2248'
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -368,7 +369,7 @@ async def _render_portfolio_fit(
             alloc_value = total_val * 0.05
             shares = alloc_value / price
             currency_symbol = CURRENCY_SYMBOLS.get(currency, "$")
-            sim_label += f" ({shares:,.1f} shares \u2248 {currency_symbol}{alloc_value:,.0f})"
+            sim_label += f" ({shares:,.1f} shares {APPROX} {currency_symbol}{alloc_value:,.0f})"
         ui.label(sim_label).style(
             f"font-size:11px;color:{TEXT_DIM};margin-bottom:6px;"
         )

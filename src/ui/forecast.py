@@ -43,6 +43,9 @@ from src.theme import (
     AMBER,
 )
 
+# Unicode symbols
+EM_DASH = '\u2014'
+
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -320,7 +323,7 @@ def _render_position_outlook(
     from concurrent.futures import ThreadPoolExecutor
     with ThreadPoolExecutor(max_workers=min(10, len(tickers))) as _ex:
         _name_pairs = list(_ex.map(lambda t: (t, fetch_company_name(t)), tickers))
-    ticker_names = {t: f"{t} \u2014 {name}" for t, name in _name_pairs}
+    ticker_names = {t: f"{t} {EM_DASH} {name}" for t, name in _name_pairs}
     horizon_options = {"3 months": 63, "6 months": 126, "1 year": 252}
     lookback_options = {"1 year": 252, "2 years": 504, "5 years": None}
 
@@ -636,8 +639,8 @@ def _render_model_diagnostics(
 
     # Ticker selector for QQ plot
     ticker_names = {
-        t: f"{t} \u2014 {diag[t]['verdict'][:50]}" if len(diag[t]["verdict"]) > 50
-        else f"{t} \u2014 {diag[t]['verdict']}"
+        t: f"{t} {EM_DASH} {diag[t]['verdict'][:50]}" if len(diag[t]["verdict"]) > 50
+        else f"{t} {EM_DASH} {diag[t]['verdict']}"
         for t in diag_tickers
     }
     qq_select = ui.select(

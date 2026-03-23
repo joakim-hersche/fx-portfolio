@@ -34,6 +34,10 @@ from src.theme import (
     TEXT_SECONDARY,
 )
 
+# Unicode symbols
+RIGHT_POINTING = '\u25ba'
+RIGHT_ARROW = '\u2192'
+
 
 # ---------------------------------------------------------------------------
 # Positions table
@@ -124,7 +128,7 @@ def _build_positions_table(
                     total_cost_t = group["Cost Basis"].sum()
                     total_divs_t = group["Dividends"].sum()
                     summary = {
-                        "Ticker": f"\u25ba {ticker}",
+                        "Ticker": f"{RIGHT_POINTING} {ticker}",
                         "Purchase": "Total",
                         "Shares": group["Shares"].sum(),
                         "Buy Price": round(total_cost_t / group["Shares"].sum(), 2),
@@ -256,6 +260,11 @@ def _build_positions_table(
             else:
                 company_cell = f'<td style="{row_style}font-size:11px;color:{TEXT_MUTED};">{company}</td>'
 
+            # Format display values outside f-strings to avoid backslash issues
+            em_dash = '\u2014'
+            daily_pnl_display = f"{'+' if pd.notna(daily_pnl) and daily_pnl > 0 else ''}{_fmt_currency(daily_pnl, currency_symbol) if pd.notna(daily_pnl) else em_dash}"
+            ret_display = _fmt_return(ret_pct) if pd.notna(ret_pct) else em_dash
+
             cells = [
                 ticker_cell,
                 company_cell,
@@ -267,8 +276,8 @@ def _build_positions_table(
                 target_cell,
                 f"<td style=\"{row_style}\" class=\"right\">{_fmt_currency(row['Total Value'], currency_symbol)}</td>",
                 f"<td style=\"{row_style}\" class=\"right\">{_fmt_currency(row['Dividends'], currency_symbol)}</td>",
-                f"<td style=\"{row_style}\" class=\"{daily_cls} right\">{'+' if pd.notna(daily_pnl) and daily_pnl > 0 else ''}{_fmt_currency(daily_pnl, currency_symbol) if pd.notna(daily_pnl) else '\u2014'}</td>",
-                f"<td style=\"{row_style}\" class=\"{ret_cls} right\">{_fmt_return(ret_pct) if pd.notna(ret_pct) else '\u2014'}</td>",
+                f"<td style=\"{row_style}\" class=\"{daily_cls} right\">{daily_pnl_display}</td>",
+                f"<td style=\"{row_style}\" class=\"{ret_cls} right\">{ret_display}</td>",
                 f"<td style=\"{row_style}\" class=\"right\">{row['Weight (%)']:.2f}%</td>",
             ]
 
@@ -300,6 +309,8 @@ def _build_positions_table(
         total_daily_cls = _color_class(total_daily)
 
         ts = f"font-size:10px;color:{TEXT_DIM};"
+        up_arrow = '\u25b2'
+        down_arrow = '\u25bc'
         total_row = (
             f'<tr style="background:rgba(22,163,74,0.04);">'
             f'<td><div style="display:flex;align-items:center;gap:6px;{ts}font-weight:700;">TOTAL</div></td>'
@@ -313,7 +324,7 @@ def _build_positions_table(
             f'<td style="font-weight:700;color:{TEXT_PRIMARY};" class="right">{_fmt_currency(total_value, currency_symbol)}</td>'
             f'<td style="{ts}" class="right">{_fmt_currency(total_divs, currency_symbol)}</td>'
             f'<td class="{total_daily_cls} right">{"+" if total_daily > 0 else ""}{_fmt_currency(total_daily, currency_symbol)}</td>'
-            f'<td class="right"><span class="kpi-badge {"badge-green" if total_ret_pct >= 0 else "badge-red"}" style="font-size:11px;">{"\u25b2" if total_ret_pct >= 0 else "\u25bc"} {_fmt_return(total_ret_pct)}</span></td>'
+            f'<td class="right"><span class="kpi-badge {"badge-green" if total_ret_pct >= 0 else "badge-red"}" style="font-size:11px;">{up_arrow if total_ret_pct >= 0 else down_arrow} {_fmt_return(total_ret_pct)}</span></td>'
             f'<td style="{ts}" class="right">100.00%</td>'
             f'</tr>'
         )
@@ -539,7 +550,7 @@ def _build_price_history(
         if fx_adjust:
             fx_rate, fx_ok = get_fx_rate(ticker_currency, base_currency)
             if not fx_ok:
-                ui.notify(f"FX rate unavailable for {ticker_currency}\u2192{base_currency}, showing unconverted values", type="warning")
+                ui.notify(f"FX rate unavailable for {ticker_currency}{RIGHT_ARROW}{base_currency}, showing unconverted values", type="warning")
         else:
             fx_rate = 1.0
         date_to = pd.Timestamp.today()

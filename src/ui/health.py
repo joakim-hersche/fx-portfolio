@@ -47,6 +47,9 @@ from src.theme import (
     ACCENT,
 )
 
+# Unicode symbols
+TIMES = '\u00d7'
+
 
 _ASSET_CLASS_SECTORS: dict[str, str] = {}
 for _label, _fn in [
@@ -485,7 +488,7 @@ def _render_flat_table(
                 f'<td class="{sharpe_cls} right">{_fmt(sharpe, "{:.1f}")}</td>'
                 f'<td class="{sortino_cls} right">{_fmt(sortino, "{:.1f}")}</td>'
                 f'<td class="right">{_fmt(beta, "{:.1f}")}</td>'
-                f'<td class="right">{_fmt(pe, "{:.0f}\u00d7")}</td>'
+                f'<td class="right">{_fmt(pe, f"{{:.0f}}{TIMES}")}</td>'
                 f'<td class="right">{_fmt(div_yield, "{:.1f}%")}</td>'
                 f'<td>{range_html}</td>'
                 f'<td class="right">{current_html}</td>'

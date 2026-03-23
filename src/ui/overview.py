@@ -27,6 +27,10 @@ from src.theme import (
     TEXT_DIM, TEXT_MUTED, TEXT_PRIMARY, TEXT_SECONDARY,
 )
 
+# Unicode symbols for f-strings
+UP_ARROW = '\u25b2'
+DOWN_ARROW = '\u25bc'
+
 
 async def build_overview_tab(
     portfolio: dict, currency: str, portfolio_color_map: dict[str, str],
@@ -244,7 +248,7 @@ async def build_overview_tab(
         "Total Return",
         f"{sign_ret}{currency_symbol}{total_return:,.2f}",
         ret_color,
-        line1=f'<span class="kpi-badge {"badge-green" if total_return >= 0 else "badge-red"}" style="margin-top:6px;">{"\u25b2" if total_return >= 0 else "\u25bc"} {sign_ret}{total_ret_pct:,.2f}%</span>',
+        line1=f'<span class="kpi-badge {"badge-green" if total_return >= 0 else "badge-red"}" style="margin-top:6px;">{UP_ARROW if total_return >= 0 else DOWN_ARROW} {sign_ret}{total_ret_pct:,.2f}%</span>',
         line2=return_sub or spacer_sm,
         hero=True,
     )
@@ -253,7 +257,7 @@ async def build_overview_tab(
         "Today's Change",
         f"{sign_pnl}{currency_symbol}{daily_pnl:,.2f}",
         pnl_color,
-        line1=f'<span class="kpi-badge {"badge-green" if daily_pnl >= 0 else "badge-red"}" style="margin-top:5px; font-size:11px;">{"\u25b2" if daily_pnl >= 0 else "\u25bc"} {sign_pnl}{daily_pnl_pct:,.2f}%</span>',
+        line1=f'<span class="kpi-badge {"badge-green" if daily_pnl >= 0 else "badge-red"}" style="margin-top:5px; font-size:11px;">{UP_ARROW if daily_pnl >= 0 else DOWN_ARROW} {sign_pnl}{daily_pnl_pct:,.2f}%</span>',
         line2=f'<div class="kpi-sub">Since yesterday\'s close</div>',
         font_size="20px",
     )
