@@ -1,6 +1,6 @@
 yfinance==1.2.0
 pandas==3.0.1
-numpy==2.4.2
+numpy==2.4.3
 plotly==6.6.0
 requests==2.32.5
 lxml==6.0.2
