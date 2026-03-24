@@ -17,8 +17,10 @@ primary_region = 'fra'
   processes = ['app']
 
 [[http_service.checks]]
-  grace_period = "120s"
-  interval = "15s"
+  # Fly caps http_service grace_period at 60s regardless of what is set here.
+  # Setting it explicitly to 60s so configured value matches effective value.
+  grace_period = "60s"
+  interval = "10s"
   method = "GET"
   path = "/healthz"
   timeout = "5s"
