@@ -10,7 +10,7 @@ statsmodels==0.14.6
 arch>=6.0
 cachetools==7.0.5
 nicegui==3.8.0
-cryptography==46.0.5
+cryptography==46.0.6
 psycopg[binary]==3.2.9
 bcrypt==4.3.0
 resend==2.12.0
